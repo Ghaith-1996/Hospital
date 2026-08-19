@@ -1,0 +1,81 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Domain", "CriticalAlerts.Domain\CriticalAlerts.Domain.csproj", "{A1B2C3D4-1001-4E01-9001-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Application", "CriticalAlerts.Application\CriticalAlerts.Application.csproj", "{A1B2C3D4-1002-4E02-9002-000000000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Infrastructure", "CriticalAlerts.Infrastructure\CriticalAlerts.Infrastructure.csproj", "{A1B2C3D4-1003-4E03-9003-000000000003}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Api", "CriticalAlerts.Api\CriticalAlerts.Api.csproj", "{A1B2C3D4-1004-4E04-9004-000000000004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Worker", "CriticalAlerts.Worker\CriticalAlerts.Worker.csproj", "{A1B2C3D4-1005-4E05-9005-000000000005}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Connector", "CriticalAlerts.Connector\CriticalAlerts.Connector.csproj", "{A1B2C3D4-1006-4E06-9006-000000000006}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Domain.Tests", "..\..\tests\CriticalAlerts.Domain.Tests\CriticalAlerts.Domain.Tests.csproj", "{A1B2C3D4-2001-4E11-9001-000000000011}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Application.Tests", "..\..\tests\CriticalAlerts.Application.Tests\CriticalAlerts.Application.Tests.csproj", "{A1B2C3D4-2002-4E12-9002-000000000012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Infrastructure.Tests", "..\..\tests\CriticalAlerts.Infrastructure.Tests\CriticalAlerts.Infrastructure.Tests.csproj", "{A1B2C3D4-2003-4E13-9003-000000000013}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Api.IntegrationTests", "..\..\tests\CriticalAlerts.Api.IntegrationTests\CriticalAlerts.Api.IntegrationTests.csproj", "{A1B2C3D4-2004-4E14-9004-000000000014}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CriticalAlerts.Architecture.Tests", "..\..\tests\CriticalAlerts.Architecture.Tests\CriticalAlerts.Architecture.Tests.csproj", "{A1B2C3D4-2005-4E15-9005-000000000015}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-1001-4E01-9001-000000000001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-1001-4E01-9001-000000000001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-1001-4E01-9001-000000000001}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-1001-4E01-9001-000000000001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-1002-4E02-9002-000000000002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-1002-4E02-9002-000000000002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-1002-4E02-9002-000000000002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-1002-4E02-9002-000000000002}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-1003-4E03-9003-000000000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-1003-4E03-9003-000000000003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-1003-4E03-9003-000000000003}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-1003-4E03-9003-000000000003}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-1004-4E04-9004-000000000004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-1004-4E04-9004-000000000004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-1004-4E04-9004-000000000004}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-1004-4E04-9004-000000000004}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-1005-4E05-9005-000000000005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-1005-4E05-9005-000000000005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-1005-4E05-9005-000000000005}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-1005-4E05-9005-000000000005}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-1006-4E06-9006-000000000006}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-1006-4E06-9006-000000000006}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-1006-4E06-9006-000000000006}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-1006-4E06-9006-000000000006}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-2001-4E11-9001-000000000011}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-2001-4E11-9001-000000000011}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-2001-4E11-9001-000000000011}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-2001-4E11-9001-000000000011}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-2002-4E12-9002-000000000012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-2002-4E12-9002-000000000012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-2002-4E12-9002-000000000012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-2002-4E12-9002-000000000012}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-2003-4E13-9003-000000000013}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-2003-4E13-9003-000000000013}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-2003-4E13-9003-000000000013}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-2003-4E13-9003-000000000013}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-2004-4E14-9004-000000000014}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-2004-4E14-9004-000000000014}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-2004-4E14-9004-000000000014}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-2004-4E14-9004-000000000014}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-2005-4E15-9005-000000000015}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-2005-4E15-9005-000000000015}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-2005-4E15-9005-000000000015}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-2005-4E15-9005-000000000015}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

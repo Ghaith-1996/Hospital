@@ -1,0 +1,42 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.user
+*.suo
+
+# .NET build output
+**/bin/
+**/obj/
+TestResults/
+*.trx
+*.coverage
+
+# Node and Next.js output
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+**/out/
+coverage/
+**/coverage/
+playwright-report/
+test-results/
+.playwright-browsers/
+.dotnet/
+.dotnet-install.ps1
+
+# Local database state
+.local-db/
+postgres-data/
+**/postgres-data/
+
+# IDE and OS files
+.vs/
+.idea/
+.vscode/
+*.userprefs
+*.swp
+Thumbs.db
+.DS_Store

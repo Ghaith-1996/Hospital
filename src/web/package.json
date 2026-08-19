@@ -1,0 +1,35 @@
+{
+  "name": "critical-alerts-web",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": "24.16.0",
+    "npm": "11.13.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest --config vitest.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "e2e": "npm --prefix ../.. run web:e2e"
+  },
+  "dependencies": {
+    "next": "16.3.1",
+    "react": "19.2.1",
+    "react-dom": "19.2.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "24.0.10",
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "eslint": "9.33.0",
+    "eslint-config-next": "16.3.1",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.7"
+  }
+}

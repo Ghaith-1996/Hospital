@@ -1,0 +1,19 @@
+{
+  "name": "critical-alerts-platform",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": "24.16.0",
+    "npm": "11.13.0"
+  },
+  "scripts": {
+    "web:test": "npm --prefix src/web test -- --run",
+    "web:typecheck": "npm --prefix src/web run typecheck",
+    "web:lint": "npm --prefix src/web run lint",
+    "web:build": "npm --prefix src/web run build",
+    "web:e2e": "playwright test --config src/web/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1"
+  }
+}

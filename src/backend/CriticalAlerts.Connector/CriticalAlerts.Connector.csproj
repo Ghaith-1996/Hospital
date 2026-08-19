@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\CriticalAlerts.Application\CriticalAlerts.Application.csproj" />
+    <ProjectReference Include="..\CriticalAlerts.Infrastructure\CriticalAlerts.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
