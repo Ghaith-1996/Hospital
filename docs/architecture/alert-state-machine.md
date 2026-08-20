@@ -37,6 +37,17 @@ stateDiagram-v2
 
 The diagram shows possible simulation transitions, not permission to infer a production policy. Whether a transition is allowed, who may perform it, and which event is sufficient are `REQUIRES_HOSPITAL_DECISION` unless explicitly stated as a simulation-only fixture.
 
+## Phase 2 implementation mapping
+
+Phase 2 persists the Phase 0 lifecycle states above. Names used in some later summaries map as follows and are not extra production states:
+
+| Later summary name | Phase 2 persistence |
+|---|---|
+| AwaitingConfirmation | `PendingConfirmation` |
+| Approved | Confirmation metadata on a specific draft version; the lifecycle state becomes `DispatchQueued` |
+| Dispatching / Dispatched | `DispatchQueued` then `Active` |
+| Delivered, Acknowledged, Accepted | Recipient delivery and response records, not alert lifecycle states |
+
 ## Dispatch confirmation invariant
 
 The server may enter `DispatchQueued` only when all of the following are true:

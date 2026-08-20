@@ -26,6 +26,9 @@ test-results/
 .playwright-browsers/
 .dotnet/
 .dotnet-install.ps1
+*.tsbuildinfo
+src/web/AGENTS.md
+src/web/CLAUDE.md
 
 # Local database state
 .local-db/

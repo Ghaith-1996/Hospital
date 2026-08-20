@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $environment = if ([string]::IsNullOrWhiteSpace($env:ASPNETCORE_ENVIRONMENT)) {
     "Development"
@@ -11,4 +12,25 @@ if ($environment -notin @("Development", "Test")) {
     throw "Demo reset is restricted to Development or Test; no database was changed."
 }
 
-throw "Phase 1 has no demo reset implementation. No database was changed."
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $repositoryRoot
+
+$envFile = Join-Path $repositoryRoot ".env"
+if (Test-Path -LiteralPath $envFile) {
+    Get-Content -LiteralPath $envFile | ForEach-Object {
+        if ($_ -match '^\s*#' -or $_ -notmatch '=') {
+            return
+        }
+
+        $parts = $_.Split('=', 2)
+        Set-Item -Path ("Env:" + $parts[0].Trim()) -Value $parts[1].Trim()
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($env:CRITICAL_ALERTS_DATA_PROTECTION_KEY)) {
+    throw "Set CRITICAL_ALERTS_DATA_PROTECTION_KEY in the ignored local .env file before resetting demo data."
+}
+
+$env:ASPNETCORE_ENVIRONMENT = $environment
+$apiProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj"
+dotnet run --project $apiProject --no-launch-profile -- database reset-demo

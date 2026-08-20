@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using Xunit;
@@ -9,16 +10,23 @@ public sealed class RepositorySafetyTests
     [Fact]
     public void NoTrackedEnvFileExists()
     {
-        Files().Where(file => string.Equals(Path.GetFileName(file), ".env", StringComparison.OrdinalIgnoreCase))
+        TrackedFiles()
+            .Where(file => string.Equals(Path.GetFileName(file), ".env", StringComparison.OrdinalIgnoreCase))
             .Should().BeEmpty();
     }
 
     [Fact]
-    public void NoApplicationProjectContainsPhase2Migration()
+    public void MigrationsExistOnlyInInfrastructure()
     {
         var backendRoot = Path.Combine(RepositoryRoot(), "src", "backend");
-        Directory.EnumerateFiles(backendRoot, "*Migration*.cs", SearchOption.AllDirectories).Should().BeEmpty();
-        Directory.EnumerateDirectories(backendRoot, "Migrations", SearchOption.AllDirectories).Should().BeEmpty();
+        var infrastructureMigrations = Path.Combine(backendRoot, "CriticalAlerts.Infrastructure", "Persistence", "Migrations");
+        Directory.Exists(infrastructureMigrations).Should().BeTrue();
+        Directory.EnumerateFiles(infrastructureMigrations, "*.cs", SearchOption.AllDirectories).Should().NotBeEmpty();
+
+        foreach (var project in new[] { "CriticalAlerts.Domain", "CriticalAlerts.Application", "CriticalAlerts.Api", "CriticalAlerts.Worker", "CriticalAlerts.Connector" })
+        {
+            Directory.EnumerateDirectories(Path.Combine(backendRoot, project), "Migrations", SearchOption.AllDirectories).Should().BeEmpty();
+        }
     }
 
     [Fact]
@@ -56,12 +64,39 @@ public sealed class RepositorySafetyTests
             || Path.GetFileName(path).Contains("Fixture", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static IEnumerable<string> TrackedFiles()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = "ls-files -z --",
+            WorkingDirectory = RepositoryRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("git ls-files failed to start.");
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException("git ls-files failed.");
+        }
+
+        return output.Split('\0', StringSplitOptions.RemoveEmptyEntries)
+            .Select(relative => Path.Combine(RepositoryRoot(), relative.Replace('/', Path.DirectorySeparatorChar)));
+    }
+
     private static IEnumerable<string> Files()
     {
         var ignored = new[] { ".git", ".next", "node_modules", "bin", "obj", "TestResults", "playwright-report", "test-results", ".playwright-browsers", ".dotnet" };
         return Directory.EnumerateFiles(RepositoryRoot(), "*", SearchOption.AllDirectories)
             .Where(file => (file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .Intersect(ignored, StringComparer.OrdinalIgnoreCase)).Count() == 0);
+                .Intersect(ignored, StringComparer.OrdinalIgnoreCase)).Count() == 0)
+            .Where(file => !string.Equals(Path.GetFileName(file), ".env", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string RepositoryRoot()

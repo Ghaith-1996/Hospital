@@ -54,6 +54,21 @@ Phase 1 is ready for human review only when the following are true:
 - [x] Local PostgreSQL and Testcontainers infrastructure use the pinned PostgreSQL 18 image and no Phase 1 schema.
 - [x] Repository safety scanning, CI configuration, and dependency audits are present.
 - [x] No secrets, real contact data, real clinical data, migrations, provider calls, or hospital production configuration were added.
-- [ ] Real PostgreSQL/Testcontainers verification is run after Docker Desktop is started by the project owner.
-- [ ] Playwright smoke verification is run after the pinned browser binary is installed in the local environment.
-- [ ] The project owner reviews this phase and explicitly approves or requests corrections before Phase 2.
+- [x] Real PostgreSQL/Testcontainers verification is run after Docker Desktop is started by the project owner.
+- [x] Playwright smoke verification is run after the pinned browser binary is installed in the local environment.
+- [x] The project owner reviews this phase and explicitly approves or requests corrections before Phase 2.
+
+## Phase 2: database and domain foundation
+
+Phase 2 is ready for human review only when the following are true:
+
+- [x] Domain entities, alert state machine, and safety constraints exist with unit tests.
+- [x] EF Core mappings and a PostgreSQL 18 migration exist.
+- [x] An empty database migrates and fictional demo seed data loads in Development/Test.
+- [x] Demo reset refuses Staging and Production.
+- [x] Organization isolation, optimistic concurrency, outbox atomicity, and idempotency uniqueness are tested against real PostgreSQL.
+- [x] `user_roles` uniqueness is `UNIQUE (organization_id, user_id, role_id)`.
+- [x] `alert_field_confirmations` stores one canonical confirmation per alert, draft version, and field identifier.
+- [x] Acknowledgement and responsibility acceptance remain separate records.
+- [x] No alert APIs, authentication, provider adapters, AI features, or hospital integrations were added.
+- [x] The project owner reviewed this phase, requested uniqueness-constraint closure, and those corrections are included before Phase 3.

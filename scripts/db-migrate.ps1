@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $environment = if ([string]::IsNullOrWhiteSpace($env:ASPNETCORE_ENVIRONMENT)) {
     "Development"
@@ -11,4 +12,21 @@ if ($environment -notin @("Development", "Test")) {
     throw "Database migrations are restricted to Development or Test; no database was changed."
 }
 
-Write-Output "Phase 1: migrations are not available. No database was changed."
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+Set-Location -LiteralPath $repositoryRoot
+
+$envFile = Join-Path $repositoryRoot ".env"
+if (Test-Path -LiteralPath $envFile) {
+    Get-Content -LiteralPath $envFile | ForEach-Object {
+        if ($_ -match '^\s*#' -or $_ -notmatch '=') {
+            return
+        }
+
+        $parts = $_.Split('=', 2)
+        Set-Item -Path ("Env:" + $parts[0].Trim()) -Value $parts[1].Trim()
+    }
+}
+
+$env:ASPNETCORE_ENVIRONMENT = $environment
+$apiProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj"
+dotnet run --project $apiProject --no-launch-profile -- database migrate

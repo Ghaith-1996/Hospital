@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $webRoot = Join-Path $repositoryRoot "src\web"

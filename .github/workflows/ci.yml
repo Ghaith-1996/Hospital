@@ -56,7 +56,7 @@ jobs:
         run: npm --prefix src/web run lint
 
       - name: Install Playwright browser
-        run: npm --prefix src/web exec -- playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run web smoke test
         run: npm run web:e2e

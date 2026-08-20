@@ -4,7 +4,7 @@ This file governs all future work in this repository. Read it and the relevant `
 
 ## Current phase
 
-The repository is in Phase 1: scaffold and local platform. Phase 0 has been approved by the project owner. Implement only the reviewed Phase 1 plan: empty project shells, local PostgreSQL development/test infrastructure, health endpoints, a simulation-mode web shell, repository safety checks, and CI baseline. Do not begin Phase 2 domain behavior, migrations, provider adapters, hospital integrations, or production configuration.
+The repository has completed Phase 2: database and domain foundation. Phase 0 and Phase 1 have been approved by the project owner. Do not begin Phase 3 authentication, directory import UI, alert APIs, provider adapters, hospital integrations, or production configuration until that phase is explicitly started.
 
 The approved phase is the only phase in scope. At the end of every phase, report files changed, decisions made, commands run, test results, limitations, human actions, and a proposed commit message, then stop for review.
 

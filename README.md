@@ -1,10 +1,10 @@
 # Critical Clinician Alert Platform
 
-Status: Phase 1 scaffold and local platform implemented; review pending. Phase 0 documentation has been approved by the project owner.
+Status: Phase 2 database and domain foundation is complete. Phase 0 and Phase 1 have been approved by the project owner.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 1 may add only the empty modular-monolith scaffold, local PostgreSQL development/test infrastructure, health endpoints, simulation-mode web shell, repository safety checks, and CI baseline. It must not add domain behavior, database migrations, provider integrations, hospital connectors, or production configuration.
+Phase 2 added the domain model, PostgreSQL persistence, EF Core mappings, migrations, demo seed data, uniqueness constraints, and safety constraints. It must not add authentication, alert APIs, provider integrations, hospital connectors, AI features, or production configuration until Phase 3 is explicitly started.
 
 ## Source and decision precedence
 
@@ -12,7 +12,7 @@ The user-requested mandatory rules are binding. The attached master build plan i
 
 When a real workflow, escalation, privacy, security, identity, directory, communications, retention, hosting, or integration decision is missing, the documents use the exact marker `REQUIRES_HOSPITAL_DECISION`. That marker must not be replaced by an invented production default.
 
-The current workspace is a blank, non-Git directory. Repository creation, ownership, product naming, and human role assignment remain project-owner decisions.
+The workspace is a Git repository. Product naming, ownership, and human role assignment remain project-owner decisions.
 
 ## Non-negotiable safety rules
 
@@ -38,9 +38,23 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0 approval is recorded for this implementation turn. The project is now executing Phase 1 within the reviewed scope; hospital decisions remain unresolved unless explicitly recorded in the documentation.
+Phase 0 and Phase 1 approval are recorded. Phase 2 database and domain foundation is complete, including uniqueness constraints for `user_roles` and canonical `alert_field_confirmations`. Hospital decisions remain unresolved unless explicitly recorded in the documentation.
 
-Phase 1 creates the empty solution scaffold, local PostgreSQL development container, health endpoints, test projects, simulation-mode web shell, and CI baseline. It must not add business behavior or real integrations. The implementation is ready for the Phase 1 review gate. Local Docker and Playwright browser verification remain environment actions; Phase 2 has not started.
+Phase 2 added the domain model, PostgreSQL persistence, EF Core mappings, migrations, fictional demo seed data, and safety constraints. It must not add authentication, alert APIs, provider integrations, hospital connectors, AI features, or production configuration until Phase 3 is started.
+
+### Local verification
+
+Create an ignored `.env` from `.env.example` with fictional local-only values, then run:
+
+```powershell
+Copy-Item .env.example .env
+./scripts/dev-up.ps1
+./scripts/db-migrate.ps1
+./scripts/db-reset-demo.ps1
+./scripts/test-all.ps1
+```
+
+The Playwright smoke test starts the web shell on `127.0.0.1:3100` so it does not reuse another application on port 3000. The pinned .NET SDK is `10.0.100`.
 
 ### Phase 1 local toolchain baseline
 

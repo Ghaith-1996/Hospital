@@ -15,7 +15,11 @@ foreach ($file in $files) {
     $relative = $file.FullName.Substring($repositoryRoot.Length).TrimStart('\', '/')
 
     if ($file.Name -eq ".env") {
-        $issues.Add("ignored local environment file is present: $relative")
+        $trackedEnv = git -C $repositoryRoot ls-files -- $relative
+        if (-not [string]::IsNullOrWhiteSpace($trackedEnv)) {
+            $issues.Add("tracked environment file is present: $relative")
+        }
+
         continue
     }
 
@@ -54,4 +58,4 @@ if ($issues.Count -gt 0) {
     exit 1
 }
 
-Write-Output "Sensitive-data repository check passed. No local .env, credential literal, or non-555 phone pattern was found."
+Write-Output "Sensitive-data repository check passed. No tracked .env, credential literal, or non-555 phone pattern was found."

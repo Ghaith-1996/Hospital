@@ -15,7 +15,7 @@ The following names are examples for simulation fixtures only:
 - Departments: `Fictional Emergency Care`, `Fictional Medicine`, `Fictional Surgery`.
 - Practitioners: `Dr. Maya Chen`, `Dr. Rowan Patel`, `Dr. Jules Martin`, `Dr. Avery Brooks`, `Dr. Samira Nguyen`, and other generated names clearly marked as fictional.
 - Operators: `Jordan Lee` and `Morgan Ellis`, both fictional seeded users.
-- Patient references: `SIM-PAT-0001`, `SIM-PAT-0002`, and similar non-production identifiers.
+- Patient references: `SIM-PAT-0001`, `SIM-PAT-0002`, and similar non-production identifiers. The required `SIM-` prefix is a `SimulationEnvironmentPolicy` for this prototype, not a `HealthcareDomainInvariant`. A hospital pilot patient-reference format is `REQUIRES_HOSPITAL_DECISION`.
 
 If a name happens to match a real person, replace it with another synthetic name; do not use it to represent that person.
 

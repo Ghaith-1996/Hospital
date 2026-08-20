@@ -1,7 +1,14 @@
 using System.Text.Json;
 using CriticalAlerts.Api.Health;
+using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+
+if (args is ["database", "migrate"] or ["database", "reset-demo"])
+{
+    await DatabaseCommandHost.RunAsync(args);
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 

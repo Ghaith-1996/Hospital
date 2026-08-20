@@ -4,7 +4,7 @@
 
 **Goal:** Create a fresh, reproducible local platform scaffold with empty modular-monolith projects, a PostgreSQL 18 development container, health endpoints, test projects, root scripts, and a CI baseline without implementing business behavior.
 
-**Execution status (2026-08-19):** Tasks 1–5 are implemented within the reviewed Phase 1 boundary. Build, non-container tests, web tests, typecheck, lint, Next build, safety scan, compose validation, and dependency audits pass. Docker-dependent tests and the Playwright smoke test remain pending because Docker Desktop is unavailable and the local Playwright browser binary is not installed. Task 6 is the human review gate; no Git commit was created because this workspace is not initialized as a Git repository.
+**Execution status (2026-08-19):** Tasks 1–5 are implemented within the reviewed Phase 1 boundary. Task 6 local verification has been run: Docker PostgreSQL is healthy, Testcontainers PostgreSQL 18 tests pass, the Playwright smoke test passes on `127.0.0.1:3100`, and `./scripts/test-all.ps1` completes. Remaining Task 6 work is owner review and approval. Phase 2 has not started.
 
 **Architecture:** Keep the API, worker, future connector, domain/application/infrastructure libraries, and Next.js web interface in one modular monolith. The API and worker share the planned application boundaries but do not dispatch, manage alerts, or connect to hospital systems in Phase 1. PostgreSQL is available locally for health and integration-test infrastructure; migrations and domain tables belong to Phase 2.
 

@@ -56,6 +56,22 @@ An alert stores or references the following separate representations:
 
 The alert may carry a synthetic patient reference, location, operator-selected urgency, source type, protected source/approved content, structured payload reference, current draft version, workflow state, confirmation metadata, resolution metadata, and concurrency token. Full patient charts, real identifiers, and unapproved clinical payloads are out of scope.
 
+The `SIM-` patient-reference prefix is a `SimulationEnvironmentPolicy` for Development/Test. It is not a `HealthcareDomainInvariant`. Production patient-reference formats are `REQUIRES_HOSPITAL_DECISION`.
+
+### `user_roles` uniqueness
+
+A user may hold a role at most once in an organization. Persistence enforces `UNIQUE (organization_id, user_id, role_id)` as both the composite primary key and the named unique index `UX_user_roles_organization_id_user_id_role_id`. Duplicate assignments such as Operator/Operator/Operator for the same user are rejected by PostgreSQL.
+
+### Canonical critical-field confirmation
+
+`alert_field_confirmations` stores the **current effective confirmation** for a field on an exact alert draft version, not an attempt history.
+
+PostgreSQL enforces:
+
+`UNIQUE (alert_id, alert_version, field_id)`
+
+named `UX_alert_field_confirmations_alert_id_alert_version_field_id`. Re-confirming or replacing an unresolved value for the same field and version updates that canonical row. Confirmation history, if required later, must be a separate table; it must not be inferred from this one.
+
 ### Source and draft version rule
 
 Every source edit creates a new draft version. The typed source and exact transcription associated with each version remain immutable history; structured suggestions may be regenerated against a version; approved content references one exact version and cannot be silently replaced. A confirmation for an older version is rejected.
