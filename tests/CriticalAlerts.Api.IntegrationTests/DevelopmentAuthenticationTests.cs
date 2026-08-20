@@ -45,8 +45,66 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
         me.StatusCode.Should().Be(HttpStatusCode.OK);
         body!.SimulationHandle.Should().Be(DemoDataSeeder.JordanHandle);
         body.UserId.Should().Be(DemoDataSeeder.JordanUserId.Value.ToString("D"));
+        body.OrganizationId.Should().Be(DemoDataSeeder.OrganizationId.Value.ToString("D"));
         body.Roles.Should().Equal("Operator");
         body.DevelopmentAuthentication.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ClientSuppliedRolesAreIgnored()
+    {
+        using var client = fixture.CreateClient();
+
+        using var created = await client.PostAsJsonAsync("/api/dev/session", new
+        {
+            simulationHandle = DemoDataSeeder.JordanHandle,
+            roles = new[] { "Administrator", "Practitioner" },
+            organizationId = Guid.NewGuid(),
+            userId = DemoDataSeeder.MorganUserId.Value,
+        });
+        created.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        using var me = await client.GetAsync("/api/me");
+        var body = await me.Content.ReadFromJsonAsync<CurrentUserDto>();
+
+        body!.Roles.Should().Equal("Operator");
+        body.UserId.Should().Be(DemoDataSeeder.JordanUserId.Value.ToString("D"));
+        body.OrganizationId.Should().Be(DemoDataSeeder.OrganizationId.Value.ToString("D"));
+    }
+
+    [Fact]
+    public async Task UnauthenticatedProtectedAuthorizationReturnsUnauthorized()
+    {
+        using var client = fixture.CreateClient();
+
+        using var response = await client.GetAsync("/api/authorization/operator");
+        var body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        body.Should().Contain("authentication-required");
+    }
+
+    [Theory]
+    [InlineData(DemoDataSeeder.JordanHandle, "/api/authorization/operator", HttpStatusCode.NoContent)]
+    [InlineData(DemoDataSeeder.MorganHandle, "/api/authorization/administrator", HttpStatusCode.NoContent)]
+    [InlineData(DemoDataSeeder.RileyHandle, "/api/authorization/practitioner", HttpStatusCode.NoContent)]
+    public async Task SeededRoleHasPositiveAuthorization(string handle, string path, HttpStatusCode expected)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(handle);
+        (await client.GetAsync(path)).StatusCode.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(DemoDataSeeder.JordanHandle, "/api/authorization/administrator")]
+    [InlineData(DemoDataSeeder.JordanHandle, "/api/authorization/practitioner")]
+    [InlineData(DemoDataSeeder.MorganHandle, "/api/authorization/operator")]
+    [InlineData(DemoDataSeeder.MorganHandle, "/api/authorization/practitioner")]
+    [InlineData(DemoDataSeeder.RileyHandle, "/api/authorization/operator")]
+    [InlineData(DemoDataSeeder.RileyHandle, "/api/authorization/administrator")]
+    public async Task SeededRoleIsDeniedOtherAuthorization(string handle, string path)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(handle);
+        (await client.GetAsync(path)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -103,14 +161,16 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
         identities.Should().OnlyContain(identity => identity.DisplayName.Length > 0);
     }
 
-    [Fact]
-    public void ProductionCannotEnableDevelopmentAuthentication()
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void NonSimulationEnvironmentsCannotEnableDevelopmentAuthentication(string environment)
     {
         var act = () =>
         {
             using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             {
-                builder.UseEnvironment("Production");
+                builder.UseEnvironment(environment);
                 builder.UseSetting("DevelopmentAuthentication:Enabled", "true");
                 builder.UseSetting("ConnectionStrings:CriticalAlerts", "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
             });
@@ -118,6 +178,24 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
         };
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*cannot be enabled outside Development or Test*");
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public async Task DevelopmentSwitcherIsUnavailableWhenDisabled(string environment)
+    {
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment(environment);
+            builder.UseSetting("DevelopmentAuthentication:Enabled", "false");
+            builder.UseSetting("ConnectionStrings:CriticalAlerts", "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
+        });
+        using var client = factory.CreateClient();
+
+        (await client.GetAsync("/api/dev/identities")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await client.PostAsJsonAsync("/api/dev/session", new { simulationHandle = DemoDataSeeder.JordanHandle })).StatusCode
+            .Should().Be(HttpStatusCode.NotFound);
     }
 
     private sealed record CurrentUserDto(

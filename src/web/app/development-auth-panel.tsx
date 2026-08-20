@@ -82,23 +82,27 @@ export function DevelopmentAuthPanel() {
       ) : (
         <p>No simulation user is signed in.</p>
       )}
-      <label htmlFor="simulation-identity">Simulation user</label>
-      <select
-        id="simulation-identity"
-        value={currentUser?.simulationHandle ?? ""}
-        onChange={(event) => {
-          if (event.target.value) {
-            void switchUser(event.target.value);
-          }
-        }}
-      >
-        <option value="">Select a seeded identity</option>
-        {identities.map((identity) => (
-          <option key={identity.simulationHandle} value={identity.simulationHandle}>
-            {identity.displayName} ({identity.roles.join(", ")})
-          </option>
-        ))}
-      </select>
+      {identities.length > 0 ? (
+        <>
+          <label htmlFor="simulation-identity">Simulation user</label>
+          <select
+            id="simulation-identity"
+            value={currentUser?.simulationHandle ?? ""}
+            onChange={(event) => {
+              if (event.target.value) {
+                void switchUser(event.target.value);
+              }
+            }}
+          >
+            <option value="">Select a seeded identity</option>
+            {identities.map((identity) => (
+              <option key={identity.simulationHandle} value={identity.simulationHandle}>
+                {identity.displayName} ({identity.roles.join(", ")})
+              </option>
+            ))}
+          </select>
+        </>
+      ) : null}
     </section>
   );
 }

@@ -84,4 +84,6 @@ Phase 3 is ready for human review only when the following are true:
 - [x] Operator, Administrator, and Practitioner roles are authorized separately.
 - [x] Organization scope checks reject a different organization ID.
 - [x] No directory import, alert command, provider adapter, Entra SSO, or hospital integration was added.
-- [ ] The project owner reviews this phase and explicitly approves or requests corrections before Phase 4.
+- [x] Staging and Production fail closed when development authentication is enabled, and the user switcher is unmapped when it is disabled.
+- [x] Client-supplied user IDs, organization IDs, and roles cannot impersonate a seeded identity.
+- [x] The project owner reviewed this phase and requested the Phase 3 closure gate; those tests are included.
