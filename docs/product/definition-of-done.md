@@ -72,3 +72,16 @@ Phase 2 is ready for human review only when the following are true:
 - [x] Acknowledgement and responsibility acceptance remain separate records.
 - [x] No alert APIs, authentication, provider adapters, AI features, or hospital integrations were added.
 - [x] The project owner reviewed this phase, requested uniqueness-constraint closure, and those corrections are included before Phase 3.
+
+## Phase 3: development authentication and authorization
+
+Phase 3 is ready for human review only when the following are true:
+
+- [x] Fictional seeded identities can sign in through development authentication in Development/Test only.
+- [x] Production and Staging refuse enabled development authentication at startup.
+- [x] The UI shows `SIMULATION MODE` and `DEVELOPMENT AUTHENTICATION` banners and a seeded user switcher.
+- [x] Arbitrary user IDs in request headers cannot select an identity.
+- [x] Operator, Administrator, and Practitioner roles are authorized separately.
+- [x] Organization scope checks reject a different organization ID.
+- [x] No directory import, alert command, provider adapter, Entra SSO, or hospital integration was added.
+- [ ] The project owner reviews this phase and explicitly approves or requests corrections before Phase 4.

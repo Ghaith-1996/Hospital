@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj" />
+    <ProjectReference Include="..\..\src\backend\CriticalAlerts.Infrastructure\CriticalAlerts.Infrastructure.csproj" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

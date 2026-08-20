@@ -16,7 +16,13 @@ public sealed class DemoDataSeeder
     public static readonly SiteId RiversideSiteId = new(Guid.Parse("11111111-1111-4111-8111-111111111202"));
     public static readonly DepartmentId EmergencyDepartmentId = new(Guid.Parse("11111111-1111-4111-8111-111111110301"));
     public static readonly RoleId OperatorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110401"));
+    public static readonly RoleId PractitionerRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110402"));
     public static readonly UserId JordanUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110501"));
+    public static readonly UserId MorganUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110502"));
+    public static readonly UserId RileyUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110503"));
+    public const string JordanHandle = "sim-operator-jordan";
+    public const string MorganHandle = "sim-administrator-morgan";
+    public const string RileyHandle = "sim-practitioner-riley";
     public static readonly PractitionerId MayaChenId = new(Guid.Parse("11111111-1111-4111-8111-111111110101"));
     public static readonly PractitionerId TaylorKimId = new(Guid.Parse("11111111-1111-4111-8111-111111110111"));
 
@@ -53,12 +59,14 @@ public sealed class DemoDataSeeder
         var administratorRole = Role.Create(new RoleId(Id("403")), OrganizationId, "Administrator");
         db.Roles.AddRange(operatorRole, practitionerRole, administratorRole);
 
-        var jordan = UserAccount.CreateSimulation(new UserId(Id("501")), OrganizationId, "Jordan Lee", "sim-operator-jordan", SeededAt);
-        var morgan = UserAccount.CreateSimulation(new UserId(Id("502")), OrganizationId, "Morgan Ellis", "sim-operator-morgan", SeededAt);
-        db.Users.AddRange(jordan, morgan);
+        var jordan = UserAccount.CreateSimulation(new UserId(Id("501")), OrganizationId, "Jordan Lee", JordanHandle, SeededAt);
+        var morgan = UserAccount.CreateSimulation(new UserId(Id("502")), OrganizationId, "Morgan Ellis", MorganHandle, SeededAt);
+        var riley = UserAccount.CreateSimulation(RileyUserId, OrganizationId, "Riley Cole", RileyHandle, SeededAt);
+        db.Users.AddRange(jordan, morgan, riley);
         db.UserRoles.AddRange(
             UserRole.Create(OrganizationId, jordan.Id, operatorRole.Id),
-            UserRole.Create(OrganizationId, morgan.Id, administratorRole.Id));
+            UserRole.Create(OrganizationId, morgan.Id, administratorRole.Id),
+            UserRole.Create(OrganizationId, riley.Id, practitionerRole.Id));
         db.ExternalIdentities.Add(ExternalIdentity.Create(
             new ExternalIdentityId(Id("601")),
             OrganizationId,

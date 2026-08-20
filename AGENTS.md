@@ -4,7 +4,7 @@ This file governs all future work in this repository. Read it and the relevant `
 
 ## Current phase
 
-The repository has completed Phase 2: database and domain foundation. Phase 0 and Phase 1 have been approved by the project owner. Do not begin Phase 3 authentication, directory import UI, alert APIs, provider adapters, hospital integrations, or production configuration until that phase is explicitly started.
+The repository is in Phase 3: development authentication and authorization. Phase 0, Phase 1, and Phase 2 have been approved and Phase 2 is tagged `phase-2`. Implement only fictional development authentication, role policies, organization scoping, a UI user switcher, and authorization tests. Do not begin Phase 4 directory import, alert APIs, provider adapters, hospital integrations, or production identity.
 
 The approved phase is the only phase in scope. At the end of every phase, report files changed, decisions made, commands run, test results, limitations, human actions, and a proposed commit message, then stop for review.
 

@@ -1,10 +1,10 @@
 # Critical Clinician Alert Platform
 
-Status: Phase 2 database and domain foundation is complete. Phase 0 and Phase 1 have been approved by the project owner.
+Status: Phase 3 development authentication is in progress. Phase 0, Phase 1, and Phase 2 are complete. Phase 2 is tagged `phase-2`.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 2 added the domain model, PostgreSQL persistence, EF Core mappings, migrations, demo seed data, uniqueness constraints, and safety constraints. It must not add authentication, alert APIs, provider integrations, hospital connectors, AI features, or production configuration until Phase 3 is explicitly started.
+Phase 3 may add fictional development authentication, role policies, organization scoping, and a simulation user switcher. It must not add directory CSV import, alert APIs, provider integrations, hospital connectors, AI features, Entra SSO, or production identity.
 
 ## Source and decision precedence
 
@@ -38,9 +38,9 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0 and Phase 1 approval are recorded. Phase 2 database and domain foundation is complete, including uniqueness constraints for `user_roles` and canonical `alert_field_confirmations`. Hospital decisions remain unresolved unless explicitly recorded in the documentation.
+Phase 0, Phase 1, and Phase 2 approval are recorded. Phase 2 is tagged `phase-2`. The project is executing Phase 3 development authentication within the reviewed scope; hospital identity remains `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 2 added the domain model, PostgreSQL persistence, EF Core mappings, migrations, fictional demo seed data, and safety constraints. It must not add authentication, alert APIs, provider integrations, hospital connectors, AI features, or production configuration until Phase 3 is started.
+Phase 3 adds fictional Development/Test authentication, role policies, organization scoping, and a UI user switcher. It must not add directory import, alert APIs, provider integrations, hospital connectors, AI features, or production SSO.
 
 ### Local verification
 
@@ -54,7 +54,7 @@ Copy-Item .env.example .env
 ./scripts/test-all.ps1
 ```
 
-The Playwright smoke test starts the web shell on `127.0.0.1:3100` so it does not reuse another application on port 3000. The pinned .NET SDK is `10.0.100`.
+The Playwright smoke test starts the web shell on `127.0.0.1:3100` so it does not reuse another application on port 3000. The pinned .NET SDK is `10.0.100`. To use the development identity switcher locally, start `CriticalAlerts.Api` on `http://127.0.0.1:5080` and set `CRITICAL_ALERTS_API_URL` for the Next.js rewrite.
 
 ### Phase 1 local toolchain baseline
 

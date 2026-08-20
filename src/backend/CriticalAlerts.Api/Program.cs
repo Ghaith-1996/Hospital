@@ -1,5 +1,7 @@
 using System.Text.Json;
+using CriticalAlerts.Api.Authentication;
 using CriticalAlerts.Api.Health;
+using CriticalAlerts.Api.Http;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -12,10 +14,13 @@ if (args is ["database", "migrate"] or ["database", "reset-demo"])
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Keep local platform logs console-only so expected dependency failures cannot trigger a Windows EventLog write.
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
+var developmentAuthenticationEnabled = builder.Configuration.GetValue("DevelopmentAuthentication:Enabled", false);
+builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
+builder.Services.AddCriticalAlertsPersistence(builder.Configuration.GetConnectionString("CriticalAlerts"));
+builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
@@ -31,6 +36,9 @@ app.Use(async (context, next) =>
     await next(context);
 });
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false,
@@ -42,6 +50,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = registration => registration.Tags.Contains("ready", StringComparer.Ordinal),
     ResponseWriter = WriteSafeHealthResponse,
 });
+
+app.MapDevelopmentAuthenticationEndpoints(developmentAuthenticationEnabled);
 
 await app.RunAsync();
 
@@ -74,7 +84,7 @@ static Task WriteSafeHealthResponse(HttpContext context, HealthReport report)
     return JsonSerializer.SerializeAsync(context.Response.Body, payload);
 }
 
-/// <summary>Exposes the Phase 1 API host to integration tests.</summary>
+/// <summary>Exposes the API host to integration tests.</summary>
 public partial class Program
 {
 }
