@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Simulation;
 
@@ -15,6 +16,10 @@ public sealed class CsvDirectorySourceAdapter : IDirectorySourceAdapter
 
 public static class CsvDirectoryParser
 {
+    private static readonly Regex SyntheticPhonePattern = new(
+        @"\A(?:\+?1[\s.-]?)?555[\s.-]\d{3}[\s.-]\d{4}\z",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+
     public static readonly IReadOnlyList<string> RequiredHeaders =
     [
         "source_record_id",
@@ -47,14 +52,20 @@ public static class CsvDirectoryParser
     {
         var errors = new List<DirectoryImportIssue>();
         var warnings = new List<DirectoryImportIssue>();
-        var rows = ReadRows(reader);
+        var rows = ReadRows(reader, errors);
         if (rows.Count == 0)
         {
             errors.Add(Issue("empty-csv", string.Empty, null, "The CSV is empty."));
             return new DirectoryParseResult(sourceSystem, [], errors, warnings);
         }
 
-        var header = rows[0].Select(value => value.Trim().ToLowerInvariant()).ToArray();
+        if (rows[0].Values is null)
+        {
+            return new DirectoryParseResult(sourceSystem, [], errors, warnings);
+        }
+
+        var headerValues = rows[0].Values!;
+        var header = headerValues.Select(value => value.Trim().ToLowerInvariant()).ToArray();
         var headerIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < header.Length; index++)
         {
@@ -63,7 +74,10 @@ public static class CsvDirectoryParser
                 continue;
             }
 
-            headerIndex[header[index]] = index;
+            if (!headerIndex.TryAdd(header[index], index))
+            {
+                errors.Add(Issue("duplicate-header", string.Empty, rows[0].RowNumber, $"CSV header '{header[index]}' appears more than once."));
+            }
         }
 
         foreach (var required in RequiredHeaders)
@@ -82,13 +96,29 @@ public static class CsvDirectoryParser
         var grouped = new Dictionary<string, List<(int RowNumber, CsvRow Row)>>(StringComparer.OrdinalIgnoreCase);
         for (var index = 1; index < rows.Count; index++)
         {
-            var rowNumber = index + 1;
-            if (rows[index].All(string.IsNullOrWhiteSpace))
+            var row = rows[index];
+            if (row.Values is null)
             {
                 continue;
             }
 
-            var raw = new CsvRow(headerIndex, rows[index]);
+            var rowNumber = row.RowNumber;
+            if (row.Values.All(string.IsNullOrWhiteSpace))
+            {
+                continue;
+            }
+
+            if (row.Values.Count != header.Length)
+            {
+                errors.Add(Issue(
+                    "invalid-column-count",
+                    string.Empty,
+                    rowNumber,
+                    $"CSV row must contain exactly {header.Length} columns."));
+                continue;
+            }
+
+            var raw = new CsvRow(headerIndex, row.Values);
             var sourceRecordId = raw.Get("source_record_id");
             if (string.IsNullOrWhiteSpace(sourceRecordId))
             {
@@ -266,13 +296,25 @@ public static class CsvDirectoryParser
             return;
         }
 
-        if (kind is ContactEndpointKind.Sms or ContactEndpointKind.Voice && !value.Contains("555", StringComparison.Ordinal))
+        if (kind is ContactEndpointKind.Sms or ContactEndpointKind.Voice && !SyntheticPhonePattern.IsMatch(value.Trim()))
         {
             errors.Add(Issue(
                 "non-synthetic-endpoint",
                 sourceRecordId,
                 rowNumber,
                 "Simulation SMS and voice endpoints must use fictional 555 values."));
+            identityErrors++;
+            return;
+        }
+
+        if (kind == ContactEndpointKind.SecureMessage
+            && !value.Trim().StartsWith("sim-secure://", StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add(Issue(
+                "non-synthetic-endpoint",
+                sourceRecordId,
+                rowNumber,
+                "Simulation secure-message endpoints must use the sim-secure:// scheme."));
             identityErrors++;
             return;
         }
@@ -495,21 +537,31 @@ public static class CsvDirectoryParser
     private static DirectoryImportIssue Issue(string code, string sourceRecordId, int? rowNumber, string message)
         => new(code, sourceRecordId, rowNumber, message);
 
-    private static List<string[]> ReadRows(TextReader reader)
+    private static List<CsvInputRow> ReadRows(TextReader reader, List<DirectoryImportIssue> errors)
     {
-        var rows = new List<string[]>();
+        var rows = new List<CsvInputRow>();
+        var rowNumber = 0;
         string? line;
         while ((line = reader.ReadLine()) is not null)
         {
-            rows.Add(ParseLine(line).ToArray());
+            rowNumber++;
+            if (TryParseLine(line, out var values))
+            {
+                rows.Add(new CsvInputRow(rowNumber, values.ToArray()));
+            }
+            else
+            {
+                errors.Add(Issue("malformed-csv", string.Empty, rowNumber, "CSV contains an unterminated quoted field."));
+                rows.Add(new CsvInputRow(rowNumber, null));
+            }
         }
 
         return rows;
     }
 
-    private static List<string> ParseLine(string line)
+    private static bool TryParseLine(string line, out List<string> fields)
     {
-        var fields = new List<string>();
+        fields = new List<string>();
         var current = new StringBuilder();
         var inQuotes = false;
         for (var index = 0; index < line.Length; index++)
@@ -549,9 +601,17 @@ public static class CsvDirectoryParser
             }
         }
 
+        if (inQuotes)
+        {
+            fields.Clear();
+            return false;
+        }
+
         fields.Add(current.ToString());
-        return fields;
+        return true;
     }
+
+    private sealed record CsvInputRow(int RowNumber, IReadOnlyList<string>? Values);
 
     private sealed class CsvRow(IReadOnlyDictionary<string, int> header, IReadOnlyList<string> values)
     {

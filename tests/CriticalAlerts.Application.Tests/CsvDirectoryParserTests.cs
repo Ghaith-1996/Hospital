@@ -92,6 +92,69 @@ public sealed class CsvDirectoryParserTests
         parsed.Errors.Should().Contain(error => error.Code == "non-synthetic-endpoint");
     }
 
+    [Fact]
+    public void DuplicateHeadersAreRejected()
+    {
+        var csv = "source_record_id,first_name,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status\n";
+
+        var parsed = CsvDirectoryParser.Parse(csv);
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "duplicate-header");
+    }
+
+    [Fact]
+    public void RowsWithUnexpectedColumnCountsAreRejected()
+    {
+        var csv = "source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status\n"
+            + "SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,2026-08-01T12:00:00Z,current,unexpected\n";
+
+        var parsed = CsvDirectoryParser.Parse(csv);
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "invalid-column-count");
+    }
+
+    [Fact]
+    public void UnterminatedQuotedFieldIsRejected()
+    {
+        var csv = string.Join(',', CsvDirectoryParser.RequiredHeaders)
+            + Environment.NewLine
+            + "SIM-SRC-ONE,\"Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,2026-08-01T12:00:00Z,current";
+
+        var parsed = CsvDirectoryParser.Parse(csv);
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "malformed-csv");
+    }
+
+    [Fact]
+    public void SecureMessageEndpointsRequireTheSimulationScheme()
+    {
+        var parsed = CsvDirectoryParser.Parse(ValidSingleRow("SecureMessage", "https://example.invalid/endpoint"));
+
+        parsed.Errors.Should().Contain(error => error.Code == "non-synthetic-endpoint");
+    }
+
+    [Fact]
+    public void PhoneValidationRequiresACompleteSynthetic555Number()
+    {
+        var parsed = CsvDirectoryParser.Parse(ValidSingleRow("Sms", "+1 555-010-0101-extra"));
+
+        parsed.Errors.Should().Contain(error => error.Code == "non-synthetic-endpoint");
+    }
+
+    private static string ValidSingleRow(string endpointKind, string endpointValue)
+        => "source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,endpoint_kind,endpoint_value,endpoint_label,source_updated_at_utc,freshness_status"
+            + Environment.NewLine
+            + string.Join(",",
+            [
+                "SIM-SRC-ONE", "Maya", "Chen", "SIM-PRAC-0101", "Emergency", "SIM-SITE-NORTH",
+                "SIM-DEPT-EMERGENCY", "Emergency physician", "true", "true", endpointKind, endpointValue,
+                "SIM-ENDPOINT-0101", "2026-08-01T12:00:00Z", "current",
+            ])
+            + Environment.NewLine;
+
     private static string FixturePath()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
