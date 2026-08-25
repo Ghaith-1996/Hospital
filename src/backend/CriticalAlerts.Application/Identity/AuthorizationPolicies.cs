@@ -12,6 +12,8 @@ public static class AuthorizationPolicies
     public const string Operator = "Operator";
     public const string Administrator = "Administrator";
     public const string Practitioner = "Practitioner";
+    public const string DirectoryReader = "DirectoryReader";
+    public const string DirectoryAdministrator = "DirectoryAdministrator";
 }
 
 public static class AuthenticationClaimTypes

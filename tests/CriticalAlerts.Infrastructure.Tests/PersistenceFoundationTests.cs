@@ -22,6 +22,8 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
     {
         await using var db = fixture.CreateContext();
         (await db.Organizations.CountAsync(organization => organization.Id == DemoDataSeeder.OrganizationId)).Should().Be(1);
+        (await db.Sites.CountAsync(site => site.OrganizationId == DemoDataSeeder.OrganizationId && site.SimulationCode.StartsWith("SIM-SITE-"))).Should().Be(2);
+        (await db.Departments.CountAsync(department => department.OrganizationId == DemoDataSeeder.OrganizationId && department.SimulationCode.StartsWith("SIM-DEPT-"))).Should().Be(3);
         (await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(12);
         (await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId && !practitioner.IsActive)).Should().Be(2);
         (await db.DirectorySourceRecords.CountAsync(record => record.OrganizationId == DemoDataSeeder.OrganizationId && record.IsStale)).Should().Be(1);
@@ -36,7 +38,7 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
         db.Organizations.Add(foreign);
         await db.SaveChangesAsync();
 
-        db.Departments.Add(Department.Create(DepartmentId.New(), foreign.Id, DemoDataSeeder.NorthSiteId, "Foreign dept", Now));
+        db.Departments.Add(Department.Create(DepartmentId.New(), foreign.Id, DemoDataSeeder.NorthSiteId, "Foreign dept", "SIM-DEPT-FOREIGN", Now));
         var act = async () => await db.SaveChangesAsync();
         await act.Should().ThrowAsync<DbUpdateException>();
     }
@@ -220,6 +222,8 @@ public sealed class MigratedPostgresFixture : IAsyncLifetime
 
     public string ConnectionString => inner.ConnectionString;
 
+    public string DataProtectionKey => dataProtectionKey;
+
     public async Task InitializeAsync()
     {
         await inner.InitializeAsync();
@@ -228,6 +232,8 @@ public sealed class MigratedPostgresFixture : IAsyncLifetime
     }
 
     public CriticalAlertsDbContext CreateContext() => DatabaseOperations.CreateContext(ConnectionString);
+
+    public Task ResetAsync() => DatabaseOperations.ResetDemoAsync(ConnectionString, "Test", dataProtectionKey);
 
     public Task DisposeAsync() => inner.DisposeAsync();
 }

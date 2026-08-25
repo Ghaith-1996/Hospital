@@ -1,3 +1,5 @@
+using CriticalAlerts.Domain.Simulation;
+
 namespace CriticalAlerts.Domain.Organizations;
 
 public sealed class Site
@@ -5,13 +7,15 @@ public sealed class Site
     private Site()
     {
         Name = string.Empty;
+        SimulationCode = string.Empty;
     }
 
-    private Site(SiteId id, OrganizationId organizationId, string name, DateTimeOffset createdAtUtc)
+    private Site(SiteId id, OrganizationId organizationId, string name, string simulationCode, DateTimeOffset createdAtUtc)
     {
         Id = id;
         OrganizationId = organizationId;
         Name = name;
+        SimulationCode = simulationCode;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -21,15 +25,22 @@ public sealed class Site
 
     public string Name { get; private set; }
 
+    public string SimulationCode { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
-    public static Site Create(SiteId id, OrganizationId organizationId, string name, DateTimeOffset createdAtUtc)
+    public static Site Create(SiteId id, OrganizationId organizationId, string name, string simulationCode, DateTimeOffset createdAtUtc)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
             throw new DomainException("Site name is required.");
         }
 
-        return new Site(id, organizationId, name.Trim(), UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
+        return new Site(
+            id,
+            organizationId,
+            name.Trim(),
+            SimulationEnvironmentPolicy.RequireSyntheticPrefix(simulationCode, "site code"),
+            UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
     }
 }

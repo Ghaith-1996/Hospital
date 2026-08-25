@@ -2,8 +2,21 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "../app/page";
+import DirectoryPage from "../app/directory/page";
 
-describe("Phase 3 web shell", () => {
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    className,
+  }: {
+    href: string;
+    children: React.ReactNode;
+    className?: string;
+  }) => React.createElement("a", { href, className }, children),
+}));
+
+describe("Phase 4 web shell", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -76,5 +89,26 @@ describe("Phase 3 web shell", () => {
 
     expect(await screen.findByLabelText("Simulation user")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Development identity switcher" })).toBeVisible();
+  });
+
+  it("directorySearchDoesNotDispatchAndRequiresAuthentication", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo) => {
+        const url = String(input);
+        if (url.includes("/api/directory/practitioners")) {
+          return { ok: false, status: 401, json: async () => ({}) };
+        }
+
+        return { ok: false, status: 404, json: async () => [] };
+      }),
+    );
+
+    render(<DirectoryPage />);
+
+    expect(screen.getByRole("heading", { name: "Fictional practitioner directory" })).toBeVisible();
+    expect(screen.getByLabelText("Search practitioners")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /dispatch/i })).not.toBeInTheDocument();
+    expect(await screen.findByText("Sign in with a seeded Operator or Administrator identity to search.")).toBeVisible();
   });
 });

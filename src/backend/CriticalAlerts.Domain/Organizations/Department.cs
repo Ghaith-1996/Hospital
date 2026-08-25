@@ -1,3 +1,5 @@
+using CriticalAlerts.Domain.Simulation;
+
 namespace CriticalAlerts.Domain.Organizations;
 
 public sealed class Department
@@ -5,6 +7,7 @@ public sealed class Department
     private Department()
     {
         Name = string.Empty;
+        SimulationCode = string.Empty;
     }
 
     private Department(
@@ -12,12 +15,14 @@ public sealed class Department
         OrganizationId organizationId,
         SiteId siteId,
         string name,
+        string simulationCode,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
         OrganizationId = organizationId;
         SiteId = siteId;
         Name = name;
+        SimulationCode = simulationCode;
         CreatedAtUtc = createdAtUtc;
     }
 
@@ -29,6 +34,8 @@ public sealed class Department
 
     public string Name { get; private set; }
 
+    public string SimulationCode { get; private set; }
+
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
     public static Department Create(
@@ -36,6 +43,7 @@ public sealed class Department
         OrganizationId organizationId,
         SiteId siteId,
         string name,
+        string simulationCode,
         DateTimeOffset createdAtUtc)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -43,6 +51,12 @@ public sealed class Department
             throw new DomainException("Department name is required.");
         }
 
-        return new Department(id, organizationId, siteId, name.Trim(), UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
+        return new Department(
+            id,
+            organizationId,
+            siteId,
+            name.Trim(),
+            SimulationEnvironmentPolicy.RequireSyntheticPrefix(simulationCode, "department code"),
+            UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
     }
 }

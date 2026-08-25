@@ -94,6 +94,7 @@ public enum DirectorySyncRunStatus
     Succeeded = 0,
     Failed = 1,
     Partial = 2,
+    InProgress = 3,
 }
 
 public enum EscalationRunState

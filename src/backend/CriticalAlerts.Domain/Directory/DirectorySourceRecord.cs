@@ -83,4 +83,14 @@ public sealed class DirectorySourceRecord
             syncState.Trim(),
             isStale);
     }
+
+    public void Refresh(PractitionerId practitionerId, DateTimeOffset sourceUpdatedAtUtc, string payloadHash, DateTimeOffset lastSeenAtUtc, bool isStale)
+    {
+        PractitionerId = practitionerId;
+        SourceUpdatedAtUtc = UtcInstant.Require(sourceUpdatedAtUtc, nameof(sourceUpdatedAtUtc));
+        PayloadHash = payloadHash.Trim();
+        LastSeenAtUtc = UtcInstant.Require(lastSeenAtUtc, nameof(lastSeenAtUtc));
+        SyncState = isStale ? "stale" : "current";
+        IsStale = isStale;
+    }
 }

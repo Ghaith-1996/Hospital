@@ -30,8 +30,12 @@ internal sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
         builder.HasAlternateKey(entity => new { entity.Id, entity.OrganizationId });
         builder.Property(entity => entity.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+        builder.Property(entity => entity.SimulationCode).HasColumnName("simulation_code").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
         builder.HasIndex(entity => entity.OrganizationId);
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.SimulationCode })
+            .IsUnique()
+            .HasDatabaseName("UX_sites_organization_id_simulation_code");
         builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -47,8 +51,12 @@ internal sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departm
         builder.Property(entity => entity.SiteId).GuidId(value => new SiteId(value), id => id.Value, "site_id");
         builder.HasAlternateKey(entity => new { entity.Id, entity.OrganizationId });
         builder.Property(entity => entity.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+        builder.Property(entity => entity.SimulationCode).HasColumnName("simulation_code").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
         builder.HasIndex(entity => entity.OrganizationId);
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.SimulationCode })
+            .IsUnique()
+            .HasDatabaseName("UX_departments_organization_id_simulation_code");
         builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Site>().WithMany().HasForeignKey(entity => new { entity.SiteId, entity.OrganizationId }).HasPrincipalKey(site => new { site.Id, site.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
     }

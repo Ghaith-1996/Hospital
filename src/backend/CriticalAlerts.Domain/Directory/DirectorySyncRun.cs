@@ -94,4 +94,49 @@ public sealed class DirectorySyncRun
             correlationId.Trim(),
             errorSummary.Trim());
     }
+
+    public static DirectorySyncRun Start(
+        DirectorySyncRunId id,
+        OrganizationId organizationId,
+        string sourceSystem,
+        DateTimeOffset startedAtUtc,
+        string correlationId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceSystem) || string.IsNullOrWhiteSpace(correlationId))
+        {
+            throw new DomainException("Directory sync runs require a source and correlation ID.");
+        }
+
+        return new DirectorySyncRun(
+            id,
+            organizationId,
+            sourceSystem.Trim(),
+            UtcInstant.Require(startedAtUtc, nameof(startedAtUtc)),
+            endedAtUtc: null,
+            insertedCount: 0,
+            updatedCount: 0,
+            deactivatedCount: 0,
+            rejectedCount: 0,
+            DirectorySyncRunStatus.InProgress,
+            correlationId.Trim(),
+            "none");
+    }
+
+    public void Complete(
+        DateTimeOffset endedAtUtc,
+        int insertedCount,
+        int updatedCount,
+        int deactivatedCount,
+        int rejectedCount,
+        DirectorySyncRunStatus status,
+        string errorSummary)
+    {
+        EndedAtUtc = UtcInstant.Require(endedAtUtc, nameof(endedAtUtc));
+        InsertedCount = insertedCount;
+        UpdatedCount = updatedCount;
+        DeactivatedCount = deactivatedCount;
+        RejectedCount = rejectedCount;
+        Status = status;
+        ErrorSummary = string.IsNullOrWhiteSpace(errorSummary) ? "none" : errorSummary.Trim();
+    }
 }

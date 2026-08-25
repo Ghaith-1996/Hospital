@@ -1,10 +1,12 @@
 # Directory and On-Call Integration
 
-Status: Phase 0 integration boundary. Only fictional CSV is in scope for the simulation. No hospital directory or scheduling system may be connected from these documents.
+Status: Phase 4 simulation CSV adapter. Only fictional CSV is in scope. No hospital directory or scheduling system may be connected from these documents.
 
 ## Integration principle
 
 The directory identifies potential recipients; it does not decide clinical responsibility. The operator manually selects the final recipients. AI may suggest a specialty only and may not select or pre-check a practitioner.
+
+The product directory is an **integration boundary**. CSV is the first adapter. Later SCIM, Graph, FHIR, scheduling systems, and restricted SQL views must normalize into the same practitioner, role, contact, on-call, and source-record model.
 
 ## Simulation source
 
@@ -12,7 +14,7 @@ Use a fictional CSV fixture with:
 
 - Synthetic organization, site, department, practitioner, role, specialty, and endpoint references.
 - At least two sites, three departments, twelve practitioners, similar names, two inactive rows, missing optional endpoint, primary/backup fixtures, and one stale record.
-- A visible source timestamp and freshness status.
+- A visible source timestamp and freshness status. The simulation CSV fixture is `fixtures/simulation/directory-harborview.csv`.
 - No real names, IDs, endpoints, schedules, or phone numbers.
 
 The import is previewable, validates rows before applying changes, reports conflicts without sensitive payloads, and never calls a real external system.
@@ -21,7 +23,16 @@ The import is previewable, validates rows before applying changes, reports confl
 
 Never match practitioners solely by display name. Reconciliation requires a stable synthetic source identifier and records the source system, source record ID, source version/timestamp, payload hash, last-seen time, and mapping result.
 
-Real source identifiers, mapping authority, conflict resolution, deactivation behavior, and merge policy are `REQUIRES_HOSPITAL_DECISION`.
+The simulation matcher uses this order only:
+
+1. `(organization, source_system, source_record_id)`
+2. `(organization, simulation_code)`
+
+Same first and last name with a different source identifier is a warning, not a merge. Production source identifiers, mapping authority, conflict resolution, deactivation behavior, and merge policy are `REQUIRES_HOSPITAL_DECISION`.
+
+## Simulation freshness
+
+The CSV `freshness_status` column is an explicit simulation field (`current` or `stale`). This prototype does not invent a production freshness window. The production freshness threshold, stale-data selection behavior, deactivation timing, and emergency override are `REQUIRES_HOSPITAL_DECISION`.
 
 ## Practitioner display and selection
 

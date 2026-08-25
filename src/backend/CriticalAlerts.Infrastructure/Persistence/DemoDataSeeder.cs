@@ -44,11 +44,11 @@ public sealed class DemoDataSeeder
         }
 
         var organization = Organization.CreateSimulation(OrganizationId, "Fictional Harborview Simulation Hospital", SeededAt);
-        var north = Site.Create(NorthSiteId, OrganizationId, "North Wing Simulation Site", SeededAt);
-        var riverside = Site.Create(RiversideSiteId, OrganizationId, "Riverside Annex Simulation Site", SeededAt);
-        var emergency = Department.Create(new DepartmentId(Id("301")), OrganizationId, NorthSiteId, "Fictional Emergency Care", SeededAt);
-        var medicine = Department.Create(new DepartmentId(Id("302")), OrganizationId, NorthSiteId, "Fictional Medicine", SeededAt);
-        var surgery = Department.Create(new DepartmentId(Id("303")), OrganizationId, RiversideSiteId, "Fictional Surgery", SeededAt);
+        var north = Site.Create(NorthSiteId, OrganizationId, "North Wing Simulation Site", "SIM-SITE-NORTH", SeededAt);
+        var riverside = Site.Create(RiversideSiteId, OrganizationId, "Riverside Annex Simulation Site", "SIM-SITE-RIVERSIDE", SeededAt);
+        var emergency = Department.Create(new DepartmentId(Id("301")), OrganizationId, NorthSiteId, "Fictional Emergency Care", "SIM-DEPT-EMERGENCY", SeededAt);
+        var medicine = Department.Create(new DepartmentId(Id("302")), OrganizationId, NorthSiteId, "Fictional Medicine", "SIM-DEPT-MEDICINE", SeededAt);
+        var surgery = Department.Create(new DepartmentId(Id("303")), OrganizationId, RiversideSiteId, "Fictional Surgery", "SIM-DEPT-SURGERY", SeededAt);
 
         db.Organizations.Add(organization);
         db.Sites.AddRange(north, riverside);
@@ -78,8 +78,18 @@ public sealed class DemoDataSeeder
         db.Practitioners.AddRange(practitioners.Select(item => item.Practitioner));
         db.PractitionerRoles.AddRange(
             PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("701")), OrganizationId, practitioners[0].Practitioner.Id, emergency.Id, "Emergency physician", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("704")), OrganizationId, practitioners[1].Practitioner.Id, medicine.Id, "Medicine consultant", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("705")), OrganizationId, practitioners[2].Practitioner.Id, surgery.Id, "Surgeon", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("706")), OrganizationId, practitioners[3].Practitioner.Id, medicine.Id, "Medicine consultant", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("707")), OrganizationId, practitioners[4].Practitioner.Id, emergency.Id, "Emergency physician", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("708")), OrganizationId, practitioners[5].Practitioner.Id, surgery.Id, "Surgeon", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("709")), OrganizationId, practitioners[6].Practitioner.Id, medicine.Id, "Cardiology consultant", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("710")), OrganizationId, practitioners[7].Practitioner.Id, medicine.Id, "Neurology consultant", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("711")), OrganizationId, practitioners[8].Practitioner.Id, medicine.Id, "Pediatrics consultant", true),
             PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("702")), OrganizationId, practitioners[9].Practitioner.Id, emergency.Id, "Emergency physician", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("703")), OrganizationId, practitioners[9].Practitioner.Id, medicine.Id, "Medicine consultant", false));
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("703")), OrganizationId, practitioners[9].Practitioner.Id, medicine.Id, "Medicine consultant", false),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("712")), OrganizationId, practitioners[10].Practitioner.Id, emergency.Id, "Emergency physician", true),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("713")), OrganizationId, practitioners[11].Practitioner.Id, surgery.Id, "Surgeon", true));
 
         AddEndpoint(practitioners[0].Practitioner, ContactEndpointKind.Sms, "+1 555 010 0101", "SIM-SMS-0101", true);
         AddEndpoint(practitioners[0].Practitioner, ContactEndpointKind.SecureMessage, "sim-secure://maya.chen", "SIM-SECURE-0101", false);

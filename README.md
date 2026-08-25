@@ -1,10 +1,10 @@
 # Critical Clinician Alert Platform
 
-Status: Phase 3 development authentication is in progress. Phase 0, Phase 1, and Phase 2 are complete. Phase 2 is tagged `phase-2`.
+Status: Phase 4 fictional directory import is in progress. Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 3 is tagged `phase-3`.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 3 may add fictional development authentication, role policies, organization scoping, and a simulation user switcher. It must not add directory CSV import, alert APIs, provider integrations, hospital connectors, AI features, Entra SSO, or production identity.
+Phase 4 may add a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. It must not add alert APIs, provider integrations, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, or production identity.
 
 ## Source and decision precedence
 
@@ -38,9 +38,9 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0, Phase 1, and Phase 2 approval are recorded. Phase 2 is tagged `phase-2`. The project is executing Phase 3 development authentication within the reviewed scope; hospital identity remains `REQUIRES_HOSPITAL_DECISION`.
+Phase 0, Phase 1, Phase 2, and Phase 3 approval are recorded. Phase 3 is tagged `phase-3`. The project is executing Phase 4 fictional directory import within the reviewed scope; hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 3 adds fictional Development/Test authentication, role policies, organization scoping, and a UI user switcher. It must not add directory import, alert APIs, provider integrations, hospital connectors, AI features, or production SSO.
+Phase 4 adds a fictional CSV adapter over the shared practitioner directory model, validation/preview, duplicate detection, and a searchable directory UI. It must not add alert APIs, provider integrations, hospital connectors, AI features, or production SSO.
 
 ### Local verification
 

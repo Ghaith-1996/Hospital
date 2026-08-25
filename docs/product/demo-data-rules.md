@@ -41,8 +41,9 @@ No real provider-approved test numbers, sender numbers, callback numbers, or end
 
 The fictional dataset should include:
 
-- Two fictional sites and three fictional departments.
+- Two fictional sites and three fictional departments, each with a synthetic `SIM-SITE-*` or `SIM-DEPT-*` code.
 - At least twelve fictional practitioners.
+- The Phase 4 CSV adapter fixture at `fixtures/simulation/directory-harborview.csv`.
 - Similar or duplicate surnames with disambiguating specialty, department, site, role, and synthetic identifier suffixes.
 - Two inactive fictional practitioners.
 - Multiple fictional specialties.

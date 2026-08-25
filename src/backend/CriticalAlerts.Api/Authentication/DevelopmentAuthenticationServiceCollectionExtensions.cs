@@ -29,6 +29,12 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
             options.AddPolicy(AuthorizationPolicies.Operator, policy => policy.RequireRole(AuthorizationRoles.Operator));
             options.AddPolicy(AuthorizationPolicies.Administrator, policy => policy.RequireRole(AuthorizationRoles.Administrator));
             options.AddPolicy(AuthorizationPolicies.Practitioner, policy => policy.RequireRole(AuthorizationRoles.Practitioner));
+            options.AddPolicy(
+                AuthorizationPolicies.DirectoryReader,
+                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
+            options.AddPolicy(
+                AuthorizationPolicies.DirectoryAdministrator,
+                policy => policy.RequireRole(AuthorizationRoles.Administrator));
         });
 
         return services;

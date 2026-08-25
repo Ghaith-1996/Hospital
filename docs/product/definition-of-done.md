@@ -87,3 +87,16 @@ Phase 3 is ready for human review only when the following are true:
 - [x] Staging and Production fail closed when development authentication is enabled, and the user switcher is unmapped when it is disabled.
 - [x] Client-supplied user IDs, organization IDs, and roles cannot impersonate a seeded identity.
 - [x] The project owner reviewed this phase and requested the Phase 3 closure gate; those tests are included.
+
+## Phase 4: fictional practitioner directory and CSV import
+
+Phase 4 is ready for human review only when the following are true:
+
+- [ ] CSV is implemented as a directory **adapter**, not as the directory model.
+- [ ] Import validates, normalizes, detects duplicates, and previews before writing.
+- [ ] Practitioners are matched by `source_record_id`, then `simulation_code`, never by display name.
+- [ ] Similar names are disambiguated in search; inactive practitioners are not selectable; stale rows are flagged.
+- [ ] Operator/Administrator can search; only Administrator can import; Practitioner cannot.
+- [ ] Preview does not mutate; apply writes practitioners, roles, contacts, on-call, and source records.
+- [ ] No alert APIs, hospital directory connection, SCIM, Graph, FHIR, or production source mapping were added.
+- [ ] Production freshness, deactivation, merge, and source-of-truth rules remain `REQUIRES_HOSPITAL_DECISION`.

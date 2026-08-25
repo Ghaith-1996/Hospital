@@ -1,3 +1,5 @@
+using CriticalAlerts.Domain.Simulation;
+
 namespace CriticalAlerts.Domain.Directory;
 
 public sealed class Practitioner
@@ -66,10 +68,23 @@ public sealed class Practitioner
             organizationId,
             firstName.Trim(),
             lastName.Trim(),
-            simulationCode.Trim(),
+            SimulationEnvironmentPolicy.RequireSyntheticPrefix(simulationCode, "practitioner code"),
             specialty.Trim(),
             isActive,
             UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
+    }
+
+    public void Reconcile(string firstName, string lastName, string specialty, bool isActive)
+    {
+        if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
+        {
+            throw new DomainException("Practitioners require a name.");
+        }
+
+        FirstName = firstName.Trim();
+        LastName = lastName.Trim();
+        Specialty = specialty.Trim();
+        IsActive = isActive;
     }
 
     public void Deactivate() => IsActive = false;

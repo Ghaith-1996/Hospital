@@ -61,6 +61,8 @@ public sealed class RepositorySafetyTests
     private static bool IsTestOrFixture(string path)
     {
         return path.Contains("tests", StringComparison.OrdinalIgnoreCase)
+            || path.Contains($"{Path.DirectorySeparatorChar}fixtures{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+            || path.Contains($"{Path.AltDirectorySeparatorChar}fixtures{Path.AltDirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
             || Path.GetFileName(path).Contains("Fixture", StringComparison.OrdinalIgnoreCase);
     }
 

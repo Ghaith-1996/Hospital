@@ -19,7 +19,9 @@ builder.Logging.AddConsole();
 
 var developmentAuthenticationEnabled = builder.Configuration.GetValue("DevelopmentAuthentication:Enabled", false);
 builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
-builder.Services.AddCriticalAlertsPersistence(builder.Configuration.GetConnectionString("CriticalAlerts"));
+builder.Services.AddCriticalAlertsPersistence(
+    builder.Configuration.GetConnectionString("CriticalAlerts"),
+    builder.Configuration["DataProtection:Key"] ?? builder.Configuration["CRITICAL_ALERTS_DATA_PROTECTION_KEY"]);
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
@@ -52,6 +54,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapDevelopmentAuthenticationEndpoints(developmentAuthenticationEnabled);
+app.MapDirectoryEndpoints();
 
 await app.RunAsync();
 

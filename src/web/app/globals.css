@@ -27,6 +27,25 @@ body {
   padding: 2rem;
 }
 
+.page-shell-wide {
+  place-items: start stretch;
+}
+
+.page-shell-wide .status-card {
+  width: min(100%, 72rem);
+}
+
+.page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.page-nav .focus-link {
+  margin-top: 0;
+}
+
 .status-card {
   width: min(100%, 44rem);
   padding: 2.5rem;
@@ -70,11 +89,48 @@ body {
   font-size: 1.1rem;
 }
 
-.auth-panel select {
-  display: block;
-  margin-top: 0.35rem;
-  min-width: 18rem;
+.directory-search {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  max-width: 36rem;
+}
+
+.directory-search input,
+.directory-search button {
+  font: inherit;
   padding: 0.45rem 0.6rem;
+}
+
+.directory-search button {
+  width: fit-content;
+  background: var(--accent);
+  color: #ffffff;
+  border: 0;
+  border-radius: 0.35rem;
+}
+
+.directory-search button:disabled {
+  background: #94a3b8;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.directory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.directory-table th,
+.directory-table td {
+  border-bottom: 1px solid #d9e2ec;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
 }
 
 h1 {

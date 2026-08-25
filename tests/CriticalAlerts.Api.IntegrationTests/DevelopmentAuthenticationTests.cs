@@ -231,6 +231,7 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
             builder.UseEnvironment("Development");
             builder.UseSetting("ConnectionStrings:CriticalAlerts", inner.ConnectionString);
             builder.UseSetting("DevelopmentAuthentication:Enabled", "true");
+            builder.UseSetting("DataProtection:Key", dataProtectionKey);
         });
     }
 

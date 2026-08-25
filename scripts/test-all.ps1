@@ -13,10 +13,16 @@ dotnet build $solution --configuration Release --nologo
 dotnet test $solution --configuration Release --no-build --nologo
 
 npm ci --no-audit --no-fund
+if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit $LASTEXITCODE" }
 npm --prefix $webRoot ci --no-audit --no-fund
+if ($LASTEXITCODE -ne 0) { throw "npm ci (web) failed with exit $LASTEXITCODE" }
 npm --prefix $webRoot test -- --run
+if ($LASTEXITCODE -ne 0) { throw "web unit tests failed with exit $LASTEXITCODE" }
 npm --prefix $webRoot run typecheck
+if ($LASTEXITCODE -ne 0) { throw "web typecheck failed with exit $LASTEXITCODE" }
 npm --prefix $webRoot run lint
+if ($LASTEXITCODE -ne 0) { throw "web lint failed with exit $LASTEXITCODE" }
 npm run web:e2e
+if ($LASTEXITCODE -ne 0) { throw "web e2e failed with exit $LASTEXITCODE" }
 
-Write-Output "Phase 1 verification command completed."
+Write-Output "Verification command completed."

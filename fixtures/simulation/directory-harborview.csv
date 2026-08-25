@@ -1,0 +1,15 @@
+source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,endpoint_kind,endpoint_value,endpoint_label,on_call_tier,on_call_starts_at_utc,on_call_ends_at_utc,source_updated_at_utc,freshness_status
+SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,Sms,+1 555 010 0101,SIM-SMS-0101,Primary,2026-08-01T12:00:00Z,2026-08-08T12:00:00Z,2026-08-01T12:00:00Z,current
+SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,SecureMessage,sim-secure://maya.chen,SIM-SECURE-0101,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-ROWAN,Rowan,Patel,SIM-PRAC-0102,Medicine,SIM-SITE-NORTH,SIM-DEPT-MEDICINE,Medicine consultant,true,true,Voice,+1 555 010 0102,SIM-VOICE-0102,Backup,2026-08-01T12:00:00Z,2026-08-08T12:00:00Z,2026-08-01T12:00:00Z,current
+SIM-SRC-JULES,Jules,Martin,SIM-PRAC-0103,Surgery,SIM-SITE-RIVERSIDE,SIM-DEPT-SURGERY,Surgeon,true,true,SecureMessage,sim-secure://jules.martin,SIM-SECURE-0103,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-AVERY,Avery,Brooks,SIM-PRAC-0104,Medicine,SIM-SITE-NORTH,SIM-DEPT-MEDICINE,Medicine consultant,true,true,,,,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-SAMIRA,Samira,Nguyen,SIM-PRAC-0105,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,Sms,+1 555 010 0105,SIM-SMS-0105,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-JORDAN-MARTIN,Jordan,Martin,SIM-PRAC-0106,Surgery,SIM-SITE-RIVERSIDE,SIM-DEPT-SURGERY,Surgeon,true,true,Sms,+1 555 010 0106,SIM-SMS-0106,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-CASEY,Casey,Okonkwo,SIM-PRAC-0107,Cardiology,SIM-SITE-NORTH,SIM-DEPT-MEDICINE,Cardiology consultant,true,true,Voice,+1 555 010 0107,SIM-VOICE-0107,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-RILEY,Riley,Sato,SIM-PRAC-0108,Neurology,SIM-SITE-NORTH,SIM-DEPT-MEDICINE,Neurology consultant,true,true,SecureMessage,sim-secure://riley.sato,SIM-SECURE-0108,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-QUINN,Quinn,Alvarez,SIM-PRAC-0109,Pediatrics,SIM-SITE-NORTH,SIM-DEPT-MEDICINE,Pediatrics consultant,true,true,Sms,+1 555 010 0109,SIM-SMS-0109,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-HARPER,Harper,Singh,SIM-PRAC-0110,Medicine,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,Sms,+1 555 010 0110,SIM-SMS-0110,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-HARPER,Harper,Singh,SIM-PRAC-0110,Medicine,SIM-SITE-NORTH,SIM-DEPT-MEDICINE,Medicine consultant,false,true,,,,,,,2026-08-01T12:00:00Z,current
+SIM-SRC-TAYLOR,Taylor,Kim,SIM-PRAC-0111,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,false,Sms,+1 555 010 0111,SIM-SMS-0111,,,,2026-05-03T12:00:00Z,stale
+SIM-SRC-CAMERON,Cameron,Wright,SIM-PRAC-0112,Surgery,SIM-SITE-RIVERSIDE,SIM-DEPT-SURGERY,Surgeon,true,false,,,,,,,2026-08-01T12:00:00Z,current
