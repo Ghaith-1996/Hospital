@@ -138,7 +138,11 @@ export default function DirectoryPage() {
                 </td>
                 <td>
                   {practitioner.onCallTier
-                    ? `${practitioner.onCallTier} (${practitioner.onCallSourceSystem ?? "unknown source"})`
+                    ? `${practitioner.onCallTier} (${practitioner.onCallSourceSystem ?? "unknown source"})${
+                        practitioner.onCallLastSynchronizedAtUtc
+                          ? ` @ ${new Date(practitioner.onCallLastSynchronizedAtUtc).toISOString()}`
+                          : ""
+                      }`
                     : "—"}
                 </td>
                 <td>{practitioner.selectable ? "Yes" : "No"}</td>

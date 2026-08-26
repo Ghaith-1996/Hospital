@@ -66,7 +66,16 @@ internal static class DirectoryEndpoints
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "CSV file required", detail: "csv-file-required");
         }
 
-        var form = await httpContext.Request.ReadFormAsync(cancellationToken);
+        IFormCollection form;
+        try
+        {
+            form = await httpContext.Request.ReadFormAsync(cancellationToken);
+        }
+        catch (InvalidDataException)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "CSV file required", detail: "csv-file-required");
+        }
+
         var file = form.Files.GetFile("file");
         if (file is null || file.Length == 0)
         {

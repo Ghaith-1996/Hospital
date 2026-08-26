@@ -23,6 +23,20 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         body.Should().Contain("authentication-required");
     }
 
+    [Fact]
+    public async Task UnauthenticatedDirectoryImportReturnsUnauthorized()
+    {
+        using var client = fixture.CreateClient();
+        using var content = new MultipartFormDataContent();
+
+        using var response = await client.PostAsync("/api/directory/imports/preview", content);
+        var body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        body.Should().Contain("authentication-required");
+        body.Should().NotContain("csv-file-required");
+    }
+
     [Theory]
     [InlineData(DemoDataSeeder.JordanHandle, HttpStatusCode.OK)]
     [InlineData(DemoDataSeeder.MorganHandle, HttpStatusCode.OK)]
@@ -31,6 +45,20 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
     {
         using var client = await fixture.CreateSignedInClientAsync(handle);
         (await client.GetAsync("/api/directory/practitioners?q=Martin")).StatusCode.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task DirectorySearchUsesAuthenticatedOrganizationInsteadOfCallerHeader()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
+        client.DefaultRequestHeaders.Add("X-Organization-Id", Guid.NewGuid().ToString("D"));
+
+        using var response = await client.GetAsync("/api/directory/practitioners?q=Martin");
+        var body = await response.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.Should().HaveCount(2);
+        body.Should().OnlyContain(item => item.LastName == "Martin");
     }
 
     [Theory]
@@ -67,6 +95,39 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         afterBody!.Single(item => item.SimulationCode == "SIM-PRAC-0111").Selectable.Should().BeFalse();
         martinBody.Should().HaveCount(2);
         martinBody.Should().OnlyContain(item => item.LastName == "Martin");
+    }
+
+    [Fact]
+    public async Task MissingCsvFileReturnsSafeProblemDetails()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
+        using var content = new MultipartFormDataContent();
+
+        using var response = await client.PostAsync("/api/directory/imports/preview", content);
+        var body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest, body);
+        body.Should().Contain("csv-file-required");
+        body.Should().NotContain("CriticalAlerts");
+    }
+
+    [Fact]
+    public async Task BlockingCsvApplyReturnsNoSyncRun()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
+        var csv = File.ReadAllText(FixturePath()).Replace(
+            "SIM-DEPT-EMERGENCY",
+            "SIM-DEPT-UNKNOWN",
+            StringComparison.Ordinal);
+        using var content = CsvContent(csv);
+
+        using var response = await client.PostAsync("/api/directory/imports", content);
+        var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body!.Applied.Should().BeFalse();
+        body.SyncRunId.Should().BeNull();
+        body.Preview.Errors.Should().Contain(error => error.Code == "unknown-department");
     }
 
     [Fact]

@@ -90,6 +90,7 @@ public sealed class CsvDirectoryParserTests
         var parsed = CsvDirectoryParser.Parse(csv);
 
         parsed.Errors.Should().Contain(error => error.Code == "non-synthetic-endpoint");
+        parsed.Errors.Should().NotContain(error => error.Message.Contains(nonSynthetic, StringComparison.Ordinal));
     }
 
     [Fact]

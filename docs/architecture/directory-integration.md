@@ -19,6 +19,12 @@ Use a fictional CSV fixture with:
 
 The import is previewable, validates rows before applying changes, reports conflicts without sensitive payloads, and never calls a real external system.
 
+## Strict simulation CSV contract
+
+The CSV adapter is intentionally strict at its input boundary. It rejects duplicate headers, malformed quoted fields, and rows whose column count does not match the header. Required values, booleans, enum values, UTC timestamps, `SIM-` identifiers, and location codes are validated with a row reference. SMS and voice values must be complete fictional `555` numbers; secure-message values must use `sim-secure://`; endpoint labels must be synthetic `SIM-` values.
+
+The adapter returns normalized practitioners, roles, protected-contact inputs, on-call assignments, source metadata, blocking errors, and non-blocking warnings through `IDirectorySourceAdapter`. Error and warning responses contain only safe issue codes, row numbers, synthetic source identifiers, and messages; protected endpoint values are not echoed.
+
 ## Safe identity matching
 
 Never match practitioners solely by display name. Reconciliation requires a stable synthetic source identifier and records the source system, source record ID, source version/timestamp, payload hash, last-seen time, and mapping result.
@@ -50,6 +56,12 @@ Search results must show enough disambiguation for similar names:
 - On-call assignment source and timestamp when available.
 
 The operator must explicitly select each recipient. No provider, AI service, worker, sync job, or background rule may add a recipient invisibly.
+
+## Preview, apply, and UI safety
+
+Preview loads only the authenticated organization’s catalog and produces a plan without writing practitioners, source records, sync runs, or audit events. Apply re-plans the submitted source and rejects every blocking conflict before opening a transaction; successful writes persist the normalized practitioner, role, protected endpoint, on-call, and source-record state atomically with a sanitized sync record.
+
+The API derives user and organization context from the server-created authenticated principal. Caller-supplied headers, query values, and form fields cannot select a user, organization, or role. The web import page clears a prior preview when the selected file changes and disables Apply until a clean preview exists for the current selection; these controls are usability safeguards only, not authorization boundaries.
 
 ## Staleness and inactive records
 

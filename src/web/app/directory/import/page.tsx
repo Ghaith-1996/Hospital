@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useState } from "react";
+import React, { ChangeEvent, FormEvent, useState } from "react";
 import { SimulationChrome } from "../../simulation-chrome";
 
 type DirectoryImportIssue = {
@@ -89,6 +89,12 @@ export default function DirectoryImportPage() {
     void post("/api/directory/imports/preview");
   }
 
+  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setFile(event.target.files?.[0] ?? null);
+    setPreview(null);
+    setStatus("Choose a new preview before applying the selected CSV.");
+  }
+
   return (
     <SimulationChrome
       title="Fictional directory import"
@@ -101,7 +107,7 @@ export default function DirectoryImportPage() {
           name="file"
           type="file"
           accept=".csv,text/csv"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          onChange={onFileChange}
         />
         <button type="submit">Preview import</button>
         <button

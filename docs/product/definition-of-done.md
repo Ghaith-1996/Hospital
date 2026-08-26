@@ -100,3 +100,7 @@ Phase 4 is ready for human review only when the following are true:
 - [ ] Preview does not mutate; apply writes practitioners, roles, contacts, on-call, and source records.
 - [ ] No alert APIs, hospital directory connection, SCIM, Graph, FHIR, or production source mapping were added.
 - [ ] Production freshness, deactivation, merge, and source-of-truth rules remain `REQUIRES_HOSPITAL_DECISION`.
+- [ ] The CSV boundary rejects duplicate headers, malformed quotes, inconsistent row widths, non-UTC timestamps, and non-synthetic endpoint values without echoing protected values.
+- [ ] API authorization and organization scope are verified with unauthenticated, Operator, Administrator, and Practitioner negative cases; identity context remains server-derived.
+- [ ] The UI renders source/on-call synchronization timestamps and clears a preview when the selected CSV changes.
+- [ ] Fresh `scripts/test-all.ps1`, safety, and fresh-clone verification pass in the pinned environment before a human review and `phase-4` tag.

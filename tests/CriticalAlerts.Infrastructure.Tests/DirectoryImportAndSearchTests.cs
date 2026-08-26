@@ -66,6 +66,130 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
     }
 
     [Fact]
+    public async Task ReapplyingTheSameCsvKeepsOneSourceRecordPerPractitionerAndRefreshesSyncState()
+    {
+        await fixture.ResetAsync();
+        try
+        {
+            foreach (var correlationId in new[] { "corr-repeat-one", "corr-repeat-two" })
+            {
+                await using var db = fixture.CreateContext();
+                var service = CreateService(db);
+                await using var stream = File.OpenRead(FixturePath());
+
+                var applied = await service.ApplyAsync(
+                    DemoDataSeeder.OrganizationId,
+                    Actor,
+                    correlationId,
+                    stream,
+                    new CsvDirectorySourceAdapter(),
+                    CancellationToken.None);
+
+                applied.Applied.Should().BeTrue();
+            }
+
+            await using var verify = fixture.CreateContext();
+            (await verify.DirectorySourceRecords.CountAsync(record =>
+                record.OrganizationId == DemoDataSeeder.OrganizationId
+                && record.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(12);
+            (await verify.DirectorySyncRuns.CountAsync(run =>
+                run.OrganizationId == DemoDataSeeder.OrganizationId
+                && run.SourceSystem == DirectorySourceSystems.Csv
+                && run.Status == DirectorySyncRunStatus.Succeeded)).Should().Be(2);
+            (await verify.ContactEndpoints.CountAsync(endpoint => endpoint.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(11);
+            (await verify.OnCallAssignments.CountAsync(assignment =>
+                assignment.OrganizationId == DemoDataSeeder.OrganizationId
+                && assignment.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(2);
+        }
+        finally
+        {
+            await fixture.ResetAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRejectsBlockingConflictBeforeCreatingSyncRunOrSourceRecords()
+    {
+        await fixture.ResetAsync();
+        try
+        {
+            await using var db = fixture.CreateContext();
+            var beforeSources = await db.DirectorySourceRecords.CountAsync(record => record.SourceSystem == DirectorySourceSystems.Csv);
+            var service = CreateService(db);
+            const string csv = """
+                source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status
+                SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-NORTH,SIM-DEPT-UNKNOWN,Emergency physician,true,true,2026-08-01T12:00:00Z,current
+                """;
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
+
+            var applied = await service.ApplyAsync(
+                DemoDataSeeder.OrganizationId,
+                Actor,
+                "corr-blocked-apply",
+                stream,
+                new CsvDirectorySourceAdapter(),
+                CancellationToken.None);
+
+            applied.Applied.Should().BeFalse();
+            applied.SyncRunId.Should().BeNull();
+            applied.Preview.Errors.Should().Contain(error => error.Code == "unknown-department");
+            (await db.DirectorySourceRecords.CountAsync(record => record.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(beforeSources);
+            (await db.DirectorySyncRuns.CountAsync(run => run.CorrelationId == "corr-blocked-apply")).Should().Be(0);
+        }
+        finally
+        {
+            await fixture.ResetAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRejectsSourceRecordSimulationCodeChangesBeforeMutation()
+    {
+        await fixture.ResetAsync();
+        try
+        {
+            await using (var seedDb = fixture.CreateContext())
+            {
+                var seedService = CreateService(seedDb);
+                await using var seedStream = File.OpenRead(FixturePath());
+                (await seedService.ApplyAsync(
+                    DemoDataSeeder.OrganizationId,
+                    Actor,
+                    "corr-seed-for-code-conflict",
+                    seedStream,
+                    new CsvDirectorySourceAdapter(),
+                    CancellationToken.None)).Applied.Should().BeTrue();
+            }
+
+            await using var db = fixture.CreateContext();
+            var beforeSources = await db.DirectorySourceRecords.CountAsync(record => record.SourceSystem == DirectorySourceSystems.Csv);
+            const string csv = """
+                source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status
+                SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0999,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,2026-08-01T12:00:00Z,current
+                """;
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
+
+            var applied = await CreateService(db).ApplyAsync(
+                DemoDataSeeder.OrganizationId,
+                Actor,
+                "corr-code-conflict",
+                stream,
+                new CsvDirectorySourceAdapter(),
+                CancellationToken.None);
+
+            applied.Applied.Should().BeFalse();
+            applied.SyncRunId.Should().BeNull();
+            applied.Preview.Errors.Should().Contain(error => error.Code == "simulation-code-immutable");
+            (await db.DirectorySourceRecords.CountAsync(record => record.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(beforeSources);
+            (await db.DirectorySyncRuns.CountAsync(run => run.CorrelationId == "corr-code-conflict")).Should().Be(0);
+        }
+        finally
+        {
+            await fixture.ResetAsync();
+        }
+    }
+
+    [Fact]
     public async Task NameCollisionWarnsAndDoesNotMergeDifferentSourceRecords()
     {
         await fixture.ResetAsync();
