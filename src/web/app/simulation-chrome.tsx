@@ -32,6 +32,9 @@ export function SimulationChrome({
           <Link className="focus-link" href="/directory/import">
             Directory import
           </Link>
+          <Link className="focus-link" href="/alerts/new">
+            Alert drafting
+          </Link>
         </nav>
         <h1>{title}</h1>
         <p className="lead">{lead}</p>

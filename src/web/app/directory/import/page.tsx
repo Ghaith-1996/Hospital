@@ -27,6 +27,7 @@ type DirectoryImportPreview = {
   errors: DirectoryImportIssue[];
   warnings: DirectoryImportIssue[];
   changes: DirectoryImportChange[];
+  previewToken: string;
 };
 
 type DirectoryImportApply = {
@@ -50,6 +51,9 @@ export default function DirectoryImportPage() {
 
     const body = new FormData();
     body.append("file", file);
+    if (!path.endsWith("/preview")) {
+      body.append("preview_token", preview?.previewToken ?? "");
+    }
     const response = await fetch(path, { method: "POST", body, credentials: "include" });
     if (response.status === 401) {
       setStatus("Sign in with the seeded Administrator identity to import.");

@@ -30,6 +30,7 @@ public sealed class Alert
         string urgencyLabel,
         AlertSourceType sourceType,
         ProtectedValue? originalSource,
+        ProtectedValue? structuredSuggestion,
         DateTimeOffset createdAtUtc)
     {
         Id = id;
@@ -42,6 +43,7 @@ public sealed class Alert
         UrgencyLabel = urgencyLabel;
         SourceType = sourceType;
         OriginalSource = originalSource;
+        StructuredSuggestion = structuredSuggestion;
         State = AlertState.Draft;
         DraftVersion = AlertDraftVersion.Initial;
         CreatedAtUtc = createdAtUtc;
@@ -124,7 +126,8 @@ public sealed class Alert
         string urgencyLabel,
         AlertSourceType sourceType,
         ProtectedValue? originalSource,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        ProtectedValue? structuredSuggestion = null)
     {
         return new Alert(
             id,
@@ -137,6 +140,7 @@ public sealed class Alert
             urgencyLabel.Trim(),
             sourceType,
             originalSource,
+            structuredSuggestion,
             UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
     }
 
@@ -146,6 +150,37 @@ public sealed class Alert
         EnsureEditable(expectedVersion);
         OriginalSource = originalSource;
         InvalidateApprovalAndIncrementVersion(updatedAtUtc, "source-edited");
+    }
+
+    public void UpdateTypedContent(
+        string location,
+        string urgencyLabel,
+        ProtectedValue originalSource,
+        ProtectedValue structuredSuggestion,
+        AlertDraftVersion expectedVersion,
+        DateTimeOffset updatedAtUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(location);
+        ArgumentException.ThrowIfNullOrWhiteSpace(urgencyLabel);
+        ArgumentNullException.ThrowIfNull(originalSource);
+        ArgumentNullException.ThrowIfNull(structuredSuggestion);
+        EnsureEditable(expectedVersion);
+        Location = location.Trim();
+        UrgencyLabel = urgencyLabel.Trim();
+        OriginalSource = originalSource;
+        StructuredSuggestion = structuredSuggestion;
+        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "typed-content-edited");
+    }
+
+    public void SetStructuredSuggestion(
+        ProtectedValue structuredSuggestion,
+        AlertDraftVersion expectedVersion,
+        DateTimeOffset updatedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(structuredSuggestion);
+        EnsureEditable(expectedVersion);
+        StructuredSuggestion = structuredSuggestion;
+        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "sbar-edited");
     }
 
     public void SetApprovedMessage(ProtectedValue approvedMessage, AlertDraftVersion expectedVersion, DateTimeOffset updatedAtUtc)
@@ -159,6 +194,20 @@ public sealed class Alert
     public void SubmitForConfirmation(UserId actorUserId, AlertDraftVersion expectedVersion, DateTimeOffset occurredAtUtc)
     {
         EnsureExpectedVersion(expectedVersion);
+        if (SourceType != AlertSourceType.Typed
+            || OriginalSource is null
+            || StructuredSuggestion is null
+            || string.IsNullOrWhiteSpace(Location)
+            || string.IsNullOrWhiteSpace(UrgencyLabel))
+        {
+            throw new DomainException("Alert drafts require a typed source, location, urgency, and structured SBAR content before submission.");
+        }
+
+        if (CurrentFieldConfirmations.Any(confirmation => confirmation.Status != FieldConfirmationStatus.Confirmed))
+        {
+            throw new UnresolvedCriticalFieldException("Every critical number and unit must be confirmed before submission.");
+        }
+
         TransitionTo(AlertState.PendingConfirmation, actorUserId, "submitted-for-confirmation", "DEMO", occurredAtUtc);
     }
 

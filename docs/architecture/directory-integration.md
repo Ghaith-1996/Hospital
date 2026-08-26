@@ -1,6 +1,6 @@
 # Directory and On-Call Integration
 
-Status: Phase 4 simulation CSV adapter. Only fictional CSV is in scope. No hospital directory or scheduling system may be connected from these documents.
+Status: Phase 4 simulation CSV adapter with review corrections. Only fictional CSV is in scope for this boundary. No hospital directory or scheduling system may be connected from these documents.
 
 ## Integration principle
 
@@ -25,6 +25,8 @@ The CSV adapter is intentionally strict at its input boundary. It rejects duplic
 
 The adapter returns normalized practitioners, roles, protected-contact inputs, on-call assignments, source metadata, blocking errors, and non-blocking warnings through `IDirectorySourceAdapter`. Error and warning responses contain only safe issue codes, row numbers, synthetic source identifiers, and messages; protected endpoint values are not echoed.
 
+The CSV simulation policy also uses an explicit fictional practitioner/name, specialty, and role catalog. This allowlist is deliberately a test-data boundary, not a canonical hospital role model or a production claim about real practitioners.
+
 ## Safe identity matching
 
 Never match practitioners solely by display name. Reconciliation requires a stable synthetic source identifier and records the source system, source record ID, source version/timestamp, payload hash, last-seen time, and mapping result.
@@ -35,6 +37,8 @@ The simulation matcher uses this order only:
 2. `(organization, simulation_code)`
 
 Same first and last name with a different source identifier is a warning, not a merge. Production source identifiers, mapping authority, conflict resolution, deactivation behavior, and merge policy are `REQUIRES_HOSPITAL_DECISION`.
+
+Roles, protected contact endpoints, and on-call assignments carry their own source system and source record ownership. A CSV reconciliation replaces only its `SIM-CSV` children and leaves another adapter's contribution intact. This keeps CSV from becoming a destructive replacement for the shared directory model.
 
 ## Simulation freshness
 
@@ -61,11 +65,11 @@ The operator must explicitly select each recipient. No provider, AI service, wor
 
 Preview loads only the authenticated organization’s catalog and produces a plan without writing practitioners, source records, sync runs, or audit events. Apply re-plans the submitted source and rejects every blocking conflict before opening a transaction; successful writes persist the normalized practitioner, role, protected endpoint, on-call, and source-record state atomically with a sanitized sync record.
 
-The API derives user and organization context from the server-created authenticated principal. Caller-supplied headers, query values, and form fields cannot select a user, organization, or role. The web import page clears a prior preview when the selected file changes and disables Apply until a clean preview exists for the current selection; these controls are usability safeguards only, not authorization boundaries.
+The API derives user and organization context from the server-created authenticated principal. Caller-supplied headers, query values, and form fields cannot select a user, organization, or role. Each clean preview includes a non-secret freshness token derived from the authenticated organization, adapter, uploaded payload, and scoped catalog revision; apply requires it and rejects a stale or missing preview before opening a transaction. The web import page clears a prior preview when the selected file changes and disables Apply until a clean preview exists for the current selection; these controls are usability safeguards only, not authorization boundaries.
 
 ## Staleness and inactive records
 
-The simulation visibly flags stale data and blocks inactive practitioners from selection. The production freshness threshold, stale-data selection behavior, deactivation timing, and emergency override are `REQUIRES_HOSPITAL_DECISION`.
+The simulation visibly flags stale data and blocks inactive practitioners from selection. Search reports an on-call assignment only when its UTC window is currently active (`starts_at_utc <= now < ends_at_utc`); employment activity and on-call status remain separate. The production freshness threshold, stale-data selection behavior, deactivation timing, and emergency override are `REQUIRES_HOSPITAL_DECISION`.
 
 ## Planned integration order
 

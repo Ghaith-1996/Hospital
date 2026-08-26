@@ -145,14 +145,93 @@ public sealed class CsvDirectoryParserTests
         parsed.Errors.Should().Contain(error => error.Code == "non-synthetic-endpoint");
     }
 
-    private static string ValidSingleRow(string endpointKind, string endpointValue)
+    [Fact]
+    public void UnknownRoleTitlesAreRejected()
+    {
+        var parsed = CsvDirectoryParser.Parse(ValidSingleRow("Sms", "+1 555 010 0101", roleTitle: "Administrator"));
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "invalid-role");
+    }
+
+    [Fact]
+    public void OnCallWindowsMustEndAfterTheyStart()
+    {
+        var parsed = CsvDirectoryParser.Parse(ValidOnCallRow(
+            "2026-08-08T12:00:00Z",
+            "2026-08-01T12:00:00Z"));
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "invalid-on-call-window");
+    }
+
+    [Fact]
+    public void PractitionerIdentityMustComeFromTheFictionalSimulationCatalog()
+    {
+        var csv = ValidSingleRow("Sms", "+1 555 010 0101", firstName: "Unknown", lastName: "Person");
+
+        var parsed = CsvDirectoryParser.Parse(csv);
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "non-fictional-practitioner");
+    }
+
+    [Fact]
+    public void SpecialtyMustComeFromTheFictionalSimulationCatalog()
+    {
+        var csv = ValidSingleRow("Sms", "+1 555 010 0101", specialty: "Unlisted specialty");
+
+        var parsed = CsvDirectoryParser.Parse(csv);
+
+        parsed.Practitioners.Should().BeEmpty();
+        parsed.Errors.Should().Contain(error => error.Code == "non-fictional-specialty");
+    }
+
+    [Fact]
+    public void ExactDuplicateRowsAreDeduplicatedInTheNormalizedRecord()
+    {
+        var single = ValidOnCallRow("2026-08-01T12:00:00Z", "2026-08-08T12:00:00Z");
+        var lines = single.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var csv = lines[0] + Environment.NewLine + lines[1] + Environment.NewLine + lines[1] + Environment.NewLine;
+
+        var parsed = CsvDirectoryParser.Parse(csv);
+        var practitioner = parsed.Practitioners.Single();
+
+        parsed.Errors.Should().BeEmpty();
+        practitioner.Roles.Should().ContainSingle();
+        practitioner.OnCallAssignments.Should().ContainSingle();
+    }
+
+    private static string ValidSingleRow(
+        string endpointKind,
+        string endpointValue,
+        string roleTitle = "Emergency physician",
+        string firstName = "Maya",
+        string lastName = "Chen",
+        string specialty = "Emergency")
         => "source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,endpoint_kind,endpoint_value,endpoint_label,source_updated_at_utc,freshness_status"
             + Environment.NewLine
             + string.Join(",",
             [
-                "SIM-SRC-ONE", "Maya", "Chen", "SIM-PRAC-0101", "Emergency", "SIM-SITE-NORTH",
-                "SIM-DEPT-EMERGENCY", "Emergency physician", "true", "true", endpointKind, endpointValue,
+                "SIM-SRC-ONE", firstName, lastName, "SIM-PRAC-0101", specialty, "SIM-SITE-NORTH",
+                "SIM-DEPT-EMERGENCY", roleTitle, "true", "true", endpointKind, endpointValue,
                 "SIM-ENDPOINT-0101", "2026-08-01T12:00:00Z", "current",
+            ])
+            + Environment.NewLine;
+
+    private static string ValidOnCallRow(string startsAtUtc, string endsAtUtc)
+        => string.Join(",",
+            [
+                "source_record_id", "first_name", "last_name", "simulation_code", "specialty", "site_code", "department_code",
+                "role_title", "is_primary_role", "is_active", "endpoint_kind", "endpoint_value", "endpoint_label", "on_call_tier",
+                "on_call_starts_at_utc", "on_call_ends_at_utc", "source_updated_at_utc", "freshness_status",
+            ])
+            + Environment.NewLine
+            + string.Join(",",
+            [
+                "SIM-SRC-ONCALL", "Maya", "Chen", "SIM-PRAC-0101", "Emergency", "SIM-SITE-NORTH", "SIM-DEPT-EMERGENCY",
+                "Emergency physician", "true", "true", "", "", "", "Primary", startsAtUtc, endsAtUtc,
+                "2026-08-01T12:00:00Z", "current",
             ])
             + Environment.NewLine;
 

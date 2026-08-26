@@ -42,6 +42,8 @@ internal sealed class PractitionerRoleAssignmentConfiguration : IEntityTypeConfi
         builder.HasAlternateKey(entity => new { entity.Id, entity.OrganizationId });
         builder.Property(entity => entity.Title).HasColumnName("title").HasMaxLength(100).IsRequired();
         builder.Property(entity => entity.IsPrimary).HasColumnName("is_primary").IsRequired();
+        builder.Property(entity => entity.SourceSystem).HasColumnName("source_system").HasMaxLength(100).IsRequired();
+        builder.Property(entity => entity.SourceRecordId).HasColumnName("source_record_id").HasMaxLength(100).IsRequired();
         builder.HasOne<Practitioner>().WithMany().HasForeignKey(entity => new { entity.PractitionerId, entity.OrganizationId }).HasPrincipalKey(practitioner => new { practitioner.Id, practitioner.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Department>().WithMany().HasForeignKey(entity => new { entity.DepartmentId, entity.OrganizationId }).HasPrincipalKey(department => new { department.Id, department.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
     }
@@ -60,6 +62,8 @@ internal sealed class ContactEndpointConfiguration : IEntityTypeConfiguration<Co
         builder.Property(entity => entity.SimulationLabel).HasColumnName("simulation_label").HasMaxLength(100).IsRequired();
         builder.Property(entity => entity.IsPrimary).HasColumnName("is_primary").IsRequired();
         builder.Property(entity => entity.IsActive).HasColumnName("is_active").IsRequired();
+        builder.Property(entity => entity.SourceSystem).HasColumnName("source_system").HasMaxLength(100).IsRequired();
+        builder.Property(entity => entity.SourceRecordId).HasColumnName("source_record_id").HasMaxLength(100).IsRequired();
         builder.OwnsOne(entity => entity.ProtectedValue, owned =>
         {
             owned.Property(value => value.Ciphertext).HasColumnName("endpoint_ciphertext").IsRequired();

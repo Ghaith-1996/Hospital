@@ -134,7 +134,11 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
     public async Task AdministratorCanApplyTheSimulationCsv()
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
-        using var content = CsvContent(File.ReadAllText(FixturePath()));
+        var csv = File.ReadAllText(FixturePath());
+        using var previewContent = CsvContent(csv);
+        using var previewResponse = await client.PostAsync("/api/directory/imports/preview", previewContent);
+        var preview = await previewResponse.Content.ReadFromJsonAsync<DirectoryImportPreviewResult>();
+        using var content = CsvContent(csv, preview!.PreviewToken);
 
         using var response = await client.PostAsync("/api/directory/imports", content);
         var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
@@ -148,12 +152,50 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         martins.Should().OnlyContain(item => item.SourceSystem == DirectorySourceSystems.Csv);
     }
 
-    private static MultipartFormDataContent CsvContent(string csv)
+    [Fact]
+    public async Task AdministratorApplyRequiresTheCurrentPreview()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
+        using var content = CsvContent(File.ReadAllText(FixturePath()));
+
+        using var response = await client.PostAsync("/api/directory/imports", content);
+        var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body!.Applied.Should().BeFalse();
+        body.Preview.Errors.Should().Contain(error => error.Code == "preview-required");
+    }
+
+    [Fact]
+    public async Task AdministratorApplyRejectsAChangedFileWithAnOldPreview()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
+        var csv = File.ReadAllText(FixturePath());
+        using var previewContent = CsvContent(csv);
+        using var previewResponse = await client.PostAsync("/api/directory/imports/preview", previewContent);
+        var preview = await previewResponse.Content.ReadFromJsonAsync<DirectoryImportPreviewResult>();
+        var changedCsv = csv.Replace("2026-08-01T12:00:00Z", "2026-08-02T12:00:00Z", StringComparison.Ordinal);
+        using var applyContent = CsvContent(changedCsv, preview!.PreviewToken);
+
+        using var response = await client.PostAsync("/api/directory/imports", applyContent);
+        var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body!.Applied.Should().BeFalse();
+        body.Preview.Errors.Should().Contain(error => error.Code == "stale-preview");
+    }
+
+    private static MultipartFormDataContent CsvContent(string csv, string? previewToken = null)
     {
         var content = new MultipartFormDataContent();
         var file = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(csv));
         file.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
         content.Add(file, "file", "directory-harborview.csv");
+        if (previewToken is not null)
+        {
+            content.Add(new StringContent(previewToken), "preview_token");
+        }
+
         return content;
     }
 

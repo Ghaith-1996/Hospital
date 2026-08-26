@@ -7,6 +7,21 @@ public static class DirectorySourceSystems
     public const string Csv = "SIM-CSV";
 }
 
+public static class SimulationDirectoryRoles
+{
+    private static readonly IReadOnlySet<string> AllowedTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Emergency physician",
+        "Medicine consultant",
+        "Surgeon",
+        "Cardiology consultant",
+        "Neurology consultant",
+        "Pediatrics consultant",
+    };
+
+    public static bool IsAllowed(string title) => AllowedTitles.Contains(title.Trim());
+}
+
 public sealed record DirectoryImportIssue(string Code, string SourceRecordId, int? RowNumber, string Message);
 
 public sealed record NormalizedDirectoryRole(
@@ -69,7 +84,8 @@ public sealed record DirectoryImportPreviewResult(
     int RejectedCount,
     IReadOnlyList<DirectoryImportIssue> Errors,
     IReadOnlyList<DirectoryImportIssue> Warnings,
-    IReadOnlyList<DirectoryImportChange> Changes);
+    IReadOnlyList<DirectoryImportChange> Changes,
+    string PreviewToken = "");
 
 public sealed record DirectoryImportApplyResult(
     bool Applied,
@@ -92,7 +108,8 @@ public interface IDirectoryImportService
         string correlationId,
         Stream source,
         IDirectorySourceAdapter adapter,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        string? previewToken = null);
 }
 
 public sealed record DirectorySearchQuery(OrganizationId OrganizationId, string? Text, bool IncludeInactive);

@@ -35,6 +35,9 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
             options.AddPolicy(
                 AuthorizationPolicies.DirectoryAdministrator,
                 policy => policy.RequireRole(AuthorizationRoles.Administrator));
+            options.AddPolicy(
+                AuthorizationPolicies.AlertDraftEditor,
+                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
         });
 
         return services;

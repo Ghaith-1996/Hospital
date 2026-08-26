@@ -1,6 +1,6 @@
 # Alert State Machine
 
-Status: Phase 0 state and transition contract for simulation. It does not define a hospital's clinical escalation or resolution policy.
+Status: Phase 5 simulation draft implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical escalation or resolution policy.
 
 ## Alert lifecycle states
 
@@ -8,8 +8,8 @@ The alert lifecycle state is separate from recipient delivery and response state
 
 | State | Meaning | Entry control |
 |---|---|---|
-| `Draft` | Editable source, structured suggestion, and recipient-selection work. | Human operator creates or edits. |
-| `PendingConfirmation` | Required review is ready or awaiting human confirmation. | Server validates required fields and unresolved critical values. |
+| `Draft` | Editable typed source, SBAR content, and later recipient-selection work. | Human operator creates or edits. |
+| `PendingConfirmation` | A complete draft is awaiting the later human review/confirmation phase. | Server validates required fields and critical values. |
 | `DispatchQueued` | Exact version and recipients were explicitly confirmed and a durable dispatch request exists. | Authenticated human confirmation transaction only. |
 | `Active` | Dispatch/response workflow is in progress or has durable activity. | Worker records delivery work/activity. |
 | `Resolved` | An authorized human recorded the approved resolution outcome. | Production condition is `REQUIRES_HOSPITAL_DECISION`; simulation requires explicit test action. |
@@ -47,6 +47,12 @@ Phase 2 persists the Phase 0 lifecycle states above. Names used in some later su
 | Approved | Confirmation metadata on a specific draft version; the lifecycle state becomes `DispatchQueued` |
 | Dispatching / Dispatched | `DispatchQueued` then `Active` |
 | Delivered, Acknowledged, Accepted | Recipient delivery and response records, not alert lifecycle states |
+
+## Phase 5 drafting boundary
+
+Phase 5 exposes only typed simulation draft creation/editing, protected source and SBAR storage, optimistic draft-version checks, critical-field confirmation, and submission to `PendingConfirmation`. Source and SBAR text must carry the `SIMULATION:` marker; patient references remain `SIM-` values. Critical fields are unresolved until an authenticated human confirms the exact value and unit.
+
+The Phase 5 API does not select recipients, confirm dispatch, create outbox work, call providers, or run escalation. Those are later phases and remain unavailable.
 
 ## Dispatch confirmation invariant
 

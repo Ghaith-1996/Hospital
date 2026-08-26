@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Domain;
@@ -24,9 +26,10 @@ public sealed class DirectoryImportService(
     {
         _ = actorUserId;
         _ = correlationId;
-        var parsed = adapter.Read(source);
+        var payload = await ReadSourceAsync(source, cancellationToken);
+        var parsed = adapter.Read(new MemoryStream(payload, writable: false));
         var catalog = await LoadCatalogAsync(organizationId, adapter.SourceSystem, cancellationToken);
-        return Plan(parsed, catalog);
+        return Plan(parsed, catalog, BuildPreviewToken(organizationId, adapter.SourceSystem, payload, catalog));
     }
 
     public async Task<DirectoryImportApplyResult> ApplyAsync(
@@ -35,14 +38,29 @@ public sealed class DirectoryImportService(
         string correlationId,
         Stream source,
         IDirectorySourceAdapter adapter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? previewToken = null)
     {
-        var parsed = adapter.Read(source);
+        var payload = await ReadSourceAsync(source, cancellationToken);
+        var parsed = adapter.Read(new MemoryStream(payload, writable: false));
         var catalog = await LoadCatalogAsync(organizationId, adapter.SourceSystem, cancellationToken);
-        var preview = Plan(parsed, catalog);
+        var currentPreviewToken = BuildPreviewToken(organizationId, adapter.SourceSystem, payload, catalog);
+        var preview = Plan(parsed, catalog, currentPreviewToken);
         if (preview.Errors.Count > 0)
         {
             return new DirectoryImportApplyResult(false, null, preview);
+        }
+
+        if (string.IsNullOrWhiteSpace(previewToken))
+        {
+            return new DirectoryImportApplyResult(false, null, AddPreviewError(preview, "preview-required", "A clean server preview is required before applying a directory import."));
+        }
+
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(preview.PreviewToken),
+                Encoding.UTF8.GetBytes(previewToken.Trim())))
+        {
+            return new DirectoryImportApplyResult(false, null, AddPreviewError(preview, "stale-preview", "The selected CSV or directory catalog changed after preview. Preview the current file again."));
         }
 
         var now = time.GetUtcNow();
@@ -153,7 +171,9 @@ public sealed class DirectoryImportService(
         CancellationToken cancellationToken)
     {
         var existingRoles = await db.PractitionerRoles
-            .Where(role => role.OrganizationId == organizationId && role.PractitionerId == practitioner.Id)
+            .Where(role => role.OrganizationId == organizationId
+                && role.PractitionerId == practitioner.Id
+                && role.SourceSystem == sourceSystem)
             .ToListAsync(cancellationToken);
         db.PractitionerRoles.RemoveRange(existingRoles);
         foreach (var role in inbound.Roles)
@@ -164,11 +184,15 @@ public sealed class DirectoryImportService(
                 practitioner.Id,
                 catalog.DepartmentsByCode[role.DepartmentCode].Id,
                 role.Title,
-                role.IsPrimary));
+                role.IsPrimary,
+                sourceSystem,
+                inbound.SourceRecordId));
         }
 
         var existingEndpoints = await db.ContactEndpoints
-            .Where(endpoint => endpoint.OrganizationId == organizationId && endpoint.PractitionerId == practitioner.Id)
+            .Where(endpoint => endpoint.OrganizationId == organizationId
+                && endpoint.PractitionerId == practitioner.Id
+                && endpoint.SourceSystem == sourceSystem)
             .ToListAsync(cancellationToken);
         db.ContactEndpoints.RemoveRange(existingEndpoints);
         foreach (var endpoint in inbound.Endpoints)
@@ -180,11 +204,15 @@ public sealed class DirectoryImportService(
                 endpoint.Kind,
                 protector.Protect(endpoint.Value, new SensitiveDataContext("contact-endpoint", organizationId.Value)),
                 endpoint.Label,
-                isPrimary: inbound.Endpoints[0].Label == endpoint.Label));
+                isPrimary: inbound.Endpoints[0].Label == endpoint.Label,
+                sourceSystem,
+                inbound.SourceRecordId));
         }
 
         var existingOnCall = await db.OnCallAssignments
-            .Where(assignment => assignment.OrganizationId == organizationId && assignment.PractitionerId == practitioner.Id)
+            .Where(assignment => assignment.OrganizationId == organizationId
+                && assignment.PractitionerId == practitioner.Id
+                && assignment.SourceSystem == sourceSystem)
             .ToListAsync(cancellationToken);
         db.OnCallAssignments.RemoveRange(existingOnCall);
         foreach (var assignment in inbound.OnCallAssignments)
@@ -204,7 +232,7 @@ public sealed class DirectoryImportService(
         }
     }
 
-    private DirectoryImportPreviewResult Plan(DirectoryParseResult parsed, DirectoryCatalog catalog)
+    private DirectoryImportPreviewResult Plan(DirectoryParseResult parsed, DirectoryCatalog catalog, string previewToken)
     {
         var errors = parsed.Errors.ToList();
         var warnings = parsed.Warnings.ToList();
@@ -219,7 +247,8 @@ public sealed class DirectoryImportService(
                 parsed.Errors.Select(error => error.SourceRecordId).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
                 errors,
                 warnings,
-                changes);
+                changes,
+                previewToken);
         }
 
         foreach (var inbound in parsed.Practitioners)
@@ -250,9 +279,20 @@ public sealed class DirectoryImportService(
 
             foreach (var assignment in inbound.OnCallAssignments)
             {
-                if (!catalog.SitesByCode.ContainsKey(assignment.SiteCode) || !catalog.DepartmentsByCode.ContainsKey(assignment.DepartmentCode))
+                if (!catalog.SitesByCode.TryGetValue(assignment.SiteCode, out var site)
+                    || !catalog.DepartmentsByCode.TryGetValue(assignment.DepartmentCode, out var department))
                 {
                     errors.Add(new DirectoryImportIssue("unknown-on-call-location", inbound.SourceRecordId, null, "On-call assignments require known site and department codes."));
+                    continue;
+                }
+
+                if (site.Id != department.SiteId)
+                {
+                    errors.Add(new DirectoryImportIssue(
+                        "site-department-mismatch",
+                        inbound.SourceRecordId,
+                        null,
+                        $"department_code '{assignment.DepartmentCode}' does not belong to site_code '{assignment.SiteCode}'."));
                 }
             }
 
@@ -298,7 +338,36 @@ public sealed class DirectoryImportService(
             errors.Select(error => error.SourceRecordId).Where(id => id.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
             errors,
             warnings,
-            changes);
+            changes,
+            previewToken);
+    }
+
+    private static DirectoryImportPreviewResult AddPreviewError(
+        DirectoryImportPreviewResult preview,
+        string code,
+        string message)
+        => preview with
+        {
+            Errors = preview.Errors.Append(new DirectoryImportIssue(code, string.Empty, null, message)).ToArray(),
+            Changes = [],
+        };
+
+    private static async Task<byte[]> ReadSourceAsync(Stream source, CancellationToken cancellationToken)
+    {
+        await using var buffer = new MemoryStream();
+        await source.CopyToAsync(buffer, cancellationToken);
+        return buffer.ToArray();
+    }
+
+    private static string BuildPreviewToken(
+        OrganizationId organizationId,
+        string sourceSystem,
+        byte[] payload,
+        DirectoryCatalog catalog)
+    {
+        var payloadHash = Convert.ToHexString(SHA256.HashData(payload));
+        var material = $"{organizationId.Value:D}|{sourceSystem}|{payloadHash}|{catalog.Revision}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 
     private static MatchResult Match(NormalizedDirectoryPractitioner inbound, DirectoryCatalog catalog)
@@ -395,5 +464,20 @@ public sealed class DirectoryImportService(
         public Dictionary<string, Practitioner> PractitionersByCode { get; }
 
         public Dictionary<string, DirectorySourceRecord> SourceRecordsBySourceId { get; }
+
+        public string Revision
+        {
+            get
+            {
+                var material = string.Join(
+                    "|",
+                    Sites.OrderBy(site => site.Id.Value).Select(site => $"site:{site.Id.Value:D}:{site.SimulationCode}"),
+                    Departments.OrderBy(department => department.Id.Value).Select(department => $"department:{department.Id.Value:D}:{department.SimulationCode}:{department.SiteId.Value:D}"),
+                    Practitioners.OrderBy(practitioner => practitioner.Id.Value).Select(practitioner => $"practitioner:{practitioner.Id.Value:D}:{practitioner.SimulationCode}:{practitioner.IsActive}"),
+                    SourceRecords.OrderBy(record => record.SourceRecordId, StringComparer.OrdinalIgnoreCase).Select(record =>
+                        $"source:{record.SourceRecordId}:{record.PractitionerId?.Value:D}:{record.SourceUpdatedAtUtc:O}:{record.LastSeenAtUtc:O}:{record.PayloadHash}:{record.IsStale}"));
+                return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
+            }
+        }
     }
 }

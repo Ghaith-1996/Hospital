@@ -4,7 +4,7 @@ This file governs all future work in this repository. Read it and the relevant `
 
 ## Current phase
 
-The repository is in Phase 4: fictional practitioner directory and CSV import. Phase 0, Phase 1, Phase 2, and Phase 3 have been approved and tagged. Implement only the directory integration boundary, a fictional CSV adapter, validation/normalization/duplicate detection, practitioner search, and the admin import UI. Do not begin Phase 5 alert drafting, provider adapters, hospital directory connections, SCIM, Graph, FHIR, or production identity.
+The repository is in Phase 5: simulation-only alert drafting, with the Phase 4 directory boundary retained and hardened. Phase 0, Phase 1, Phase 2, and Phase 3 have been approved and tagged; the reviewed Phase 4 baseline is tagged. Implement only typed alert drafts, SBAR content, critical-field confirmation, optimistic draft concurrency, the simulation compose UI, and the existing fictional directory boundary. Do not begin Phase 6 recipient selection, Phase 7 dispatch, provider adapters, hospital directory connections, SCIM, Graph, FHIR, or production identity.
 
 The approved phase is the only phase in scope. At the end of every phase, report files changed, decisions made, commands run, test results, limitations, human actions, and a proposed commit message, then stop for review.
 

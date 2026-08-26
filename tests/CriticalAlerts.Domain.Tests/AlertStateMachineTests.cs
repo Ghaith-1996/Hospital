@@ -17,11 +17,52 @@ public sealed class AlertStateMachineTests
     [Fact]
     public void CreateDraftStartsInDraft()
     {
-        var alert = CreateAlert();
+        var alert = CreateAlert(includeStructuredContent: false);
 
         alert.State.Should().Be(AlertState.Draft);
         alert.DraftVersion.Should().Be(AlertDraftVersion.Initial);
         alert.ConfirmedDraftVersion.Should().BeNull();
+    }
+
+    [Fact]
+    public void TypedContentEditIncrementsTheDraftVersion()
+    {
+        var alert = CreateAlert();
+        var previous = alert.DraftVersion;
+
+        alert.UpdateTypedContent(
+            "North Wing / Simulation Room 205",
+            "Emergent",
+            Protect("SIMULATION: revised typed source"),
+            Protect("{\"situation\":\"revised\"}"),
+            previous,
+            Now);
+
+        alert.DraftVersion.Should().Be(previous.Next());
+        alert.State.Should().Be(AlertState.Draft);
+    }
+
+    [Fact]
+    public void SubmitRequiresStructuredTypedContent()
+    {
+        var alert = CreateAlert(includeStructuredContent: false);
+
+        var act = () => alert.SubmitForConfirmation(alert.CreatedByUserId, alert.DraftVersion, Now);
+
+        act.Should().Throw<DomainException>();
+        alert.State.Should().Be(AlertState.Draft);
+    }
+
+    [Fact]
+    public void UnresolvedCriticalFieldsBlockSubmission()
+    {
+        var alert = CreateAlert();
+        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
+
+        var act = () => alert.SubmitForConfirmation(alert.CreatedByUserId, alert.DraftVersion, Now);
+
+        act.Should().Throw<UnresolvedCriticalFieldException>();
+        alert.State.Should().Be(AlertState.Draft);
     }
 
     [Fact]
@@ -363,9 +404,9 @@ public sealed class AlertStateMachineTests
         return (alert, practitioner);
     }
 
-    private static Alert CreateAlert()
+    private static Alert CreateAlert(bool includeStructuredContent = true)
     {
-        return Alert.CreateDraft(
+        var alert = Alert.CreateDraft(
             AlertId.New(),
             OrganizationId.New(),
             SiteId.New(),
@@ -377,6 +418,12 @@ public sealed class AlertStateMachineTests
             AlertSourceType.Typed,
             Protect("SIMULATION: fictional note for workflow test."),
             Now);
+        if (includeStructuredContent)
+        {
+            alert.SetStructuredSuggestion(Protect("{\"situation\":\"fictional workflow\"}"), alert.DraftVersion, Now);
+        }
+
+        return alert;
     }
 
     private static Practitioner CreatePractitioner(OrganizationId organizationId, bool isActive = true)

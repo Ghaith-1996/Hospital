@@ -74,6 +74,13 @@ public sealed class OnCallAssignment
             throw new DomainException("On-call assignments require a source system and source record.");
         }
 
+        var normalizedStartsAtUtc = UtcInstant.Require(startsAtUtc, nameof(startsAtUtc));
+        var normalizedEndsAtUtc = UtcInstant.Require(endsAtUtc, nameof(endsAtUtc));
+        if (normalizedEndsAtUtc <= normalizedStartsAtUtc)
+        {
+            throw new DomainException("On-call assignments require an end timestamp after the start timestamp.");
+        }
+
         return new OnCallAssignment(
             id,
             organizationId,
@@ -81,8 +88,8 @@ public sealed class OnCallAssignment
             siteId,
             departmentId,
             tier,
-            UtcInstant.Require(startsAtUtc, nameof(startsAtUtc)),
-            UtcInstant.Require(endsAtUtc, nameof(endsAtUtc)),
+            normalizedStartsAtUtc,
+            normalizedEndsAtUtc,
             sourceSystem.Trim(),
             sourceRecordId.Trim(),
             UtcInstant.Require(lastSynchronizedAtUtc, nameof(lastSynchronizedAtUtc)));

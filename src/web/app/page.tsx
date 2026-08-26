@@ -5,12 +5,12 @@ export default function HomePage() {
   return (
     <SimulationChrome
       title="Critical Alerts Platform"
-      lead="Phase 4 adds a fictional practitioner directory and CSV import adapter. It is not a hospital directory connection."
+      lead="Phase 5 adds simulation-only typed alert drafting on top of the fictional directory boundary. It is not a hospital connection or dispatch system."
     >
       <p id="phase-boundary">
-        Alert drafting, recipient dispatch, clinical content, provider delivery, and escalation remain
-        intentionally unavailable in this phase. CSV is the first directory adapter, not the directory
-        model.
+        Recipient selection, provider delivery, dispatch, and escalation remain intentionally unavailable
+        in this phase. CSV is the first directory adapter, not the directory model, and draft clinical text
+        is simulation-only.
       </p>
       <a className="focus-link" href="#phase-boundary">
         Review the Phase 4 boundary

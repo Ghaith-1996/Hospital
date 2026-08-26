@@ -1,10 +1,10 @@
 # Critical Clinician Alert Platform
 
-Status: Phase 4 fictional directory import is complete and tagged `phase-4`. Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 3 is tagged `phase-3`.
+Status: Phase 5 simulation-only alert drafting is in progress. Phase 0, Phase 1, Phase 2, and Phase 3 are complete; Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 may add a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. It must not add alert APIs, provider integrations, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, or production identity.
+Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 now adds only typed simulation alert drafting and SBAR confirmation. Provider integrations, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, recipient selection, and dispatch remain out of scope.
 
 ## Source and decision precedence
 
@@ -31,16 +31,16 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 ## Phase 0 review package
 
 - Product and workflow: [product decisions](docs/product/product-decisions.md), [workflow](docs/product/workflow.md), [demo-data rules](docs/product/demo-data-rules.md), [terminology](docs/product/terminology.md), [definition of done](docs/product/definition-of-done.md).
-- Architecture: [system context](docs/architecture/system-context.md), [containers](docs/architecture/containers.md), [data model](docs/architecture/data-model.md), [alert state machine](docs/architecture/alert-state-machine.md), [directory integration](docs/architecture/directory-integration.md).
+- Architecture: [system context](docs/architecture/system-context.md), [containers](docs/architecture/containers.md), [data model](docs/architecture/data-model.md), [alert state machine](docs/architecture/alert-state-machine.md), [alert drafting](docs/architecture/alert-drafting.md), [directory integration](docs/architecture/directory-integration.md).
 - Decisions: [ADRs](docs/adr/).
 - Security and governance: [threat model](docs/security/threat-model.md), [data classification](docs/security/data-classification.md), [logging policy](docs/security/logging-policy.md), [production readiness gates](docs/security/production-readiness-gates.md).
 - Next implementation package: [Phase 1 implementation plan](docs/superpowers/plans/2026-08-19-phase-1-scaffold-and-local-platform.md).
 
 ## Current status and review gate
 
-Phase 0, Phase 1, Phase 2, and Phase 3 approval are recorded. Phase 3 is tagged `phase-3`, and Phase 4 is complete at the reviewed `phase-4` tag. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 0, Phase 1, Phase 2, and Phase 3 approval are recorded. Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`; the follow-up boundary corrections and Phase 5 start are being reviewed together. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, and a searchable directory UI. It did not add alert APIs, provider integrations, hospital connectors, AI features, or production SSO.
+Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. It does not add recipient selection, provider integrations, hospital connectors, AI features, dispatch, or production SSO.
 
 ### Local verification
 

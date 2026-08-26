@@ -1,6 +1,8 @@
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Protection;
+using CriticalAlerts.Application.Alerts;
+using CriticalAlerts.Infrastructure.Alerts;
 using CriticalAlerts.Infrastructure.Directory;
 using CriticalAlerts.Infrastructure.Identity;
 using CriticalAlerts.Infrastructure.Persistence;
@@ -23,6 +25,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddSingleton<CsvDirectorySourceAdapter>();
         services.AddScoped<IDirectoryImportService, DirectoryImportService>();
         services.AddScoped<IDirectorySearchService, DirectorySearchService>();
+        services.AddScoped<IAlertDraftService, AlertDraftService>();
         services.AddSingleton<ISensitiveDataProtector>(_ => AesGcmSensitiveDataProtector.FromBase64(dataProtectionKey));
         return services;
     }

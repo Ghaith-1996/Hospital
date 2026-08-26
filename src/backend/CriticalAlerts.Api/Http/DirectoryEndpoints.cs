@@ -86,7 +86,15 @@ internal static class DirectoryEndpoints
         await using var stream = file.OpenReadStream();
         if (apply)
         {
-            var result = await imports.ApplyAsync(organizationId, userId, correlationId, stream, adapter, cancellationToken);
+            var previewToken = form["preview_token"].FirstOrDefault();
+            var result = await imports.ApplyAsync(
+                organizationId,
+                userId,
+                correlationId,
+                stream,
+                adapter,
+                cancellationToken,
+                previewToken);
             return result.Applied
                 ? Results.Ok(result)
                 : Results.Json(result, statusCode: StatusCodes.Status400BadRequest);

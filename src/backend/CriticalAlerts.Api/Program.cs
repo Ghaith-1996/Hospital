@@ -55,6 +55,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 app.MapDevelopmentAuthenticationEndpoints(developmentAuthenticationEnabled);
 app.MapDirectoryEndpoints();
+app.MapAlertDraftEndpoints();
 
 await app.RunAsync();
 

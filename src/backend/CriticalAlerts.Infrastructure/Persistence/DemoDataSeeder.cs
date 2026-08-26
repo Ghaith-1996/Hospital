@@ -77,24 +77,24 @@ public sealed class DemoDataSeeder
         var practitioners = CreatePractitioners();
         db.Practitioners.AddRange(practitioners.Select(item => item.Practitioner));
         db.PractitionerRoles.AddRange(
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("701")), OrganizationId, practitioners[0].Practitioner.Id, emergency.Id, "Emergency physician", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("704")), OrganizationId, practitioners[1].Practitioner.Id, medicine.Id, "Medicine consultant", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("705")), OrganizationId, practitioners[2].Practitioner.Id, surgery.Id, "Surgeon", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("706")), OrganizationId, practitioners[3].Practitioner.Id, medicine.Id, "Medicine consultant", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("707")), OrganizationId, practitioners[4].Practitioner.Id, emergency.Id, "Emergency physician", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("708")), OrganizationId, practitioners[5].Practitioner.Id, surgery.Id, "Surgeon", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("709")), OrganizationId, practitioners[6].Practitioner.Id, medicine.Id, "Cardiology consultant", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("710")), OrganizationId, practitioners[7].Practitioner.Id, medicine.Id, "Neurology consultant", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("711")), OrganizationId, practitioners[8].Practitioner.Id, medicine.Id, "Pediatrics consultant", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("702")), OrganizationId, practitioners[9].Practitioner.Id, emergency.Id, "Emergency physician", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("703")), OrganizationId, practitioners[9].Practitioner.Id, medicine.Id, "Medicine consultant", false),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("712")), OrganizationId, practitioners[10].Practitioner.Id, emergency.Id, "Emergency physician", true),
-            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("713")), OrganizationId, practitioners[11].Practitioner.Id, surgery.Id, "Surgeon", true));
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("701")), OrganizationId, practitioners[0].Practitioner.Id, emergency.Id, "Emergency physician", true, "SIM-DIRECTORY", "SIM-SRC-MAYA"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("704")), OrganizationId, practitioners[1].Practitioner.Id, medicine.Id, "Medicine consultant", true, "SIM-DIRECTORY", "SIM-SRC-ROWAN"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("705")), OrganizationId, practitioners[2].Practitioner.Id, surgery.Id, "Surgeon", true, "SIM-DIRECTORY", "SIM-SRC-JULES"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("706")), OrganizationId, practitioners[3].Practitioner.Id, medicine.Id, "Medicine consultant", true, "SIM-DIRECTORY", "SIM-SRC-AVERY"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("707")), OrganizationId, practitioners[4].Practitioner.Id, emergency.Id, "Emergency physician", true, "SIM-DIRECTORY", "SIM-SRC-SAMIRA"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("708")), OrganizationId, practitioners[5].Practitioner.Id, surgery.Id, "Surgeon", true, "SIM-DIRECTORY", "SIM-SRC-JORDAN-MARTIN"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("709")), OrganizationId, practitioners[6].Practitioner.Id, medicine.Id, "Cardiology consultant", true, "SIM-DIRECTORY", "SIM-SRC-CASEY"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("710")), OrganizationId, practitioners[7].Practitioner.Id, medicine.Id, "Neurology consultant", true, "SIM-DIRECTORY", "SIM-SRC-RILEY"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("711")), OrganizationId, practitioners[8].Practitioner.Id, medicine.Id, "Pediatrics consultant", true, "SIM-DIRECTORY", "SIM-SRC-QUINN"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("702")), OrganizationId, practitioners[9].Practitioner.Id, emergency.Id, "Emergency physician", true, "SIM-DIRECTORY", "SIM-SRC-HARPER"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("703")), OrganizationId, practitioners[9].Practitioner.Id, medicine.Id, "Medicine consultant", false, "SIM-DIRECTORY", "SIM-SRC-HARPER"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("712")), OrganizationId, practitioners[10].Practitioner.Id, emergency.Id, "Emergency physician", true, "SIM-DIRECTORY", "SIM-SRC-TAYLOR"),
+            PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("713")), OrganizationId, practitioners[11].Practitioner.Id, surgery.Id, "Surgeon", true, "SIM-DIRECTORY", "SIM-SRC-CAMERON"));
 
-        AddEndpoint(practitioners[0].Practitioner, ContactEndpointKind.Sms, "+1 555 010 0101", "SIM-SMS-0101", true);
-        AddEndpoint(practitioners[0].Practitioner, ContactEndpointKind.SecureMessage, "sim-secure://maya.chen", "SIM-SECURE-0101", false);
-        AddEndpoint(practitioners[1].Practitioner, ContactEndpointKind.Voice, "+1 555 010 0102", "SIM-VOICE-0102", true);
-        AddEndpoint(practitioners[2].Practitioner, ContactEndpointKind.SecureMessage, "sim-secure://jules.martin", "SIM-SECURE-0103", true);
+        AddEndpoint(practitioners[0].Practitioner, "SIM-SRC-MAYA", ContactEndpointKind.Sms, "+1 555 010 0101", "SIM-SMS-0101", true);
+        AddEndpoint(practitioners[0].Practitioner, "SIM-SRC-MAYA", ContactEndpointKind.SecureMessage, "sim-secure://maya.chen", "SIM-SECURE-0101", false);
+        AddEndpoint(practitioners[1].Practitioner, "SIM-SRC-ROWAN", ContactEndpointKind.Voice, "+1 555 010 0102", "SIM-VOICE-0102", true);
+        AddEndpoint(practitioners[2].Practitioner, "SIM-SRC-JULES", ContactEndpointKind.SecureMessage, "sim-secure://jules.martin", "SIM-SECURE-0103", true);
 
         db.OnCallAssignments.AddRange(
             OnCallAssignment.Create(new OnCallAssignmentId(Id("801")), OrganizationId, practitioners[0].Practitioner.Id, NorthSiteId, emergency.Id, OnCallTier.Primary, SeededAt, SeededAt.AddDays(7), "SIM-DIRECTORY", "SIM-SRC-ONCALL-1", SeededAt),
@@ -129,7 +129,7 @@ public sealed class DemoDataSeeder
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private void AddEndpoint(Practitioner practitioner, ContactEndpointKind kind, string secretValue, string label, bool isPrimary)
+    private void AddEndpoint(Practitioner practitioner, string sourceRecordId, ContactEndpointKind kind, string secretValue, string label, bool isPrimary)
     {
         db.ContactEndpoints.Add(ContactEndpoint.Create(
             ContactEndpointId.New(),
@@ -138,7 +138,9 @@ public sealed class DemoDataSeeder
             kind,
             protector.Protect(secretValue, new SensitiveDataContext("contact-endpoint", OrganizationId.Value)),
             label,
-            isPrimary));
+            isPrimary,
+            "SIM-DIRECTORY",
+            sourceRecordId));
     }
 
     private static List<(Practitioner Practitioner, bool Active)> CreatePractitioners()

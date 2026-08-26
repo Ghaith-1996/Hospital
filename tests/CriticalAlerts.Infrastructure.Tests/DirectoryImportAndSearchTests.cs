@@ -1,3 +1,4 @@
+using System.Text;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Organizations;
@@ -42,12 +43,9 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
         {
             await using var db = fixture.CreateContext();
             var service = CreateService(db);
-            await using (var stream = File.OpenRead(FixturePath()))
-            {
-                var applied = await service.ApplyAsync(DemoDataSeeder.OrganizationId, Actor, "corr-apply", stream, new CsvDirectorySourceAdapter(), CancellationToken.None);
-                applied.Applied.Should().BeTrue();
-                applied.Preview.UpdateCount.Should().Be(12);
-            }
+            var applied = await PreviewThenApplyAsync(service, "corr-apply", File.ReadAllText(FixturePath()));
+            applied.Applied.Should().BeTrue();
+            applied.Preview.UpdateCount.Should().Be(12);
 
             (await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(12);
             (await db.DirectorySourceRecords.CountAsync(record => record.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(12);
@@ -75,15 +73,7 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
             {
                 await using var db = fixture.CreateContext();
                 var service = CreateService(db);
-                await using var stream = File.OpenRead(FixturePath());
-
-                var applied = await service.ApplyAsync(
-                    DemoDataSeeder.OrganizationId,
-                    Actor,
-                    correlationId,
-                    stream,
-                    new CsvDirectorySourceAdapter(),
-                    CancellationToken.None);
+                var applied = await PreviewThenApplyAsync(service, correlationId, File.ReadAllText(FixturePath()));
 
                 applied.Applied.Should().BeTrue();
             }
@@ -96,10 +86,14 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
                 run.OrganizationId == DemoDataSeeder.OrganizationId
                 && run.SourceSystem == DirectorySourceSystems.Csv
                 && run.Status == DirectorySyncRunStatus.Succeeded)).Should().Be(2);
-            (await verify.ContactEndpoints.CountAsync(endpoint => endpoint.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(11);
+            (await verify.ContactEndpoints.CountAsync(endpoint => endpoint.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(15);
+            (await verify.ContactEndpoints.CountAsync(endpoint => endpoint.OrganizationId == DemoDataSeeder.OrganizationId && endpoint.SourceSystem == "SIM-DIRECTORY")).Should().Be(4);
             (await verify.OnCallAssignments.CountAsync(assignment =>
                 assignment.OrganizationId == DemoDataSeeder.OrganizationId
                 && assignment.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(2);
+            (await verify.OnCallAssignments.CountAsync(assignment =>
+                assignment.OrganizationId == DemoDataSeeder.OrganizationId
+                && assignment.SourceSystem == "SIM-DIRECTORY")).Should().Be(2);
         }
         finally
         {
@@ -151,14 +145,10 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
             await using (var seedDb = fixture.CreateContext())
             {
                 var seedService = CreateService(seedDb);
-                await using var seedStream = File.OpenRead(FixturePath());
-                (await seedService.ApplyAsync(
-                    DemoDataSeeder.OrganizationId,
-                    Actor,
+                (await PreviewThenApplyAsync(
+                    seedService,
                     "corr-seed-for-code-conflict",
-                    seedStream,
-                    new CsvDirectorySourceAdapter(),
-                    CancellationToken.None)).Applied.Should().BeTrue();
+                    File.ReadAllText(FixturePath()))).Applied.Should().BeTrue();
             }
 
             await using var db = fixture.CreateContext();
@@ -167,15 +157,7 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
                 source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status
                 SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0999,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,2026-08-01T12:00:00Z,current
                 """;
-            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
-
-            var applied = await CreateService(db).ApplyAsync(
-                DemoDataSeeder.OrganizationId,
-                Actor,
-                "corr-code-conflict",
-                stream,
-                new CsvDirectorySourceAdapter(),
-                CancellationToken.None);
+            var applied = await PreviewThenApplyAsync(CreateService(db), "corr-code-conflict", csv);
 
             applied.Applied.Should().BeFalse();
             applied.SyncRunId.Should().BeNull();
@@ -201,8 +183,7 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
                 source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status
                 SIM-SRC-MAYA-2,Maya,Chen,SIM-PRAC-0999,Emergency,SIM-SITE-NORTH,SIM-DEPT-EMERGENCY,Emergency physician,true,true,2026-08-01T12:00:00Z,current
                 """;
-            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
-            var applied = await service.ApplyAsync(DemoDataSeeder.OrganizationId, Actor, "corr-collision", stream, new CsvDirectorySourceAdapter(), CancellationToken.None);
+            var applied = await PreviewThenApplyAsync(service, "corr-collision", csv);
 
             applied.Applied.Should().BeTrue();
             applied.Preview.InsertCount.Should().Be(1);
@@ -224,7 +205,7 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
     public async Task SearchReturnsSimilarNamesAndBlocksInactiveSelection()
     {
         await using var db = fixture.CreateContext();
-        var search = new DirectorySearchService(db);
+        var search = new DirectorySearchService(db, TimeProvider.System);
 
         var martins = await search.SearchAsync(new DirectorySearchQuery(DemoDataSeeder.OrganizationId, "Martin", true), CancellationToken.None);
         var taylor = (await search.SearchAsync(new DirectorySearchQuery(DemoDataSeeder.OrganizationId, "Kim", true), CancellationToken.None))
@@ -238,6 +219,89 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
         taylor.Selectable.Should().BeFalse();
         taylor.IsStale.Should().BeTrue();
         foreign.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExpiredOnCallAssignmentsAreNotReportedAsCurrent()
+    {
+        await using var db = fixture.CreateContext();
+        var search = new DirectorySearchService(db, TimeProvider.System);
+
+        var maya = (await search.SearchAsync(
+            new DirectorySearchQuery(DemoDataSeeder.OrganizationId, "SIM-PRAC-0101", true),
+            CancellationToken.None)).Single();
+
+        maya.OnCallTier.Should().BeNull();
+        maya.OnCallSourceSystem.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CrossOrganizationPreviewCannotUseTheSeededCatalog()
+    {
+        await using var db = fixture.CreateContext();
+        var service = CreateService(db);
+        var before = await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId);
+
+        await using var stream = File.OpenRead(FixturePath());
+        var preview = await service.PreviewAsync(OrganizationId.New(), Actor, "corr-cross-org", stream, new CsvDirectorySourceAdapter(), CancellationToken.None);
+
+        preview.Errors.Should().Contain(error => error.Code == "unknown-site");
+        (await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(before);
+        preview.Changes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OnCallSiteAndDepartmentMustBelongTogether()
+    {
+        await using var db = fixture.CreateContext();
+        var service = CreateService(db);
+        const string csv = """
+            source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,on_call_tier,on_call_starts_at_utc,on_call_ends_at_utc,source_updated_at_utc,freshness_status
+            SIM-SRC-ONCALL-MISMATCH,Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-RIVERSIDE,SIM-DEPT-EMERGENCY,Emergency physician,true,true,Primary,2026-08-01T12:00:00Z,2026-08-08T12:00:00Z,2026-08-01T12:00:00Z,current
+            """;
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+
+        var preview = await service.PreviewAsync(DemoDataSeeder.OrganizationId, Actor, "corr-on-call-mismatch", stream, new CsvDirectorySourceAdapter(), CancellationToken.None);
+
+        preview.Errors.Should().Contain(error => error.Code == "site-department-mismatch");
+        preview.Changes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task FailedChildMutationRollsBackTheWholeImportTransaction()
+    {
+        await fixture.ResetAsync();
+        try
+        {
+            await using var db = fixture.CreateContext();
+            var service = CreateService(db);
+            var adapter = new InvalidOnCallAdapter();
+            await using var previewStream = new MemoryStream();
+            var preview = await service.PreviewAsync(DemoDataSeeder.OrganizationId, Actor, "corr-rollback-preview", previewStream, adapter, CancellationToken.None);
+            preview.Errors.Should().BeEmpty();
+
+            await using var applyStream = new MemoryStream();
+            var act = () => service.ApplyAsync(
+                DemoDataSeeder.OrganizationId,
+                Actor,
+                "corr-rollback",
+                applyStream,
+                adapter,
+                CancellationToken.None,
+                preview.PreviewToken);
+
+            await act.Should().ThrowAsync<DomainException>();
+
+            await using var verify = fixture.CreateContext();
+            (await verify.Practitioners.CountAsync(practitioner => practitioner.SimulationCode == "SIM-PRAC-ROLLBACK")).Should().Be(0);
+            (await verify.DirectorySourceRecords.CountAsync(record => record.SourceRecordId == "SIM-SRC-ROLLBACK")).Should().Be(0);
+            (await verify.DirectorySyncRuns.CountAsync(run => run.CorrelationId == "corr-rollback")).Should().Be(0);
+            (await verify.AuditEvents.CountAsync(audit => audit.CorrelationId == "corr-rollback")).Should().Be(0);
+        }
+        finally
+        {
+            await fixture.ResetAsync();
+        }
     }
 
     [Fact]
@@ -259,6 +323,32 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
     private DirectoryImportService CreateService(CriticalAlertsDbContext db)
         => new(db, AesGcmSensitiveDataProtector.FromBase64(fixture.DataProtectionKey), TimeProvider.System);
 
+    private async Task<DirectoryImportApplyResult> PreviewThenApplyAsync(
+        DirectoryImportService service,
+        string correlationId,
+        string csv)
+    {
+        var adapter = new CsvDirectorySourceAdapter();
+        await using var previewStream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        var preview = await service.PreviewAsync(
+            DemoDataSeeder.OrganizationId,
+            Actor,
+            $"{correlationId}-preview",
+            previewStream,
+            adapter,
+            CancellationToken.None);
+
+        await using var applyStream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        return await service.ApplyAsync(
+            DemoDataSeeder.OrganizationId,
+            Actor,
+            correlationId,
+            applyStream,
+            adapter,
+            CancellationToken.None,
+            preview.PreviewToken);
+    }
+
     private static string FixturePath()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -274,5 +364,34 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
         }
 
         throw new FileNotFoundException("Could not locate fixtures/simulation/directory-harborview.csv.");
+    }
+
+    private sealed class InvalidOnCallAdapter : IDirectorySourceAdapter
+    {
+        public string SourceSystem => "SIM-ROLLBACK";
+
+        public DirectoryParseResult Read(Stream source)
+            => new(
+                SourceSystem,
+                [new NormalizedDirectoryPractitioner(
+                    "SIM-SRC-ROLLBACK",
+                    "Maya",
+                    "Rollback",
+                    "SIM-PRAC-ROLLBACK",
+                    "Emergency",
+                    true,
+                    DateTimeOffset.Parse("2026-08-01T12:00:00Z"),
+                    false,
+                    "hash-rollback",
+                    [new NormalizedDirectoryRole("SIM-SITE-NORTH", "SIM-DEPT-EMERGENCY", "Emergency physician", true)],
+                    [],
+                    [new NormalizedDirectoryOnCall(
+                        "SIM-SITE-NORTH",
+                        "SIM-DEPT-EMERGENCY",
+                        OnCallTier.Primary,
+                        DateTimeOffset.Parse("2026-08-08T12:00:00Z"),
+                        DateTimeOffset.Parse("2026-08-01T12:00:00Z"))])],
+                [],
+                []);
     }
 }

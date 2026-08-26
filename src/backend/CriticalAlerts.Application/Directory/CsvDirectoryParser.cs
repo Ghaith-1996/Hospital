@@ -189,6 +189,18 @@ public static class CsvDirectoryParser
             RequirePrefix(simulationCode, "simulation_code", first.RowNumber, errors, ref identityErrors);
         }
 
+        if (firstName.Length > 0 && lastName.Length > 0 && !SimulationDirectoryCatalog.IsAllowedPractitioner(firstName, lastName))
+        {
+            errors.Add(Issue("non-fictional-practitioner", sourceRecordId, first.RowNumber, "The CSV practitioner is not in the fictional simulation catalog."));
+            identityErrors++;
+        }
+
+        if (specialty.Length > 0 && !SimulationDirectoryCatalog.IsAllowedSpecialty(specialty))
+        {
+            errors.Add(Issue("non-fictional-specialty", sourceRecordId, first.RowNumber, "The CSV specialty is not in the fictional simulation catalog."));
+            identityErrors++;
+        }
+
         foreach (var (rowNumber, row) in bucket.Skip(1))
         {
             if (!Same(first.Row, row, "first_name")
@@ -229,6 +241,12 @@ public static class CsvDirectoryParser
 
             if (siteCode.Length > 0 && departmentCode.Length > 0 && title.Length > 0)
             {
+                if (!SimulationDirectoryRoles.IsAllowed(title))
+                {
+                    errors.Add(Issue("invalid-role", sourceRecordId, rowNumber, "role_title is not in the fictional simulation role catalog."));
+                    identityErrors++;
+                }
+
                 var role = new NormalizedDirectoryRole(siteCode, departmentCode, title, isPrimary);
                 if (!roles.Contains(role))
                 {
@@ -368,6 +386,13 @@ public static class CsvDirectoryParser
         if (!TryParseTimestamp(starts, out var startsAt) || !TryParseTimestamp(ends, out var endsAt))
         {
             errors.Add(Issue("invalid-on-call-timestamp", sourceRecordId, rowNumber, "On-call timestamps must be UTC instants."));
+            identityErrors++;
+            return;
+        }
+
+        if (endsAt <= startsAt)
+        {
+            errors.Add(Issue("invalid-on-call-window", sourceRecordId, rowNumber, "on_call_ends_at_utc must be after on_call_starts_at_utc."));
             identityErrors++;
             return;
         }

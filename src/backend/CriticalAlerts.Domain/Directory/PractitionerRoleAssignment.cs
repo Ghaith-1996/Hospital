@@ -5,6 +5,8 @@ public sealed class PractitionerRoleAssignment
     private PractitionerRoleAssignment()
     {
         Title = string.Empty;
+        SourceSystem = string.Empty;
+        SourceRecordId = string.Empty;
     }
 
     private PractitionerRoleAssignment(
@@ -13,7 +15,9 @@ public sealed class PractitionerRoleAssignment
         PractitionerId practitionerId,
         DepartmentId departmentId,
         string title,
-        bool isPrimary)
+        bool isPrimary,
+        string sourceSystem,
+        string sourceRecordId)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -21,6 +25,8 @@ public sealed class PractitionerRoleAssignment
         DepartmentId = departmentId;
         Title = title;
         IsPrimary = isPrimary;
+        SourceSystem = sourceSystem;
+        SourceRecordId = sourceRecordId;
     }
 
     public PractitionerRoleId Id { get; private set; }
@@ -35,19 +41,38 @@ public sealed class PractitionerRoleAssignment
 
     public bool IsPrimary { get; private set; }
 
+    public string SourceSystem { get; private set; }
+
+    public string SourceRecordId { get; private set; }
+
     public static PractitionerRoleAssignment Create(
         PractitionerRoleId id,
         OrganizationId organizationId,
         PractitionerId practitionerId,
         DepartmentId departmentId,
         string title,
-        bool isPrimary)
+        bool isPrimary,
+        string sourceSystem,
+        string sourceRecordId)
     {
         if (string.IsNullOrWhiteSpace(title))
         {
             throw new DomainException("Practitioner roles require a title.");
         }
 
-        return new PractitionerRoleAssignment(id, organizationId, practitionerId, departmentId, title.Trim(), isPrimary);
+        if (string.IsNullOrWhiteSpace(sourceSystem) || string.IsNullOrWhiteSpace(sourceRecordId))
+        {
+            throw new DomainException("Practitioner roles require a source system and source record.");
+        }
+
+        return new PractitionerRoleAssignment(
+            id,
+            organizationId,
+            practitionerId,
+            departmentId,
+            title.Trim(),
+            isPrimary,
+            sourceSystem.Trim(),
+            sourceRecordId.Trim());
     }
 }

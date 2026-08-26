@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CriticalAlerts.Infrastructure.Directory;
 
-public sealed class DirectorySearchService(CriticalAlertsDbContext db) : IDirectorySearchService
+public sealed class DirectorySearchService(CriticalAlertsDbContext db, TimeProvider time) : IDirectorySearchService
 {
     public async Task<IReadOnlyList<DirectoryPractitionerListItem>> SearchAsync(
         DirectorySearchQuery query,
@@ -52,6 +52,7 @@ public sealed class DirectorySearchService(CriticalAlertsDbContext db) : IDirect
         var onCall = await db.OnCallAssignments
             .Where(assignment => assignment.OrganizationId == query.OrganizationId && practitionerIds.Contains(assignment.PractitionerId))
             .ToListAsync(cancellationToken);
+        var now = time.GetUtcNow();
 
         return matches.Select(practitioner =>
         {
@@ -71,7 +72,9 @@ public sealed class DirectorySearchService(CriticalAlertsDbContext db) : IDirect
                 .OrderByDescending(record => record.LastSeenAtUtc)
                 .FirstOrDefault();
             var latestOnCall = onCall
-                .Where(assignment => assignment.PractitionerId == practitioner.Id)
+                .Where(assignment => assignment.PractitionerId == practitioner.Id
+                    && assignment.StartsAtUtc <= now
+                    && now < assignment.EndsAtUtc)
                 .OrderByDescending(assignment => assignment.LastSynchronizedAtUtc)
                 .FirstOrDefault();
             return new DirectoryPractitionerListItem(

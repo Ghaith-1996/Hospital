@@ -157,6 +157,7 @@ describe("Phase 4 web shell", () => {
   it("invalidatesPreviewWhenTheSelectedCsvChanges", async () => {
     const preview = {
       sourceSystem: "SIM-CSV",
+      previewToken: "preview-token",
       parsedPractitionerCount: 1,
       insertCount: 1,
       updateCount: 0,
