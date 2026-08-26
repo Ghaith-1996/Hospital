@@ -1,6 +1,6 @@
 # Critical Clinician Alert Platform
 
-Status: Phase 4 fictional directory import is in progress. Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 3 is tagged `phase-3`.
+Status: Phase 4 fictional directory import is complete and tagged `phase-4`. Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 3 is tagged `phase-3`.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
@@ -38,9 +38,9 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0, Phase 1, Phase 2, and Phase 3 approval are recorded. Phase 3 is tagged `phase-3`. The project is executing Phase 4 fictional directory import within the reviewed scope; hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 0, Phase 1, Phase 2, and Phase 3 approval are recorded. Phase 3 is tagged `phase-3`, and Phase 4 is complete at the reviewed `phase-4` tag. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 4 adds a fictional CSV adapter over the shared practitioner directory model, validation/preview, duplicate detection, and a searchable directory UI. It must not add alert APIs, provider integrations, hospital connectors, AI features, or production SSO.
+Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, and a searchable directory UI. It did not add alert APIs, provider integrations, hospital connectors, AI features, or production SSO.
 
 ### Local verification
 

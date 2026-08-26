@@ -92,15 +92,19 @@ Phase 3 is ready for human review only when the following are true:
 
 Phase 4 is ready for human review only when the following are true:
 
-- [ ] CSV is implemented as a directory **adapter**, not as the directory model.
-- [ ] Import validates, normalizes, detects duplicates, and previews before writing.
-- [ ] Practitioners are matched by `source_record_id`, then `simulation_code`, never by display name.
-- [ ] Similar names are disambiguated in search; inactive practitioners are not selectable; stale rows are flagged.
-- [ ] Operator/Administrator can search; only Administrator can import; Practitioner cannot.
-- [ ] Preview does not mutate; apply writes practitioners, roles, contacts, on-call, and source records.
-- [ ] No alert APIs, hospital directory connection, SCIM, Graph, FHIR, or production source mapping were added.
-- [ ] Production freshness, deactivation, merge, and source-of-truth rules remain `REQUIRES_HOSPITAL_DECISION`.
-- [ ] The CSV boundary rejects duplicate headers, malformed quotes, inconsistent row widths, non-UTC timestamps, and non-synthetic endpoint values without echoing protected values.
-- [ ] API authorization and organization scope are verified with unauthenticated, Operator, Administrator, and Practitioner negative cases; identity context remains server-derived.
-- [ ] The UI renders source/on-call synchronization timestamps and clears a preview when the selected CSV changes.
-- [ ] Fresh `scripts/test-all.ps1`, safety, and fresh-clone verification pass in the pinned environment before a human review and `phase-4` tag.
+- [x] CSV is implemented as a directory **adapter**, not as the directory model.
+- [x] Import validates, normalizes, detects duplicates, and previews before writing.
+- [x] Practitioners are matched by `source_record_id`, then `simulation_code`, never by display name.
+- [x] Similar names are disambiguated in search; inactive practitioners are not selectable; stale rows are flagged.
+- [x] Operator/Administrator can search; only Administrator can import; Practitioner cannot.
+- [x] Preview does not mutate; apply writes practitioners, roles, contacts, on-call, and source records.
+- [x] No alert APIs, hospital directory connection, SCIM, Graph, FHIR, or production source mapping were added.
+- [x] Production freshness, deactivation, merge, and source-of-truth rules remain `REQUIRES_HOSPITAL_DECISION`.
+- [x] The CSV boundary rejects duplicate headers, malformed quotes, inconsistent row widths, non-UTC timestamps, and non-synthetic endpoint values without echoing protected values.
+- [x] API authorization and organization scope are verified with unauthenticated, Operator, Administrator, and Practitioner negative cases; identity context remains server-derived.
+- [x] The UI renders source/on-call synchronization timestamps and clears a preview when the selected CSV changes.
+- [x] Fresh `scripts/test-all.ps1`, safety, and fresh-clone verification pass in the pinned environment before a human review and `phase-4` tag.
+
+### Phase 4 closure evidence
+
+On 2026-08-25, the pinned .NET SDK `10.0.100`, Node.js `24.16.0`, npm `11.13.0`, PostgreSQL `18.4`, and Playwright `1.55.1` verification completed successfully. `scripts/test-all.ps1` passed the safety scan, Release build, 118 backend tests, 9 web unit tests, typecheck, lint, and 1 Playwright smoke test. The same command passed from a clean clone of the reviewed commit. No production or hospital integration was added.
