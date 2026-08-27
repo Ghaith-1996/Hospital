@@ -4,7 +4,7 @@ This file governs all future work in this repository. Read it and the relevant `
 
 ## Current phase
 
-The repository is at the Phase 5 review gate: simulation-only alert drafting is implementation-complete, with the Phase 4 directory boundary retained and hardened. Phase 0 through Phase 4 have been approved, and the reviewed Phase 4 baseline is tagged. Until the project owner approves Phase 5, make only review corrections to typed alert drafts, SBAR content, critical-field confirmation, optimistic draft concurrency, the simulation compose UI, and the existing fictional directory boundary. Do not begin Phase 6 recipient selection, Phase 7 dispatch, provider adapters, hospital directory connections, SCIM, Graph, FHIR, or production identity.
+The repository is in Phase 6 planning: simulation-only recipient selection and final review. Phase 0 through Phase 5 have been approved and tagged. Until the project owner approves the Phase 6 plan, change only planning and phase-status documentation. Phase 6 implementation is limited to manual recipient selection from the fictional directory, a selected-recipient summary, operator-approved message content, an exact review page, idempotent authenticated confirmation, sanitized audit, and atomic creation of an identifier-only outbox item. Do not process outbox items or add workers, retries, delivery attempts, provider adapters, hospital directory connections, SCIM, Graph, FHIR, production identity, or any other Phase 7 behavior.
 
 The approved phase is the only phase in scope. At the end of every phase, report files changed, decisions made, commands run, test results, limitations, human actions, and a proposed commit message, then stop for review.
 

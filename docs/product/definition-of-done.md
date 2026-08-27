@@ -130,8 +130,31 @@ Phase 5 is ready for human review only when the following are true:
 - [x] PostgreSQL integration tests cover Operator, Administrator, Practitioner, unauthenticated, organization-scoping, validation, protected-content, and concurrency behavior.
 - [x] No Phase 6 recipient selection, Phase 7 dispatch, provider adapter, hospital connection, SCIM, Graph, FHIR, AI, speech, or production identity behavior was added.
 - [x] Fresh `scripts/test-all.ps1`, repository safety, `git diff --check`, and scope review pass in the pinned environment before human review.
-- [ ] The project owner reviews and approves Phase 5 before a `phase-5` tag or any Phase 6 work.
+- [x] The project owner reviews and approves Phase 5 before a `phase-5` tag or any Phase 6 work.
 
 ### Phase 5 closure evidence
 
 On 2026-08-27, `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 147 backend tests, 16 web unit tests, typecheck, lint, and 1 Playwright smoke test. The focused PostgreSQL Phase 5 API suite passed 13 tests, including exact version/value/unit confirmation, critical-value and unit edit invalidation, stale-command conflicts, source/SBAR preservation, log non-disclosure sentinels, positive Operator and Administrator access, Practitioner and anonymous denial, persisted foreign-organization read/update denial, ignored client-supplied organization context, and proof that Phase 5 endpoints stop at `PendingConfirmation`. No production or hospital integration was added.
+
+The project owner approved Phase 5 on 2026-08-27. Commit `3d8bc56` was fast-forwarded to `main`, pushed to GitHub, and tagged `phase-5`.
+
+## Phase 6: recipient selection and exact review
+
+Phase 6 is ready for human review only when all of the following are true:
+
+- [ ] Operator and Administrator can replace the complete recipient set from the authenticated organization's fictional directory; Practitioner and unauthenticated identities cannot.
+- [ ] Recipient selection is manual only. No AI, ranking, default, on-call rule, background task, or server process selects a practitioner.
+- [ ] Each selected recipient records the exact alert draft version, practitioner, optional role, channel, selecting user, selection time, safe directory revision, source timestamp, and displayed on-call snapshot.
+- [ ] A recipient edit increments `DraftVersion` once for the full replacement, invalidates earlier critical-field confirmations, and makes stale commands return RFC 7807 conflict/reload guidance.
+- [ ] Inactive, foreign-organization, duplicate, channel-ineligible, and changed-directory selections are rejected without exposing contact values.
+- [ ] The operator-approved message is protected and persisted separately from original source and structured SBAR content; editing it increments `DraftVersion` and invalidates earlier confirmations.
+- [ ] The review response and page show one exact version containing synthetic patient reference, location, urgency, approved message, confirmed critical values and units, recipients, channels, directory timestamps/on-call labels, and `DEMO` policy versions.
+- [ ] Confirmation requires an authenticated authorized human, the exact reviewed draft version, and an `Idempotency-Key`.
+- [ ] Confirmation, sanitized audit, idempotency result, state transition, and one identifier-only outbox item are committed atomically; no Phase 6 code processes that item or calls a provider.
+- [ ] Repeating the same confirmation key and request returns the original result without a duplicate state transition, audit event, or outbox item; reusing the key for a different request returns a safe conflict.
+- [ ] Clinical content, patient content, approved message, recipient contact values, and complete request payloads do not appear in general logs, exceptions, audit metadata, idempotency records, or outbox payloads.
+- [ ] PostgreSQL integration tests cover authorization, organization isolation, version conflicts, directory revision conflicts, recipient snapshots, idempotency races, atomic rollback, and identifier-only outbox contents.
+- [ ] The web flow includes dynamic compose, recipients, and review routes with deliberate confirmation and double-submission protection; the live/dispatch screen remains unavailable.
+- [ ] No worker, provider adapter, delivery attempt, retry, callback, acknowledgement, responsibility acceptance, escalation, hospital connector, or production identity behavior is added.
+- [ ] Fresh format, build, test, typecheck, lint, PostgreSQL integration, browser, sensitive-data, and scope checks pass before human review.
+- [ ] The project owner reviews and approves Phase 6 before a `phase-6` tag or any Phase 7 implementation.
