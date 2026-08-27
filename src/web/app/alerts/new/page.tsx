@@ -7,6 +7,7 @@ const simulationSiteId = "11111111-1111-4111-8111-111111111201";
 const simulationDepartmentId = "11111111-1111-4111-8111-111111110301";
 
 type AlertField = {
+  alertVersion: number;
   fieldId: string;
   originalValue: string;
   normalizedValue: string;
@@ -83,6 +84,13 @@ export default function AlertComposePage() {
             assessment: form.assessment,
             recommendation: form.recommendation,
           },
+          criticalFields: [
+            {
+              fieldId: "heartRate",
+              originalValue: form.criticalValue,
+              unit: form.criticalUnit,
+            },
+          ],
         }
       : {
           siteId: simulationSiteId,
@@ -210,14 +218,11 @@ export default function AlertComposePage() {
         <textarea id="alert-assessment" value={form.assessment} onChange={update("assessment")} required />
         <label htmlFor="alert-recommendation">Recommendation</label>
         <textarea id="alert-recommendation" value={form.recommendation} onChange={update("recommendation")} required />
-        {!draft ? (
-          <>
-            <label htmlFor="critical-value">Critical value (simulation)</label>
-            <input id="critical-value" value={form.criticalValue} onChange={update("criticalValue")} required />
-            <label htmlFor="critical-unit">Critical value unit</label>
-            <input id="critical-unit" value={form.criticalUnit} onChange={update("criticalUnit")} required />
-          </>
-        ) : null}
+        <label htmlFor="critical-value">Critical value (simulation)</label>
+        <input id="critical-value" value={form.criticalValue} onChange={update("criticalValue")} required />
+        <label htmlFor="critical-unit">Critical value unit</label>
+        <input id="critical-unit" value={form.criticalUnit} onChange={update("criticalUnit")} required />
+        {draft ? <p>Saving a draft edit invalidates all earlier critical-field confirmations.</p> : null}
         <button type="submit">{draft ? "Save draft" : "Create draft"}</button>
       </form>
       <p role="status">{status}</p>

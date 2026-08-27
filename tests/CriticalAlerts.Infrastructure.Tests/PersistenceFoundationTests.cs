@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Identity;
@@ -160,6 +160,7 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
     {
         await using var db = fixture.CreateContext();
         var alert = await CreatePersistedAlertAsync(db);
+        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
         alert.ConfirmCriticalField("heartRate", "118", "118", "beats/min", DemoDataSeeder.JordanUserId, alert.DraftVersion, Now);
         await db.SaveChangesAsync();
 

@@ -1,4 +1,4 @@
-using CriticalAlerts.Domain;
+﻿using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
@@ -204,6 +204,7 @@ public sealed class AlertStateMachineTests
     public void ConfirmedCriticalFieldAllowsDispatch()
     {
         var (alert, practitioner) = CreatePendingAlert();
+        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
         alert.ConfirmCriticalField("heartRate", "118", "118", "beats/min", UserId.New(), alert.DraftVersion, Now);
         alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [practitioner], Now, "corr-1");
 
@@ -222,6 +223,67 @@ public sealed class AlertStateMachineTests
         alert.FieldConfirmations.Should().ContainSingle(confirmation => confirmation.FieldId == "heartRate");
         alert.FieldConfirmations.Single().Status.Should().Be(FieldConfirmationStatus.Confirmed);
         alert.FieldConfirmations.Single().AlertVersion.Should().Be(alert.DraftVersion);
+    }
+
+    [Fact]
+    public void CriticalFieldConfirmationRequiresTheRecordedValueAndUnit()
+    {
+        var alert = CreateAlert();
+        alert.RegisterUnresolvedCriticalField("bloodPressure", "88/54", "mmHg", alert.DraftVersion);
+
+        var changedValue = () => alert.ConfirmCriticalField(
+            "bloodPressure",
+            "86/52",
+            "86/52",
+            "mmHg",
+            UserId.New(),
+            alert.DraftVersion,
+            Now);
+        var changedUnit = () => alert.ConfirmCriticalField(
+            "bloodPressure",
+            "88/54",
+            "88/54",
+            "kPa",
+            UserId.New(),
+            alert.DraftVersion,
+            Now);
+
+        changedValue.Should().Throw<DomainException>();
+        changedUnit.Should().Throw<DomainException>();
+        alert.FieldConfirmations.Should().ContainSingle(confirmation =>
+            confirmation.AlertVersion == alert.DraftVersion
+            && confirmation.OriginalValue == "88/54"
+            && confirmation.Unit == "mmHg"
+            && confirmation.Status == FieldConfirmationStatus.Unresolved);
+    }
+
+    [Fact]
+    public void ConfirmedCriticalFieldCannotBeRewrittenWithinTheSameDraftVersion()
+    {
+        var alert = CreateAlert();
+        alert.RegisterUnresolvedCriticalField("bloodPressure", "88/54", "mmHg", alert.DraftVersion);
+        alert.ConfirmCriticalField(
+            "bloodPressure",
+            "88/54",
+            "88/54",
+            "mmHg",
+            UserId.New(),
+            alert.DraftVersion,
+            Now);
+
+        var act = () => alert.ConfirmCriticalField(
+            "bloodPressure",
+            "88/54",
+            "86/52",
+            "mmHg",
+            UserId.New(),
+            alert.DraftVersion,
+            Now);
+
+        act.Should().Throw<DomainException>();
+        alert.FieldConfirmations.Should().ContainSingle(confirmation =>
+            confirmation.NormalizedValue == "88/54"
+            && confirmation.Status == FieldConfirmationStatus.Confirmed);
     }
 
     [Fact]

@@ -25,6 +25,7 @@ const createdDraft = {
   },
   criticalFields: [
     {
+      alertVersion: 1,
       fieldId: "heartRate",
       originalValue: "118",
       normalizedValue: "118",
@@ -133,6 +134,68 @@ describe("Phase 5 alert compose", () => {
         assessment: "SIMULATION: fictional assessment",
         recommendation: "SIMULATION: fictional recommendation",
       },
+      criticalFields: [
+        {
+          fieldId: "heartRate",
+          originalValue: "118",
+          unit: "beats/min",
+        },
+      ],
+    });
+  });
+
+  it("edits a confirmed critical value as an unresolved field on the next draft version", async () => {
+    const confirmedDraft = {
+      ...createdDraft,
+      criticalFields: [{ ...createdDraft.criticalFields[0], status: "Confirmed" }],
+    };
+    const editedDraft = {
+      ...createdDraft,
+      draftVersion: 2,
+      criticalFields: [
+        {
+          ...createdDraft.criticalFields[0],
+          alertVersion: 2,
+          originalValue: "116",
+          normalizedValue: "116",
+          unit: "beats/min",
+          status: "Unresolved",
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+        if (String(input).includes("/api/dev/identities")) {
+          return { ok: false, status: 404, json: async () => ({}) };
+        }
+
+        if (String(input).endsWith("/field-confirmations")) {
+          return { ok: true, status: 200, json: async () => confirmedDraft };
+        }
+
+        if (init?.method === "PATCH") {
+          return { ok: true, status: 200, json: async () => editedDraft };
+        }
+
+        return { ok: true, status: 201, json: async () => createdDraft };
+      }),
+    );
+    const fetchMock = vi.mocked(fetch);
+    render(<AlertComposePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm heartRate" }));
+    expect(await screen.findByText(/heartRate: 118 beats\/min \(Confirmed\)/)).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Critical value (simulation)"), { target: { value: "116" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByText(/Draft version: 2/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Confirm heartRate" })).toBeVisible();
+    const updateCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PATCH");
+    expect(JSON.parse(String(updateCall![1]?.body))).toMatchObject({
+      expectedVersion: 1,
+      criticalFields: [{ fieldId: "heartRate", originalValue: "116", unit: "beats/min" }],
     });
   });
 

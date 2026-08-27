@@ -10,9 +10,11 @@ The API derives organization and user identity from the authenticated server pri
 
 ## Protected content and concurrency
 
-Typed source and serialized SBAR content use the existing `ISensitiveDataProtector` with separate purposes. The API returns authorized simulation content for the compose screen, never ciphertext or protected-value internals. Every edit names the expected `DraftVersion`; stale edit, critical-field confirmation, and submission commands are rejected with a safe conflict response and recovery guidance. Any source/SBAR/location/urgency edit increments the version and invalidates prior confirmation state.
+Typed source and serialized SBAR content use the existing `ISensitiveDataProtector` with separate purposes and separate persisted properties. The original operator-entered source content is persisted separately from the structured SBAR representation and is never silently overwritten by normalization or critical-field confirmation. The API returns authorized simulation content for the compose screen, never ciphertext or protected-value internals. General API logs and safe error responses are tested with synthetic sentinels to ensure they do not contain the patient reference, typed source, or complete SBAR payload.
 
-Critical-field confirmations are versioned with the alert. The current slice can display and confirm fields seeded at draft creation; it does not infer, normalize, diagnose, assign urgency, select recipients, or dispatch.
+Every edit names the expected `DraftVersion`; stale edit, critical-field confirmation, and submission commands are rejected with a safe conflict response and recovery guidance. Any source, SBAR, location, urgency, critical-value, or unit edit increments the version. The complete critical-field list is recreated as unresolved for the new version, so no confirmation from an earlier version remains current.
+
+Critical-field confirmations persist the exact recorded value, unit, normalized value explicitly confirmed by the operator, confirming user, timestamp, and alert draft version. A confirmation request cannot substitute a different recorded value or unit, cannot rewrite a completed confirmation within the same version, and cannot confirm a field absent from the current version. The current slice can display, edit, and confirm fields recorded in the draft; it does not infer, diagnose, assign urgency, select recipients, or dispatch.
 
 ## Routes in this phase
 
@@ -23,6 +25,8 @@ Critical-field confirmations are versioned with the alert. The current slice can
 - `POST /api/alerts/{alertId}/submit-for-confirmation`
 
 Recipient selection, review confirmation, transactional outbox, simulated channels, provider adapters, and hospital integrations are later-phase work and remain `REQUIRES_HOSPITAL_DECISION` where production behavior would be involved.
+
+No alert can reach `DispatchQueued` through any Phase 5 endpoint. The furthest Phase 5 submission can advance is `PendingConfirmation`; the human dispatch-confirmation command is not exposed by the Phase 5 API or application service.
 
 ## Phase 5 decision status
 

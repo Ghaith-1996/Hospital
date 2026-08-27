@@ -1,4 +1,4 @@
-namespace CriticalAlerts.Domain.Alerts;
+﻿namespace CriticalAlerts.Domain.Alerts;
 
 public sealed class AlertFieldConfirmation
 {
@@ -70,6 +70,14 @@ public sealed class AlertFieldConfirmation
         NormalizedValue = normalizedValue;
         Unit = unit;
         Status = status;
+        ConfirmedByUserId = confirmedByUserId;
+        ConfirmedAtUtc = confirmedAtUtc;
+    }
+
+    internal void Confirm(string normalizedValue, UserId confirmedByUserId, DateTimeOffset confirmedAtUtc)
+    {
+        NormalizedValue = normalizedValue;
+        Status = FieldConfirmationStatus.Confirmed;
         ConfirmedByUserId = confirmedByUserId;
         ConfirmedAtUtc = confirmedAtUtc;
     }

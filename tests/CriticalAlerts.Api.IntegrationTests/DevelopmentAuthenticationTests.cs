@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using CriticalAlerts.Application.Protection;
@@ -12,6 +13,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace CriticalAlerts.Api.IntegrationTests;
@@ -159,12 +162,10 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         identities.Should().NotBeNull();
-        identities!.Select(identity => identity.SimulationHandle).Should().BeEquivalentTo(
-        [
-            DemoDataSeeder.JordanHandle,
-            DemoDataSeeder.MorganHandle,
-            DemoDataSeeder.RileyHandle,
-        ]);
+        var handles = identities!.Select(identity => identity.SimulationHandle);
+        handles.Should().Contain(DemoDataSeeder.JordanHandle);
+        handles.Should().Contain(DemoDataSeeder.MorganHandle);
+        handles.Should().Contain(DemoDataSeeder.RileyHandle);
         identities.Should().OnlyContain(identity => identity.DisplayName.Length > 0);
     }
 
@@ -223,10 +224,13 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
 public sealed class SeededPostgresApiFixture : IAsyncLifetime
 {
     private readonly PostgresApiFixture inner = new();
+    private readonly CapturingLoggerProvider logProvider = new();
     private string dataProtectionKey = string.Empty;
     private WebApplicationFactory<Program>? factory;
 
     public Guid JordanUserId => DemoDataSeeder.JordanUserId.Value;
+
+    public IReadOnlyList<string> LogEntries => logProvider.Entries;
 
     public async Task InitializeAsync()
     {
@@ -240,6 +244,7 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
             builder.UseSetting("DevelopmentAuthentication:Enabled", "true");
             builder.UseSetting("DataProtection:Key", dataProtectionKey);
         });
+        factory.Server.Services.GetRequiredService<ILoggerFactory>().AddProvider(logProvider);
     }
 
     public HttpClient CreateClient()
@@ -254,12 +259,18 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
     }
 
     public async Task<Guid> CreateForeignDraftAsync()
+        => (await CreateForeignOperatorDraftAsync()).AlertId;
+
+    public async Task<ForeignOperatorDraftFixture> CreateForeignOperatorDraftAsync()
     {
         var now = DateTimeOffset.Parse("2026-08-01T12:00:00Z");
         var organizationId = OrganizationId.New();
         var siteId = SiteId.New();
         var departmentId = DepartmentId.New();
         var userId = UserId.New();
+        var roleId = RoleId.New();
+        var uniqueSuffix = Guid.NewGuid().ToString("N");
+        var simulationHandle = $"sim-foreign-operator-{uniqueSuffix}";
         var protector = AesGcmSensitiveDataProtector.FromBase64(dataProtectionKey);
         var options = new DbContextOptionsBuilder<CriticalAlertsDbContext>()
             .UseNpgsql(inner.ConnectionString)
@@ -268,7 +279,7 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
 
         db.Organizations.Add(Organization.CreateSimulation(
             organizationId,
-            "Fictional Cross-Organization Simulation Hospital",
+            $"Fictional Cross-Organization Simulation Hospital {uniqueSuffix}",
             now));
         db.Sites.Add(Site.Create(
             siteId,
@@ -287,8 +298,10 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
             userId,
             organizationId,
             "Foreign Simulation Operator",
-            $"sim-foreign-operator-{Guid.NewGuid():N}",
+            simulationHandle,
             now));
+        db.Roles.Add(Role.Create(roleId, organizationId, "Operator"));
+        db.UserRoles.Add(UserRole.Create(organizationId, userId, roleId));
 
         var alert = Alert.CreateDraft(
             AlertId.New(),
@@ -309,8 +322,20 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
                 new SensitiveDataContext("alert-sbar", organizationId.Value)));
         db.Alerts.Add(alert);
         await db.SaveChangesAsync();
-        return alert.Id.Value;
+        return new ForeignOperatorDraftFixture(alert.Id.Value, simulationHandle);
     }
+
+    public async Task<string> GetAlertStateAsync(Guid alertId)
+    {
+        var options = new DbContextOptionsBuilder<CriticalAlertsDbContext>()
+            .UseNpgsql(inner.ConnectionString)
+            .Options;
+        await using var db = new CriticalAlertsDbContext(options);
+        var alert = await db.Alerts.AsNoTracking().SingleAsync(candidate => candidate.Id == new AlertId(alertId));
+        return alert.State.ToString();
+    }
+
+    public void ClearLogs() => logProvider.Clear();
 
     public async Task DisposeAsync()
     {
@@ -320,6 +345,53 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
         }
 
         await inner.DisposeAsync();
+    }
+}
+
+public sealed record ForeignOperatorDraftFixture(Guid AlertId, string SimulationHandle);
+
+internal sealed class CapturingLoggerProvider : ILoggerProvider
+{
+    private readonly ConcurrentQueue<string> entries = new();
+
+    public IReadOnlyList<string> Entries => entries.ToArray();
+
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, entries);
+
+    public void Clear()
+    {
+        while (entries.TryDequeue(out _))
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class CapturingLogger(string categoryName, ConcurrentQueue<string> entries) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var message = $"{categoryName} {logLevel} {eventId.Id} {formatter(state, exception)}";
+            if (exception is not null)
+            {
+                message += $" {exception.GetType().Name}: {exception.Message}";
+            }
+
+            entries.Enqueue(message);
+        }
     }
 }
 

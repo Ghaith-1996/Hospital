@@ -40,7 +40,7 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 Phase 0 through Phase 4 approval are recorded. Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`. Phase 5 completion is ready for project-owner review; a `phase-5` tag and any Phase 6 work must wait for that review. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. It does not add recipient selection, provider integrations, hospital connectors, AI features, dispatch, or production SSO.
+Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. The original operator-entered source content is persisted separately from the structured SBAR representation and is never silently overwritten by normalization. No alert can reach `DispatchQueued` through any Phase 5 endpoint. Phase 5 does not add recipient selection, provider integrations, hospital connectors, AI features, dispatch, or production SSO.
 
 ### Local verification
 

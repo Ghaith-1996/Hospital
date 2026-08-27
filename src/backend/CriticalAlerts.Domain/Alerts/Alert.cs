@@ -1,4 +1,4 @@
-using CriticalAlerts.Domain.Directory;
+﻿using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Simulation;
 
 namespace CriticalAlerts.Domain.Alerts;
@@ -226,15 +226,36 @@ public sealed class Alert
             throw new DomainException("Critical field confirmation requires an identifier and values.");
         }
 
-        UpsertCanonicalFieldConfirmation(
-            fieldId.Trim(),
-            originalValue.Trim(),
-            normalizedValue.Trim(),
-            string.IsNullOrWhiteSpace(unit) ? null : unit.Trim(),
-            FieldConfirmationStatus.Confirmed,
-            confirmedByUserId,
-            UtcInstant.Require(confirmedAtUtc, nameof(confirmedAtUtc)));
-        UpdatedAtUtc = UtcInstant.Require(confirmedAtUtc, nameof(confirmedAtUtc));
+        var canonicalFieldId = fieldId.Trim();
+        var canonicalOriginalValue = originalValue.Trim();
+        var canonicalNormalizedValue = normalizedValue.Trim();
+        var canonicalUnit = string.IsNullOrWhiteSpace(unit) ? null : unit.Trim();
+        var existing = fieldConfirmations.SingleOrDefault(confirmation =>
+            confirmation.FieldId == canonicalFieldId && confirmation.AlertVersion == DraftVersion);
+        if (existing is null)
+        {
+            throw new DomainException("Critical field confirmation requires a field recorded for the current draft version.");
+        }
+
+        if (!string.Equals(existing.OriginalValue, canonicalOriginalValue, StringComparison.Ordinal)
+            || !string.Equals(existing.Unit, canonicalUnit, StringComparison.Ordinal))
+        {
+            throw new DomainException("Critical field confirmation must match the recorded value and unit for the current draft version.");
+        }
+
+        if (existing.Status == FieldConfirmationStatus.Confirmed)
+        {
+            if (!string.Equals(existing.NormalizedValue, canonicalNormalizedValue, StringComparison.Ordinal))
+            {
+                throw new DomainException("A confirmed critical field cannot be rewritten within the same draft version.");
+            }
+
+            return;
+        }
+
+        var occurredAt = UtcInstant.Require(confirmedAtUtc, nameof(confirmedAtUtc));
+        existing.Confirm(canonicalNormalizedValue, confirmedByUserId, occurredAt);
+        UpdatedAtUtc = occurredAt;
     }
 
     public void RegisterUnresolvedCriticalField(string fieldId, string originalValue, string? unit, AlertDraftVersion expectedVersion)

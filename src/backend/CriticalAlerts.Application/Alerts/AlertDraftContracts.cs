@@ -1,4 +1,4 @@
-using CriticalAlerts.Domain;
+﻿using CriticalAlerts.Domain;
 
 namespace CriticalAlerts.Application.Alerts;
 
@@ -28,7 +28,8 @@ public sealed record UpdateAlertDraftRequest(
     string? Location,
     string? UrgencyLabel,
     string? SourceText,
-    AlertSbarDraft? Sbar);
+    AlertSbarDraft? Sbar,
+    IReadOnlyList<AlertCriticalFieldInput>? CriticalFields);
 
 public sealed record ConfirmAlertCriticalFieldRequest(
     int ExpectedVersion,
@@ -40,6 +41,7 @@ public sealed record ConfirmAlertCriticalFieldRequest(
 public sealed record SubmitAlertDraftRequest(int ExpectedVersion);
 
 public sealed record AlertFieldConfirmationView(
+    int AlertVersion,
     string FieldId,
     string OriginalValue,
     string NormalizedValue,

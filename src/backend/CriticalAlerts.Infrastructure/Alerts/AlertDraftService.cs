@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Domain;
@@ -28,6 +28,7 @@ public sealed class AlertDraftService(
         var urgency = RequireText(request.UrgencyLabel, "urgency");
         var sourceText = RequireSimulationText(request.SourceText, "typed source");
         var sbar = ValidateSbar(request.Sbar);
+        var criticalFields = ValidateCriticalFields(request.CriticalFields, required: false);
         var (siteId, departmentId) = await ValidateLocationAsync(organizationId, request.SiteId, request.DepartmentId, cancellationToken);
         var now = time.GetUtcNow();
         var alert = Alert.CreateDraft(
@@ -44,11 +45,9 @@ public sealed class AlertDraftService(
             now,
             protector.Protect(JsonSerializer.Serialize(sbar, JsonOptions), Context("alert-sbar", organizationId)));
 
-        foreach (var field in request.CriticalFields ?? [])
+        foreach (var field in criticalFields)
         {
-            var fieldId = RequireText(field.FieldId, "critical field identifier");
-            var originalValue = RequireText(field.OriginalValue, "critical field value");
-            alert.RegisterUnresolvedCriticalField(fieldId, originalValue, field.Unit, alert.DraftVersion);
+            alert.RegisterUnresolvedCriticalField(field.FieldId, field.OriginalValue, field.Unit, alert.DraftVersion);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -86,6 +85,7 @@ public sealed class AlertDraftService(
         var urgency = RequireText(request.UrgencyLabel, "urgency");
         var sourceText = RequireSimulationText(request.SourceText, "typed source");
         var sbar = ValidateSbar(request.Sbar);
+        var criticalFields = ValidateCriticalFields(request.CriticalFields, required: true);
         var now = time.GetUtcNow();
         alert.UpdateTypedContent(
             location,
@@ -94,6 +94,10 @@ public sealed class AlertDraftService(
             protector.Protect(JsonSerializer.Serialize(sbar, JsonOptions), Context("alert-sbar", organizationId)),
             new AlertDraftVersion(request.ExpectedVersion),
             now);
+        foreach (var field in criticalFields)
+        {
+            alert.RegisterUnresolvedCriticalField(field.FieldId, field.OriginalValue, field.Unit, alert.DraftVersion);
+        }
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         AddAudit(organizationId, actorUserId, correlationId, alert.Id.Value, "alert.draft.updated", now);
@@ -219,6 +223,43 @@ public sealed class AlertDraftService(
         return value.Trim();
     }
 
+    private static IReadOnlyList<ValidatedCriticalField> ValidateCriticalFields(
+        IReadOnlyList<AlertCriticalFieldInput>? fields,
+        bool required)
+    {
+        if (fields is null)
+        {
+            if (required)
+            {
+                throw new AlertDraftValidationException(
+                    "critical-fields-required",
+                    "The complete critical-field list is required when editing a draft.");
+            }
+
+            return [];
+        }
+
+        var validated = new List<ValidatedCriticalField>(fields.Count);
+        var fieldIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var field in fields)
+        {
+            var fieldId = RequireText(field.FieldId, "critical field identifier");
+            if (!fieldIds.Add(fieldId))
+            {
+                throw new AlertDraftValidationException(
+                    "duplicate-critical-field",
+                    "Each critical field identifier may appear only once in a draft version.");
+            }
+
+            validated.Add(new ValidatedCriticalField(
+                fieldId,
+                RequireText(field.OriginalValue, "critical field value"),
+                string.IsNullOrWhiteSpace(field.Unit) ? null : field.Unit.Trim()));
+        }
+
+        return validated;
+    }
+
     private static SensitiveDataContext Context(string purpose, OrganizationId organizationId)
         => new(purpose, organizationId.Value);
 
@@ -260,6 +301,7 @@ public sealed class AlertDraftService(
                 .Where(confirmation => confirmation.AlertVersion == alert.DraftVersion)
                 .OrderBy(confirmation => confirmation.FieldId)
                 .Select(confirmation => new AlertFieldConfirmationView(
+                    confirmation.AlertVersion.Value,
                     confirmation.FieldId,
                     confirmation.OriginalValue,
                     confirmation.NormalizedValue,
@@ -269,4 +311,6 @@ public sealed class AlertDraftService(
                     confirmation.ConfirmedAtUtc))
                 .ToArray());
     }
+
+    private sealed record ValidatedCriticalField(string FieldId, string OriginalValue, string? Unit);
 }

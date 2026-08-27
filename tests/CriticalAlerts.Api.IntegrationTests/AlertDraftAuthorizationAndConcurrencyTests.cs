@@ -89,6 +89,125 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
 
         submitted.StatusCode.Should().Be(HttpStatusCode.OK);
         submittedBody!.State.Should().Be("PendingConfirmation");
+        submittedBody.State.Should().NotBe("DispatchQueued");
+    }
+
+    [Fact]
+    public async Task CriticalFieldConfirmationIsBoundToExactValueUnitAndDraftVersion()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var request = ValidCreateRequest() with
+        {
+            SourceText = "SIMULATION: original operator source records BP 88/54 mmHg",
+            Sbar = ValidCreateRequest().Sbar! with
+            {
+                Situation = "SIMULATION: structured SBAR records fictional BP for review",
+            },
+            CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "88/54", "mmHg")],
+        };
+        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        using var changedValue = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft!.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "86/52", "86/52", "mmHg"));
+        using var changedUnit = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "kPa"));
+
+        changedValue.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        changedUnit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        using var exact = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "mmHg"));
+        var confirmed = await exact.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        exact.StatusCode.Should().Be(HttpStatusCode.OK);
+        confirmed!.CriticalFields.Should().ContainSingle(field =>
+            field.AlertVersion == draft.DraftVersion
+            && field.OriginalValue == "88/54"
+            && field.NormalizedValue == "88/54"
+            && field.Unit == "mmHg"
+            && field.Status == "Confirmed");
+
+        using var read = await client.GetAsync($"/api/alerts/{draft.AlertId:D}");
+        var reloaded = await read.Content.ReadFromJsonAsync<AlertDraftView>();
+        reloaded!.SourceText.Should().Be(request.SourceText);
+        reloaded.Sbar!.Situation.Should().Be(request.Sbar!.Situation);
+    }
+
+    [Fact]
+    public async Task EditingConfirmedCriticalContentInvalidatesConfirmationAndRejectsOldVersionCommands()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var request = ValidCreateRequest() with
+        {
+            CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "88/54", "mmHg")],
+        };
+        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+        using var confirm = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft!.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "mmHg"));
+        confirm.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var updateRequest = ValidUpdateRequest(draft.DraftVersion) with
+        {
+            SourceText = "SIMULATION: revised typed source with fictional BP 86/52",
+            Sbar = ValidUpdateRequest(draft.DraftVersion).Sbar! with
+            {
+                Situation = "SIMULATION: revised fictional situation with BP 86/52",
+            },
+            CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "86/52", "mmHg")],
+        };
+        using var update = await client.PatchAsJsonAsync($"/api/alerts/{draft.AlertId:D}", updateRequest);
+        var edited = await update.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        update.StatusCode.Should().Be(HttpStatusCode.OK);
+        edited!.DraftVersion.Should().Be(draft.DraftVersion + 1);
+        edited.State.Should().Be("Draft");
+        edited.CriticalFields.Should().ContainSingle(field =>
+            field.AlertVersion == edited.DraftVersion
+            && field.OriginalValue == "86/52"
+            && field.Unit == "mmHg"
+            && field.Status == "Unresolved");
+
+        using var staleConfirmation = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "mmHg"));
+        using var staleSubmission = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            new SubmitAlertDraftRequest(draft.DraftVersion));
+        using var unresolvedSubmission = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            new SubmitAlertDraftRequest(edited.DraftVersion));
+
+        staleConfirmation.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        staleSubmission.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        unresolvedSubmission.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        using var confirmEditedValue = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(edited.DraftVersion, "bloodPressure", "86/52", "86/52", "mmHg"));
+        confirmEditedValue.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var unitUpdate = await client.PatchAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}",
+            updateRequest with
+            {
+                ExpectedVersion = edited.DraftVersion,
+                CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "86/52", "kPa")],
+            });
+        var unitEdited = await unitUpdate.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        unitUpdate.StatusCode.Should().Be(HttpStatusCode.OK);
+        unitEdited!.DraftVersion.Should().Be(edited.DraftVersion + 1);
+        unitEdited.CriticalFields.Should().ContainSingle(field =>
+            field.AlertVersion == unitEdited.DraftVersion
+            && field.OriginalValue == "86/52"
+            && field.Unit == "kPa"
+            && field.Status == "Unresolved");
     }
 
     [Fact]
@@ -117,6 +236,140 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         using var foreign = await client.GetAsync($"/api/alerts/{foreignAlertId:D}");
         foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await foreign.Content.ReadAsStringAsync()).Should().NotContain("organization_id");
+    }
+
+    [Fact]
+    public async Task DraftAuthorizationRejectsAnonymousPractitionerAndForeignOrganizationAccess()
+    {
+        using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var create = await operatorClient.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        using var anonymous = fixture.CreateClient();
+        using var anonymousRead = await anonymous.GetAsync($"/api/alerts/{draft!.AlertId:D}");
+        using var anonymousUpdate = await anonymous.PatchAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}",
+            ValidUpdateRequest(draft.DraftVersion));
+        using var anonymousConfirm = await anonymous.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "heartRate", "118", "118", "beats/min"));
+        using var anonymousSubmit = await anonymous.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            new SubmitAlertDraftRequest(draft.DraftVersion));
+
+        anonymousRead.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        anonymousUpdate.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        anonymousConfirm.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        anonymousSubmit.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
+        using var practitionerUpdate = await practitioner.PatchAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}",
+            new
+            {
+                organizationId = DemoDataSeeder.OrganizationId.Value,
+                roles = new[] { "Operator" },
+                expectedVersion = draft.DraftVersion,
+                location = "North Wing / Simulation Room 205",
+                urgencyLabel = "Urgent",
+                sourceText = "SIMULATION: practitioner impersonation attempt",
+                sbar = ValidUpdateRequest(draft.DraftVersion).Sbar,
+                criticalFields = ValidUpdateRequest(draft.DraftVersion).CriticalFields,
+            });
+        practitionerUpdate.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var foreignFixture = await fixture.CreateForeignOperatorDraftAsync();
+        using var foreignClient = await fixture.CreateSignedInClientAsync(foreignFixture.SimulationHandle);
+        using var foreignRead = await foreignClient.GetAsync($"/api/alerts/{draft.AlertId:D}");
+        using var foreignUpdate = await foreignClient.PatchAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}",
+            new
+            {
+                organizationId = DemoDataSeeder.OrganizationId.Value,
+                expectedVersion = draft.DraftVersion,
+                location = "North Wing / Simulation Room 205",
+                urgencyLabel = "Urgent",
+                sourceText = "SIMULATION: foreign organization override attempt",
+                sbar = ValidUpdateRequest(draft.DraftVersion).Sbar,
+                criticalFields = ValidUpdateRequest(draft.DraftVersion).CriticalFields,
+            });
+
+        foreignRead.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        foreignUpdate.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ClinicalDraftPayloadIsAbsentFromGeneralApiLogsAndSafeErrors()
+    {
+        const string patientSentinel = "SIM-PAT-LOG-NONDISCLOSURE";
+        const string sourceSentinel = "SIMULATION: LOG-SOURCE-NONDISCLOSURE";
+        const string situationSentinel = "SIMULATION: LOG-SITUATION-NONDISCLOSURE";
+        const string backgroundSentinel = "SIMULATION: LOG-BACKGROUND-NONDISCLOSURE";
+        const string assessmentSentinel = "SIMULATION: LOG-ASSESSMENT-NONDISCLOSURE";
+        const string recommendationSentinel = "SIMULATION: LOG-RECOMMENDATION-NONDISCLOSURE";
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        fixture.ClearLogs();
+
+        var request = ValidCreateRequest() with
+        {
+            SiteId = Guid.NewGuid(),
+            SimulationPatientReference = patientSentinel,
+            SourceText = sourceSentinel,
+            Sbar = new AlertSbarDraft(
+                situationSentinel,
+                backgroundSentinel,
+                assessmentSentinel,
+                recommendationSentinel),
+        };
+        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        var responseBody = await response.Content.ReadAsStringAsync();
+        var logs = fixture.LogEntries;
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        logs.Should().NotBeEmpty();
+        foreach (var sentinel in new[]
+                 {
+                     patientSentinel,
+                     sourceSentinel,
+                     situationSentinel,
+                     backgroundSentinel,
+                     assessmentSentinel,
+                     recommendationSentinel,
+                 })
+        {
+            responseBody.Should().NotContain(sentinel);
+            logs.Should().NotContain(entry => entry.Contains(sentinel, StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task PhaseFiveEndpointsCannotReachDispatchQueued()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+        draft!.State.Should().Be("Draft");
+
+        using var update = await client.PatchAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}",
+            ValidUpdateRequest(draft.DraftVersion));
+        var edited = await update.Content.ReadFromJsonAsync<AlertDraftView>();
+        edited!.State.Should().Be("Draft");
+
+        using var confirm = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            new ConfirmAlertCriticalFieldRequest(edited.DraftVersion, "heartRate", "118", "118", "beats/min"));
+        var confirmed = await confirm.Content.ReadFromJsonAsync<AlertDraftView>();
+        confirmed!.State.Should().Be("Draft");
+
+        using var submit = await client.PostAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            new SubmitAlertDraftRequest(confirmed.DraftVersion));
+        var submitted = await submit.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        submitted!.State.Should().Be("PendingConfirmation");
+        submitted.State.Should().NotBe("DispatchQueued");
+        (await fixture.GetAlertStateAsync(draft.AlertId)).Should().Be("PendingConfirmation");
     }
 
     [Fact]
@@ -181,5 +434,6 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
                 "SIMULATION: revised situation",
                 "SIMULATION: revised background",
                 "SIMULATION: revised assessment",
-                "SIMULATION: revised recommendation"));
+                "SIMULATION: revised recommendation"),
+            [new AlertCriticalFieldInput("heartRate", "118", "beats/min")]);
 }

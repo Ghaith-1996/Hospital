@@ -117,11 +117,16 @@ Phase 5 is ready for human review only when the following are true:
 - [x] Typed source, synthetic patient reference, simulation location, urgency label, and all four SBAR fields are validated server-side.
 - [x] Organization and user identity come only from the authenticated server principal, and a real foreign-organization alert ID is returned as not found.
 - [x] Typed source and SBAR content remain protected at rest and API responses do not expose ciphertext or protected-value internals.
+- [x] Original operator-entered source remains separately protected and persisted from structured SBAR content; normalization and critical-field confirmation do not overwrite it.
 - [x] Every draft edit supplies the expected version, increments the draft version, and invalidates prior confirmation state.
+- [x] Source, SBAR, critical-value, and unit edits recreate the current version's critical fields as unresolved; earlier confirmations remain historical only.
 - [x] Stale edit, critical-field confirmation, and submission commands return safe conflicts with compose-page recovery guidance.
-- [x] Every recorded critical number and unit remains unresolved until explicitly confirmed by an authenticated human for the current draft version.
+- [x] Every recorded critical number and unit remains unresolved until explicitly confirmed by an authenticated human for the exact value, unit, and current draft version.
 - [x] A draft cannot advance to `PendingConfirmation` with missing required content or unresolved critical fields.
+- [x] Synthetic sentinel tests show general API logs and safe errors do not contain the patient reference, typed source, or complete SBAR payload.
+- [x] Negative authorization tests cover allowed Operator edits, Practitioner impersonation attempts, anonymous access, foreign-organization read/update attempts, and ignored client-supplied organization context.
 - [x] The compose UI supports create/edit, version display, critical-field confirmation, and submit-for-confirmation without recipient or dispatch controls.
+- [x] No Phase 5 endpoint or application service can advance an alert beyond `PendingConfirmation` to `DispatchQueued`.
 - [x] PostgreSQL integration tests cover Operator, Administrator, Practitioner, unauthenticated, organization-scoping, validation, protected-content, and concurrency behavior.
 - [x] No Phase 6 recipient selection, Phase 7 dispatch, provider adapter, hospital connection, SCIM, Graph, FHIR, AI, speech, or production identity behavior was added.
 - [x] Fresh `scripts/test-all.ps1`, repository safety, `git diff --check`, and scope review pass in the pinned environment before human review.
@@ -129,4 +134,4 @@ Phase 5 is ready for human review only when the following are true:
 
 ### Phase 5 closure evidence
 
-On 2026-08-27, `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 140 backend tests, 15 web unit tests, typecheck, lint, and 1 Playwright smoke test. The focused PostgreSQL Phase 5 API suite passed 8 tests, including Administrator access, required-field rejection, critical-field gating, stale-version rejection, and denial of a persisted foreign-organization alert ID. No production or hospital integration was added.
+On 2026-08-27, `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 147 backend tests, 16 web unit tests, typecheck, lint, and 1 Playwright smoke test. The focused PostgreSQL Phase 5 API suite passed 13 tests, including exact version/value/unit confirmation, critical-value and unit edit invalidation, stale-command conflicts, source/SBAR preservation, log non-disclosure sentinels, positive Operator and Administrator access, Practitioner and anonymous denial, persisted foreign-organization read/update denial, ignored client-supplied organization context, and proof that Phase 5 endpoints stop at `PendingConfirmation`. No production or hospital integration was added.
