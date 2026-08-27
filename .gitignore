@@ -36,6 +36,7 @@ postgres-data/
 **/postgres-data/
 
 # IDE and OS files
+.worktrees/
 .vs/
 .idea/
 .vscode/
