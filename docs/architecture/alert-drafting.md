@@ -1,6 +1,6 @@
-# Simulation Alert Drafting
+﻿# Simulation Alert Drafting
 
-Status: Phase 5 in progress. This is a fictional workflow slice and is not approved for clinical use.
+Status: Phase 5 implementation complete and ready for project-owner review. This is a fictional workflow slice and is not approved for clinical use.
 
 ## Scope
 
@@ -10,7 +10,7 @@ The API derives organization and user identity from the authenticated server pri
 
 ## Protected content and concurrency
 
-Typed source and serialized SBAR content use the existing `ISensitiveDataProtector` with separate purposes. The API returns authorized simulation content for the compose screen, never ciphertext or protected-value internals. Every edit names the expected `DraftVersion`; a stale edit is rejected with a safe conflict response. Any source/SBAR/location/urgency edit increments the version and invalidates prior confirmation state.
+Typed source and serialized SBAR content use the existing `ISensitiveDataProtector` with separate purposes. The API returns authorized simulation content for the compose screen, never ciphertext or protected-value internals. Every edit names the expected `DraftVersion`; stale edit, critical-field confirmation, and submission commands are rejected with a safe conflict response and recovery guidance. Any source/SBAR/location/urgency edit increments the version and invalidates prior confirmation state.
 
 Critical-field confirmations are versioned with the alert. The current slice can display and confirm fields seeded at draft creation; it does not infer, normalize, diagnose, assign urgency, select recipients, or dispatch.
 
@@ -23,3 +23,7 @@ Critical-field confirmations are versioned with the alert. The current slice can
 - `POST /api/alerts/{alertId}/submit-for-confirmation`
 
 Recipient selection, review confirmation, transactional outbox, simulated channels, provider adapters, and hospital integrations are later-phase work and remain `REQUIRES_HOSPITAL_DECISION` where production behavior would be involved.
+
+## Phase 5 decision status
+
+Typed drafting, protected SBAR storage, critical-field confirmation, and optimistic concurrency are simulation-only implementation controls. They do not approve a hospital urgency vocabulary, required clinical template, critical-value catalog, privacy conclusion, retention rule, or production workflow. Those matters remain `REQUIRES_HOSPITAL_DECISION`.

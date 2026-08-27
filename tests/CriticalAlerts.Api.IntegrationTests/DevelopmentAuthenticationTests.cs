@@ -1,10 +1,17 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using CriticalAlerts.Application.Protection;
+using CriticalAlerts.Domain;
+using CriticalAlerts.Domain.Alerts;
+using CriticalAlerts.Domain.Identity;
+using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Infrastructure.Persistence;
+using CriticalAlerts.Infrastructure.Protection;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace CriticalAlerts.Api.IntegrationTests;
@@ -244,6 +251,65 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
         using var response = await client.PostAsJsonAsync("/api/dev/session", new { simulationHandle });
         response.EnsureSuccessStatusCode();
         return client;
+    }
+
+    public async Task<Guid> CreateForeignDraftAsync()
+    {
+        var now = DateTimeOffset.Parse("2026-08-01T12:00:00Z");
+        var organizationId = OrganizationId.New();
+        var siteId = SiteId.New();
+        var departmentId = DepartmentId.New();
+        var userId = UserId.New();
+        var protector = AesGcmSensitiveDataProtector.FromBase64(dataProtectionKey);
+        var options = new DbContextOptionsBuilder<CriticalAlertsDbContext>()
+            .UseNpgsql(inner.ConnectionString)
+            .Options;
+        await using var db = new CriticalAlertsDbContext(options);
+
+        db.Organizations.Add(Organization.CreateSimulation(
+            organizationId,
+            "Fictional Cross-Organization Simulation Hospital",
+            now));
+        db.Sites.Add(Site.Create(
+            siteId,
+            organizationId,
+            "Fictional Foreign Simulation Site",
+            "SIM-SITE-FOREIGN",
+            now));
+        db.Departments.Add(Department.Create(
+            departmentId,
+            organizationId,
+            siteId,
+            "Fictional Foreign Simulation Department",
+            "SIM-DEPT-FOREIGN",
+            now));
+        db.Users.Add(UserAccount.CreateSimulation(
+            userId,
+            organizationId,
+            "Foreign Simulation Operator",
+            $"sim-foreign-operator-{Guid.NewGuid():N}",
+            now));
+
+        var alert = Alert.CreateDraft(
+            AlertId.New(),
+            organizationId,
+            siteId,
+            departmentId,
+            userId,
+            "SIM-PAT-FOREIGN",
+            "Foreign Simulation Room",
+            "Urgent",
+            AlertSourceType.Typed,
+            protector.Protect(
+                "SIMULATION: foreign fictional typed source",
+                new SensitiveDataContext("alert-typed-source", organizationId.Value)),
+            now,
+            protector.Protect(
+                "{\"situation\":\"SIMULATION: foreign fictional situation\",\"background\":\"SIMULATION: foreign fictional background\",\"assessment\":\"SIMULATION: foreign fictional assessment\",\"recommendation\":\"SIMULATION: foreign fictional recommendation\"}",
+                new SensitiveDataContext("alert-sbar", organizationId.Value)));
+        db.Alerts.Add(alert);
+        await db.SaveChangesAsync();
+        return alert.Id.Value;
     }
 
     public async Task DisposeAsync()

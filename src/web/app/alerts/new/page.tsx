@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { ChangeEvent, FormEvent, useState } from "react";
 import { SimulationChrome } from "../../simulation-chrome";
@@ -175,6 +175,10 @@ export default function AlertComposePage() {
       credentials: "include",
       body: JSON.stringify({ expectedVersion: draft.draftVersion }),
     });
+    if (response.status === 409) {
+      setStatus("This draft changed elsewhere. Reload it before submitting for confirmation.");
+      return;
+    }
     if (!response.ok) {
       setStatus("The draft needs complete SBAR content and confirmed critical fields before submission.");
       return;

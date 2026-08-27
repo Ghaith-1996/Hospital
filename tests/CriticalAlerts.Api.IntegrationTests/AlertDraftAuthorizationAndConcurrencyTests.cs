@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Infrastructure.Persistence;
@@ -33,10 +33,12 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    [Fact]
-    public async Task OperatorCanCreateAndReadAProtectedTypedDraft()
+    [Theory]
+    [InlineData(DemoDataSeeder.JordanHandle)]
+    [InlineData(DemoDataSeeder.MorganHandle)]
+    public async Task AuthorizedDraftEditorCanCreateAndReadAProtectedTypedDraft(string simulationHandle)
     {
-        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var client = await fixture.CreateSignedInClientAsync(simulationHandle);
 
         using var response = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
         var draft = await response.Content.ReadFromJsonAsync<AlertDraftView>();
@@ -111,9 +113,27 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         updated!.DraftVersion.Should().Be(draft.DraftVersion + 1);
         updated.Location.Should().Be("North Wing / Simulation Room 205");
 
-        using var foreign = await client.GetAsync($"/api/alerts/{Guid.NewGuid():D}");
+        var foreignAlertId = await fixture.CreateForeignDraftAsync();
+        using var foreign = await client.GetAsync($"/api/alerts/{foreignAlertId:D}");
         foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await foreign.Content.ReadAsStringAsync()).Should().NotContain("organization_id");
+    }
+
+    [Fact]
+    public async Task DraftRejectsMissingRequiredSbarContent()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var incomplete = ValidCreateRequest() with
+        {
+            Sbar = ValidCreateRequest().Sbar! with { Situation = "" },
+        };
+
+        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", incomplete);
+        var body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        body.Should().Contain("required-field");
+        body.Should().NotContain("Ciphertext");
     }
 
     [Fact]

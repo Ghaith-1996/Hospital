@@ -1,4 +1,4 @@
-# Phase Definition of Done
+﻿# Phase Definition of Done
 
 ## Phase 0: specification and repository rules
 
@@ -108,3 +108,25 @@ Phase 4 is ready for human review only when the following are true:
 ### Phase 4 closure evidence
 
 On 2026-08-25, the pinned .NET SDK `10.0.100`, Node.js `24.16.0`, npm `11.13.0`, PostgreSQL `18.4`, and Playwright `1.55.1` verification completed successfully. `scripts/test-all.ps1` passed the safety scan, Release build, 118 backend tests, 9 web unit tests, typecheck, lint, and 1 Playwright smoke test. The same command passed from a clean clone of the reviewed commit. No production or hospital integration was added.
+
+## Phase 5: simulation-only alert drafting
+
+Phase 5 is ready for human review only when the following are true:
+
+- [x] Operator and Administrator can create, read, and edit a protected typed simulation draft; Practitioner and unauthenticated identities cannot.
+- [x] Typed source, synthetic patient reference, simulation location, urgency label, and all four SBAR fields are validated server-side.
+- [x] Organization and user identity come only from the authenticated server principal, and a real foreign-organization alert ID is returned as not found.
+- [x] Typed source and SBAR content remain protected at rest and API responses do not expose ciphertext or protected-value internals.
+- [x] Every draft edit supplies the expected version, increments the draft version, and invalidates prior confirmation state.
+- [x] Stale edit, critical-field confirmation, and submission commands return safe conflicts with compose-page recovery guidance.
+- [x] Every recorded critical number and unit remains unresolved until explicitly confirmed by an authenticated human for the current draft version.
+- [x] A draft cannot advance to `PendingConfirmation` with missing required content or unresolved critical fields.
+- [x] The compose UI supports create/edit, version display, critical-field confirmation, and submit-for-confirmation without recipient or dispatch controls.
+- [x] PostgreSQL integration tests cover Operator, Administrator, Practitioner, unauthenticated, organization-scoping, validation, protected-content, and concurrency behavior.
+- [x] No Phase 6 recipient selection, Phase 7 dispatch, provider adapter, hospital connection, SCIM, Graph, FHIR, AI, speech, or production identity behavior was added.
+- [x] Fresh `scripts/test-all.ps1`, repository safety, `git diff --check`, and scope review pass in the pinned environment before human review.
+- [ ] The project owner reviews and approves Phase 5 before a `phase-5` tag or any Phase 6 work.
+
+### Phase 5 closure evidence
+
+On 2026-08-27, `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 140 backend tests, 15 web unit tests, typecheck, lint, and 1 Playwright smoke test. The focused PostgreSQL Phase 5 API suite passed 8 tests, including Administrator access, required-field rejection, critical-field gating, stale-version rejection, and denial of a persisted foreign-organization alert ID. No production or hospital integration was added.

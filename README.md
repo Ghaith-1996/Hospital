@@ -1,6 +1,6 @@
-# Critical Clinician Alert Platform
+﻿# Critical Clinician Alert Platform
 
-Status: Phase 5 simulation-only alert drafting is in progress. Phase 0, Phase 1, Phase 2, and Phase 3 are complete; Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`.
+Status: Phase 5 simulation-only alert drafting is implementation-complete and ready for project-owner review. Phase 0 through Phase 4 are complete; Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`. Phase 6 has not started.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
@@ -38,7 +38,7 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0, Phase 1, Phase 2, and Phase 3 approval are recorded. Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`; the follow-up boundary corrections and Phase 5 start are being reviewed together. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 0 through Phase 4 approval are recorded. Phase 3 is tagged `phase-3`, and the reviewed Phase 4 baseline is tagged `phase-4`. Phase 5 completion is ready for project-owner review; a `phase-5` tag and any Phase 6 work must wait for that review. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. It does not add recipient selection, provider integrations, hospital connectors, AI features, dispatch, or production SSO.
 
