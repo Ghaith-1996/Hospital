@@ -3,6 +3,7 @@ using System;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CriticalAlerts.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CriticalAlertsDbContext))]
-    partial class CriticalAlertsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828123734_Phase6RecipientSnapshots")]
+    partial class Phase6RecipientSnapshots
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

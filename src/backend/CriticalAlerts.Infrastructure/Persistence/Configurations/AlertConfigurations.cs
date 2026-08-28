@@ -119,8 +119,20 @@ internal sealed class AlertRecipientSelectionConfiguration : IEntityTypeConfigur
         builder.Property(entity => entity.Channel).HasColumnName("channel").HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(entity => entity.SelectedByUserId).GuidId(value => new UserId(value), id => id.Value, "selected_by_user_id");
         builder.Property(entity => entity.SelectedAtUtc).HasColumnName("selected_at_utc").IsRequired();
-        builder.HasIndex(entity => new { entity.AlertId, entity.PractitionerId, entity.Channel }).IsUnique();
+        builder.Property(entity => entity.DirectoryRevision).HasColumnName("directory_revision").HasMaxLength(128).IsRequired();
+        builder.Property(entity => entity.DirectorySourceUpdatedAtUtc).HasColumnName("directory_source_updated_at_utc");
+        builder.Property(entity => entity.OnCallSnapshot).HasColumnName("on_call_snapshot").HasMaxLength(80);
+        builder.HasIndex(entity => new
+            {
+                entity.AlertId,
+                entity.AlertVersion,
+                entity.PractitionerId,
+                entity.Channel,
+            })
+            .IsUnique()
+            .HasDatabaseName("UX_alert_recipient_selection_version_practitioner_channel");
         builder.HasOne<Practitioner>().WithMany().HasForeignKey(entity => new { entity.PractitionerId, entity.OrganizationId }).HasPrincipalKey(practitioner => new { practitioner.Id, practitioner.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<PractitionerRoleAssignment>().WithMany().HasForeignKey(entity => new { entity.PractitionerRoleId, entity.OrganizationId }).HasPrincipalKey(role => new { role.Id, role.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

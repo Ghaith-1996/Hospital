@@ -49,7 +49,11 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
         await using var db = fixture.CreateContext();
         var alert = await CreatePersistedAlertAsync(db);
         var maya = await db.Practitioners.SingleAsync(practitioner => practitioner.Id == DemoDataSeeder.MayaChenId);
-        alert.SelectRecipient(maya, null, NotificationChannel.SecureMessage, DemoDataSeeder.JordanUserId, alert.DraftVersion, Now);
+        alert.ReplaceRecipients(
+            [RecipientSelection(maya, NotificationChannel.SecureMessage)],
+            DemoDataSeeder.JordanUserId,
+            alert.DraftVersion,
+            Now);
         await db.SaveChangesAsync();
 
         var duplicate = new AlertRecipientSelection(
@@ -61,10 +65,68 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
             null,
             NotificationChannel.SecureMessage,
             DemoDataSeeder.JordanUserId,
-            Now);
+            Now,
+            "SIM-REV-PERSIST",
+            Now,
+            "On-call not displayed");
         db.AlertRecipientSelections.Add(duplicate);
         var act = async () => await db.SaveChangesAsync();
         await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Fact]
+    public async Task RecipientSelectionsMayRepeatPractitionerAndChannelAcrossVersions()
+    {
+        await using var db = fixture.CreateContext();
+        var alert = await CreatePersistedAlertAsync(db);
+        var maya = await db.Practitioners.SingleAsync(practitioner => practitioner.Id == DemoDataSeeder.MayaChenId);
+
+        alert.ReplaceRecipients(
+            [RecipientSelection(maya, NotificationChannel.SecureMessage)],
+            DemoDataSeeder.JordanUserId,
+            alert.DraftVersion,
+            Now);
+        alert.ReplaceRecipients(
+            [RecipientSelection(maya, NotificationChannel.SecureMessage)],
+            DemoDataSeeder.JordanUserId,
+            alert.DraftVersion,
+            Now.AddMinutes(1));
+        await db.SaveChangesAsync();
+
+        (await db.AlertRecipientSelections.CountAsync(selection => selection.AlertId == alert.Id))
+            .Should().Be(2);
+        (await db.AlertRecipientSelections
+                .Where(selection => selection.AlertId == alert.Id)
+                .Select(selection => selection.AlertVersion.Value)
+                .ToArrayAsync())
+            .Should().BeEquivalentTo([2, 3]);
+    }
+
+    [Fact]
+    public async Task RecipientSelectionPersistsSafeDirectoryEvidence()
+    {
+        await using var db = fixture.CreateContext();
+        var alert = await CreatePersistedAlertAsync(db);
+        var maya = await db.Practitioners.SingleAsync(practitioner => practitioner.Id == DemoDataSeeder.MayaChenId);
+
+        alert.ReplaceRecipients(
+            [new ValidatedRecipientSelection(
+                maya.Id,
+                null,
+                NotificationChannel.SecureMessage,
+                "SIM-REVISION-EVIDENCE",
+                Now.AddMinutes(-2),
+                "Primary on-call displayed")],
+            DemoDataSeeder.JordanUserId,
+            alert.DraftVersion,
+            Now);
+        await db.SaveChangesAsync();
+
+        await using var verify = fixture.CreateContext();
+        var selection = await verify.AlertRecipientSelections.SingleAsync(item => item.AlertId == alert.Id);
+        selection.DirectoryRevision.Should().Be("SIM-REVISION-EVIDENCE");
+        selection.DirectorySourceUpdatedAtUtc.Should().Be(Now.AddMinutes(-2));
+        selection.OnCallSnapshot.Should().Be("Primary on-call displayed");
     }
 
     [Fact]
@@ -211,6 +273,17 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
         await db.SaveChangesAsync();
         return alert;
     }
+
+    private static ValidatedRecipientSelection RecipientSelection(
+        CriticalAlerts.Domain.Directory.Practitioner practitioner,
+        NotificationChannel channel)
+        => new(
+            practitioner.Id,
+            null,
+            channel,
+            "SIM-REV-PERSIST",
+            Now,
+            "On-call not displayed");
 
     private static ProtectedValue Protect(string text)
         => new(System.Text.Encoding.UTF8.GetBytes(text), "test-v1", "alert-source");
