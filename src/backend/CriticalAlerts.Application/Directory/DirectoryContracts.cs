@@ -112,7 +112,66 @@ public interface IDirectoryImportService
         string? previewToken = null);
 }
 
-public sealed record DirectorySearchQuery(OrganizationId OrganizationId, string? Text, bool IncludeInactive);
+public sealed record DirectorySearchQuery(
+    OrganizationId OrganizationId,
+    string? Text,
+    string? Department,
+    string? Site,
+    bool? OnCallNow,
+    bool IncludeInactive)
+{
+    public DirectorySearchQuery(OrganizationId organizationId, string? text, bool includeInactive)
+        : this(organizationId, text, null, null, null, includeInactive)
+    {
+    }
+}
+
+public sealed record DirectorySelectionCandidate(
+    PractitionerId PractitionerId,
+    PractitionerRoleId? PractitionerRoleId,
+    NotificationChannel Channel,
+    string PresentedRevision);
+
+public sealed record DirectoryRoleRevision(
+    PractitionerRoleId PractitionerRoleId,
+    DepartmentId DepartmentId,
+    string Title,
+    bool IsPrimary);
+
+public sealed record DirectorySourceRevision(
+    string SourceSystem,
+    string SourceRecordId,
+    DateTimeOffset SourceUpdatedAtUtc,
+    DateTimeOffset LastSeenAtUtc,
+    bool IsStale);
+
+public sealed record DirectoryOnCallRevision(
+    SiteId SiteId,
+    DepartmentId DepartmentId,
+    OnCallTier Tier,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    DateTimeOffset LastSynchronizedAtUtc);
+
+public sealed record DirectorySelectionRevisionSnapshot(
+    OrganizationId OrganizationId,
+    PractitionerId PractitionerId,
+    string Specialty,
+    bool IsActive,
+    IReadOnlyCollection<DirectoryRoleRevision> Roles,
+    IReadOnlyCollection<DirectorySourceRevision> SourceRecords,
+    IReadOnlyCollection<DirectoryOnCallRevision> ActiveOnCallAssignments,
+    IReadOnlyCollection<NotificationChannel> AvailableChannels);
+
+public class DirectorySelectionValidationException(string code, string message) : DomainException(message)
+{
+    public string Code { get; } = code;
+}
+
+public sealed class DirectorySelectionRevisionConflictException()
+    : DirectorySelectionValidationException(
+        "directory-revision-stale",
+        "The selected directory entry changed. Reload and reselect recipients.");
 
 public sealed record DirectoryPractitionerListItem(
     Guid PractitionerId,
@@ -131,7 +190,19 @@ public sealed record DirectoryPractitionerListItem(
     DateTimeOffset? LastSynchronizedAtUtc,
     string? OnCallTier,
     string? OnCallSourceSystem,
-    DateTimeOffset? OnCallLastSynchronizedAtUtc);
+    DateTimeOffset? OnCallLastSynchronizedAtUtc,
+    Guid? PractitionerRoleId,
+    IReadOnlyList<string> AvailableChannels,
+    string SelectionRevision);
+
+public interface IDirectorySelectionResolver
+{
+    Task<IReadOnlyList<Domain.Alerts.ValidatedRecipientSelection>> ResolveAsync(
+        OrganizationId organizationId,
+        IReadOnlyCollection<DirectorySelectionCandidate> candidates,
+        DateTimeOffset selectedAtUtc,
+        CancellationToken cancellationToken);
+}
 
 public interface IDirectorySearchService
 {

@@ -23,6 +23,9 @@ internal static class DirectoryEndpoints
         ClaimsPrincipal principal,
         IDirectorySearchService search,
         string? q,
+        string? department,
+        string? site,
+        bool? onCallNow,
         bool includeInactive = true,
         CancellationToken cancellationToken = default)
     {
@@ -31,7 +34,9 @@ internal static class DirectoryEndpoints
             return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Unauthorized", detail: "authentication-required");
         }
 
-        var results = await search.SearchAsync(new DirectorySearchQuery(organizationId, q, includeInactive), cancellationToken);
+        var results = await search.SearchAsync(
+            new DirectorySearchQuery(organizationId, q, department, site, onCallNow, includeInactive),
+            cancellationToken);
         return Results.Ok(results);
     }
 
