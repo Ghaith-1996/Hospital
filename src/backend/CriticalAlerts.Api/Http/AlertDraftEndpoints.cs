@@ -15,6 +15,7 @@ internal static class AlertDraftEndpoints
     {
         var alerts = app.MapGroup("/api/alerts").RequireAuthorization(AuthorizationPolicies.AlertDraftEditor);
         alerts.MapPost("/drafts", Create);
+        alerts.MapGet("/{alertId:guid}/review", Review);
         alerts.MapGet("/{alertId:guid}", Get);
         alerts.MapPatch("/{alertId:guid}", Update);
         alerts.MapPost("/{alertId:guid}/field-confirmations", ConfirmCriticalField);
@@ -72,6 +73,28 @@ internal static class AlertDraftEndpoints
 
         var draft = await drafts.GetAsync(organizationId, new AlertId(alertId), cancellationToken);
         return draft is null ? NotFound() : Results.Ok(draft);
+    }
+
+    private static async Task<IResult> Review(
+        ClaimsPrincipal principal,
+        IAlertReviewService reviews,
+        Guid alertId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(principal, out _, out var organizationId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var review = await reviews.GetAsync(organizationId, new AlertId(alertId), cancellationToken);
+            return review is null ? NotFound() : Results.Ok(review);
+        }
+        catch (Exception exception) when (exception is AlertReviewValidationException or DomainException)
+        {
+            return Rejected(exception);
+        }
     }
 
     private static async Task<IResult> Update(
@@ -272,6 +295,14 @@ internal static class AlertDraftEndpoints
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Draft version is stale",
                 detail: "draft-version-stale");
+        }
+
+        if (exception is AlertReviewValidationException reviewValidation)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Alert review is not current",
+                detail: reviewValidation.Code);
         }
 
         if (exception is AlertDraftValidationException validation)

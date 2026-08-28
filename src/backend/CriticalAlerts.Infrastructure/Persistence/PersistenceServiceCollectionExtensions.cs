@@ -27,6 +27,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IDirectorySearchService, DirectorySearchService>();
         services.AddScoped<IDirectorySelectionResolver, DirectorySelectionResolver>();
         services.AddScoped<IAlertDraftService, AlertDraftService>();
+        services.AddScoped<IAlertReviewService, AlertReviewService>();
         services.AddSingleton<ISensitiveDataProtector>(_ => AesGcmSensitiveDataProtector.FromBase64(dataProtectionKey));
         return services;
     }
