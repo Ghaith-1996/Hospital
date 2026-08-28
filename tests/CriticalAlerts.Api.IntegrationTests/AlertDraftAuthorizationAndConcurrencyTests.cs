@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Http.Json;
 using CriticalAlerts.Application.Alerts;
+using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Infrastructure.Persistence;
 using FluentAssertions;
 using Xunit;
@@ -407,6 +408,174 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
 
         locationResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await locationResponse.Content.ReadAsStringAsync()).Should().Contain("invalid-location");
+    }
+
+    [Theory]
+    [InlineData(DemoDataSeeder.JordanHandle)]
+    [InlineData(DemoDataSeeder.MorganHandle)]
+    public async Task AuthorizedEditorCanSetApprovedMessageReplaceAndClearRecipientSet(string simulationHandle)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(simulationHandle);
+        using var create = await client.PostAsJsonAsync(
+            "/api/alerts/drafts",
+            ValidCreateRequest() with { CriticalFields = [] });
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        const string approvedMessage = "SIMULATION: operator-approved fictional message";
+        using var approved = await client.PutAsJsonAsync(
+            $"/api/alerts/{draft!.AlertId:D}/approved-message",
+            new SetApprovedMessageRequest(draft.DraftVersion, approvedMessage));
+        var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        create.StatusCode.Should().Be(HttpStatusCode.Created);
+        approved.StatusCode.Should().Be(HttpStatusCode.OK);
+        approvedDraft!.DraftVersion.Should().Be(draft.DraftVersion + 1);
+        approvedDraft.ApprovedMessage.Should().Be(approvedMessage);
+        approvedDraft.Recipients.Should().BeEmpty();
+        var approvedBody = await approved.Content.ReadAsStringAsync();
+        approvedBody.Should().NotContain("Ciphertext");
+        approvedBody.Should().NotContain("protectedValue");
+
+        var maya = await SearchMayaAsync(client);
+        using var replace = await client.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/recipients",
+            new ReplaceAlertRecipientsRequest(
+                approvedDraft.DraftVersion,
+                [new AlertRecipientInput(
+                    maya.PractitionerId,
+                    maya.PractitionerRoleId,
+                    "SecureMessage",
+                    maya.SelectionRevision)]));
+        var replaced = await replace.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        replace.StatusCode.Should().Be(HttpStatusCode.OK);
+        replaced!.DraftVersion.Should().Be(approvedDraft.DraftVersion + 1);
+        replaced.Recipients.Should().ContainSingle(recipient =>
+            recipient.PractitionerId == maya.PractitionerId
+            && recipient.Channel == "SecureMessage"
+            && recipient.DirectoryRevision == maya.SelectionRevision);
+
+        using var clear = await client.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/recipients",
+            new ReplaceAlertRecipientsRequest(replaced.DraftVersion, []));
+        var cleared = await clear.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        clear.StatusCode.Should().Be(HttpStatusCode.OK);
+        cleared!.DraftVersion.Should().Be(replaced.DraftVersion + 1);
+        cleared.Recipients.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RecipientCommandsRejectUnauthorizedForeignAndStaleRequests()
+    {
+        using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var create = await operatorClient.PostAsJsonAsync(
+            "/api/alerts/drafts",
+            ValidCreateRequest() with { CriticalFields = [] });
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+        var message = new SetApprovedMessageRequest(draft!.DraftVersion, "SIMULATION: authorization boundary message");
+
+        using var anonymous = fixture.CreateClient();
+        using var anonymousResponse = await anonymous.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            message);
+        using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
+        using var practitionerResponse = await practitioner.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            message);
+
+        anonymousResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        practitionerResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var foreignFixture = await fixture.CreateForeignOperatorDraftAsync();
+        using var foreign = await fixture.CreateSignedInClientAsync(foreignFixture.SimulationHandle);
+        using var foreignResponse = await foreign.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            new { expectedVersion = draft.DraftVersion, approvedMessage = "SIMULATION: foreign access" });
+        foreignResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        using var ignoredOrganization = await operatorClient.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            new
+            {
+                organizationId = Guid.NewGuid(),
+                expectedVersion = draft.DraftVersion,
+                approvedMessage = "SIMULATION: client organization must be ignored",
+            });
+        ignoredOrganization.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var stale = await operatorClient.PutAsJsonAsync(
+            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            message);
+        var staleBody = await stale.Content.ReadAsStringAsync();
+
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        staleBody.Should().Contain("draft-version-stale");
+        staleBody.Should().NotContain("authorization boundary message");
+    }
+
+    [Fact]
+    public async Task RecipientReplacementRejectsUnsafeSelectionsWithoutEchoingInput()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var create = await client.PostAsJsonAsync(
+            "/api/alerts/drafts",
+            ValidCreateRequest() with { CriticalFields = [] });
+        var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
+        var maya = await SearchMayaAsync(client);
+        var taylor = await SearchTaylorAsync(client);
+
+        using var approved = await client.PutAsJsonAsync(
+            $"/api/alerts/{draft!.AlertId:D}/approved-message",
+            new SetApprovedMessageRequest(draft.DraftVersion, "SIMULATION: recipient validation message"));
+        var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
+
+        var duplicate = new ReplaceAlertRecipientsRequest(
+            approvedDraft!.DraftVersion,
+            [
+                new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", maya.SelectionRevision),
+                new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", maya.SelectionRevision),
+            ]);
+        using var duplicateResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", duplicate);
+        var duplicateBody = await duplicateResponse.Content.ReadAsStringAsync();
+
+        var inactive = new ReplaceAlertRecipientsRequest(
+            approvedDraft.DraftVersion,
+            [new AlertRecipientInput(taylor.PractitionerId, taylor.PractitionerRoleId, "SecureMessage", taylor.SelectionRevision)]);
+        using var inactiveResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", inactive);
+
+        var unavailable = new ReplaceAlertRecipientsRequest(
+            approvedDraft.DraftVersion,
+            [new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "Voice", maya.SelectionRevision)]);
+        using var unavailableResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", unavailable);
+
+        const string unsafeRevision = "revision-with-sensitive-sentinel-SIM-PAT-RECIPIENT!";
+        var unsafeRequest = new ReplaceAlertRecipientsRequest(
+            approvedDraft.DraftVersion,
+            [new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", unsafeRevision)]);
+        using var unsafeResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", unsafeRequest);
+        var unsafeBody = await unsafeResponse.Content.ReadAsStringAsync();
+
+        duplicateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        duplicateBody.Should().Contain("duplicate-recipient");
+        inactiveResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        unavailableResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        unsafeResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        unsafeBody.Should().NotContain(unsafeRevision);
+    }
+
+    private static async Task<DirectoryPractitionerListItem> SearchMayaAsync(HttpClient client)
+    {
+        var results = await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
+            "/api/directory/practitioners?q=Maya&includeInactive=false");
+        return results!.Single();
+    }
+
+    private static async Task<DirectoryPractitionerListItem> SearchTaylorAsync(HttpClient client)
+    {
+        var results = await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
+            "/api/directory/practitioners?q=Taylor&includeInactive=true");
+        return results!.Single();
     }
 
     private static CreateAlertDraftRequest ValidCreateRequest()

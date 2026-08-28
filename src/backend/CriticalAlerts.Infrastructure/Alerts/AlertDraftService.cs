@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using CriticalAlerts.Application.Alerts;
+using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
@@ -13,7 +14,8 @@ namespace CriticalAlerts.Infrastructure.Alerts;
 public sealed class AlertDraftService(
     CriticalAlertsDbContext db,
     ISensitiveDataProtector protector,
-    TimeProvider time) : IAlertDraftService
+    TimeProvider time,
+    IDirectorySelectionResolver directorySelectionResolver) : IAlertDraftService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -161,11 +163,133 @@ public sealed class AlertDraftService(
         return ToView(alert, organizationId);
     }
 
+    public async Task<AlertDraftView?> SetApprovedMessageAsync(
+        OrganizationId organizationId,
+        UserId actorUserId,
+        string correlationId,
+        AlertId alertId,
+        SetApprovedMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var alert = await LoadAsync(organizationId, alertId, cancellationToken);
+        if (alert is null)
+        {
+            return null;
+        }
+
+        var approvedMessage = RequireSimulationText(request.ApprovedMessage, "approved message");
+        var now = time.GetUtcNow();
+        alert.SetApprovedMessage(
+            protector.Protect(approvedMessage, Context("alert-approved-message", organizationId)),
+            new AlertDraftVersion(request.ExpectedVersion),
+            now);
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        AddAudit(organizationId, actorUserId, correlationId, alert.Id.Value, "alert.approved-message.updated", now);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ToView(alert, organizationId);
+    }
+
+    public async Task<AlertDraftView?> ReplaceRecipientsAsync(
+        OrganizationId organizationId,
+        UserId actorUserId,
+        string correlationId,
+        AlertId alertId,
+        ReplaceAlertRecipientsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var alert = await LoadAsync(organizationId, alertId, cancellationToken);
+        if (alert is null)
+        {
+            return null;
+        }
+
+        if (request.Recipients is null)
+        {
+            throw new AlertDraftValidationException(
+                "recipients-required",
+                "The complete recipient list is required; use an empty list to clear it.");
+        }
+
+        var candidates = ParseRecipientCandidates(request.Recipients);
+        var now = time.GetUtcNow();
+        var validated = await directorySelectionResolver.ResolveAsync(
+            organizationId,
+            candidates,
+            now,
+            cancellationToken);
+        alert.ReplaceRecipients(
+            validated,
+            actorUserId,
+            new AlertDraftVersion(request.ExpectedVersion),
+            now);
+
+        var metadata = JsonSerializer.Serialize(new
+        {
+            simulationOnly = true,
+            version = alert.DraftVersion.Value,
+            recipientCount = alert.CurrentRecipients.Count,
+            channels = alert.CurrentRecipients
+                .Select(recipient => recipient.Channel.ToString())
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(channel => channel, StringComparer.Ordinal)
+                .ToArray(),
+            escalationPolicyVersion = alert.DemoEscalationPolicyVersion,
+            notificationPolicyVersion = alert.DemoNotificationPolicyVersion,
+        }, JsonOptions);
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        AddAudit(organizationId, actorUserId, correlationId, alert.Id.Value, "alert.recipients.replaced", now, metadata);
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ToView(alert, organizationId);
+    }
+
     private async Task<Alert?> LoadAsync(OrganizationId organizationId, AlertId alertId, CancellationToken cancellationToken)
         => await db.Alerts
             .Include(alert => alert.FieldConfirmations)
+            .Include(alert => alert.RecipientSelections)
             .Include(alert => alert.StateTransitions)
             .SingleOrDefaultAsync(alert => alert.OrganizationId == organizationId && alert.Id == alertId, cancellationToken);
+
+    private static IReadOnlyList<DirectorySelectionCandidate> ParseRecipientCandidates(
+        IReadOnlyList<AlertRecipientInput> inputs)
+    {
+        var candidates = new List<DirectorySelectionCandidate>(inputs.Count);
+        foreach (var input in inputs)
+        {
+            ArgumentNullException.ThrowIfNull(input);
+            if (string.IsNullOrWhiteSpace(input.Channel))
+            {
+                throw new AlertDraftValidationException("recipient-channel-required", "Each recipient requires an allowed channel.");
+            }
+
+            if (string.IsNullOrWhiteSpace(input.DirectoryRevision))
+            {
+                throw new AlertDraftValidationException("directory-revision-required", "Each recipient requires the reviewed directory revision.");
+            }
+
+            candidates.Add(new DirectorySelectionCandidate(
+                new PractitionerId(input.PractitionerId),
+                input.PractitionerRoleId is Guid roleId ? new PractitionerRoleId(roleId) : null,
+                ParseNotificationChannel(input.Channel),
+                input.DirectoryRevision.Trim()));
+        }
+
+        return candidates;
+    }
+
+    private static NotificationChannel ParseNotificationChannel(string value)
+        => value.Trim() switch
+        {
+            "SecureMessage" => NotificationChannel.SecureMessage,
+            "Sms" => NotificationChannel.Sms,
+            "Voice" => NotificationChannel.Voice,
+            _ => throw new AlertDraftValidationException(
+                "invalid-recipient-channel",
+                "Each recipient requires an allowed channel."),
+        };
 
     private async Task<(SiteId SiteId, DepartmentId DepartmentId)> ValidateLocationAsync(
         OrganizationId organizationId,
@@ -263,7 +387,14 @@ public sealed class AlertDraftService(
     private static SensitiveDataContext Context(string purpose, OrganizationId organizationId)
         => new(purpose, organizationId.Value);
 
-    private void AddAudit(OrganizationId organizationId, UserId actorUserId, string correlationId, Guid alertId, string action, DateTimeOffset occurredAtUtc)
+    private void AddAudit(
+        OrganizationId organizationId,
+        UserId actorUserId,
+        string correlationId,
+        Guid alertId,
+        string action,
+        DateTimeOffset occurredAtUtc,
+        string? sanitizedMetadata = null)
         => db.AuditEvents.Add(AuditEvent.Record(
             AuditEventId.New(),
             organizationId,
@@ -274,7 +405,7 @@ public sealed class AlertDraftService(
             alertId,
             "succeeded",
             correlationId,
-            "{\"simulationOnly\":true}",
+            sanitizedMetadata ?? "{\"simulationOnly\":true}",
             occurredAtUtc));
 
     private AlertDraftView ToView(Alert alert, OrganizationId organizationId)
@@ -287,6 +418,9 @@ public sealed class AlertDraftService(
             : JsonSerializer.Deserialize<AlertSbarDraft>(
                 protector.Unprotect(alert.StructuredSuggestion, Context("alert-sbar", organizationId)),
                 JsonOptions);
+        var approvedMessage = alert.ApprovedMessage is null
+            ? null
+            : protector.Unprotect(alert.ApprovedMessage, Context("alert-approved-message", organizationId));
         return new AlertDraftView(
             alert.Id.Value,
             alert.State.ToString(),
@@ -309,6 +443,19 @@ public sealed class AlertDraftService(
                     confirmation.Status.ToString(),
                     confirmation.ConfirmedByUserId.Value,
                     confirmation.ConfirmedAtUtc))
+                .ToArray(),
+            approvedMessage,
+            alert.CurrentRecipients
+                .OrderBy(recipient => recipient.PractitionerId.Value)
+                .ThenBy(recipient => recipient.Channel)
+                .Select(recipient => new AlertRecipientSelectionView(
+                    recipient.PractitionerId.Value,
+                    recipient.PractitionerRoleId?.Value,
+                    recipient.Channel.ToString(),
+                    recipient.SelectedAtUtc,
+                    recipient.DirectoryRevision,
+                    recipient.DirectorySourceUpdatedAtUtc,
+                    recipient.OnCallSnapshot))
                 .ToArray());
     }
 
