@@ -39,7 +39,20 @@ public sealed record AlertReviewView(
     string DemoEscalationPolicyVersion,
     string DemoNotificationPolicyVersion);
 
+public sealed record ConfirmAlertReviewRequest(int ExpectedVersion);
+
+public sealed record ConfirmAlertReviewResult(
+    Guid AlertId,
+    int ConfirmedVersion,
+    string State,
+    bool Replayed);
+
 public sealed class AlertReviewValidationException(string code, string message) : DomainException(message)
+{
+    public string Code { get; } = code;
+}
+
+public sealed class AlertConfirmationValidationException(string code, string message) : DomainException(message)
 {
     public string Code { get; } = code;
 }
@@ -49,5 +62,14 @@ public interface IAlertReviewService
     Task<AlertReviewView?> GetAsync(
         OrganizationId organizationId,
         AlertId alertId,
+        CancellationToken cancellationToken);
+
+    Task<ConfirmAlertReviewResult?> ConfirmAsync(
+        OrganizationId organizationId,
+        UserId actorUserId,
+        string correlationId,
+        AlertId alertId,
+        ConfirmAlertReviewRequest request,
+        string? idempotencyKey,
         CancellationToken cancellationToken);
 }

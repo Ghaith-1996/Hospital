@@ -16,6 +16,7 @@ internal static class AlertDraftEndpoints
         var alerts = app.MapGroup("/api/alerts").RequireAuthorization(AuthorizationPolicies.AlertDraftEditor);
         alerts.MapPost("/drafts", Create);
         alerts.MapGet("/{alertId:guid}/review", Review);
+        alerts.MapPost("/{alertId:guid}/confirm", Confirm);
         alerts.MapGet("/{alertId:guid}", Get);
         alerts.MapPatch("/{alertId:guid}", Update);
         alerts.MapPost("/{alertId:guid}/field-confirmations", ConfirmCriticalField);
@@ -92,6 +93,49 @@ internal static class AlertDraftEndpoints
             return review is null ? NotFound() : Results.Ok(review);
         }
         catch (Exception exception) when (exception is AlertReviewValidationException or DomainException)
+        {
+            return Rejected(exception);
+        }
+    }
+
+    private static async Task<IResult> Confirm(
+        ClaimsPrincipal principal,
+        IAlertReviewService reviews,
+        Guid alertId,
+        ConfirmAlertReviewRequest? request,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(principal, out var userId, out var organizationId))
+        {
+            return Unauthorized();
+        }
+
+        if (request is null)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["request"] = ["A confirmation request is required."],
+            }, statusCode: StatusCodes.Status400BadRequest, title: "Invalid alert confirmation");
+        }
+
+        try
+        {
+            var result = await reviews.ConfirmAsync(
+                organizationId,
+                userId,
+                CorrelationId(httpContext),
+                new AlertId(alertId),
+                request,
+                httpContext.Request.Headers["Idempotency-Key"].ToString(),
+                cancellationToken);
+            return result is null ? NotFound() : Results.Ok(result);
+        }
+        catch (Exception exception) when (exception is AlertConfirmationValidationException
+            or AlertReviewValidationException
+            or DomainException
+            or DbUpdateConcurrencyException
+            or DbUpdateException)
         {
             return Rejected(exception);
         }
@@ -303,6 +347,14 @@ internal static class AlertDraftEndpoints
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Alert review is not current",
                 detail: reviewValidation.Code);
+        }
+
+        if (exception is AlertConfirmationValidationException confirmationValidation)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                [confirmationValidation.Code] = [confirmationValidation.Message],
+            }, statusCode: StatusCodes.Status400BadRequest, title: "Invalid alert confirmation");
         }
 
         if (exception is AlertDraftValidationException validation)
