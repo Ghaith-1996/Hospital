@@ -25,6 +25,19 @@ public sealed class ProjectGraphTests
     }
 
     [Fact]
+    public void ProjectReferenceParsingNormalizesWindowsSeparators()
+    {
+        var project = new XDocument(
+            new XElement("Project",
+                new XElement("ItemGroup",
+                    new XElement(
+                        "ProjectReference",
+                        new XAttribute("Include", @"..\CriticalAlerts.Domain\CriticalAlerts.Domain.csproj")))));
+
+        ProjectReferences(project).Should().Equal("CriticalAlerts.Domain");
+    }
+
+    [Fact]
     public void InfrastructureDoesNotReferenceApiOrWorker()
     {
         var project = LoadProject("src/backend/CriticalAlerts.Infrastructure/CriticalAlerts.Infrastructure.csproj");
@@ -56,7 +69,9 @@ public sealed class ProjectGraphTests
     private static IReadOnlyList<string> ProjectReferences(XDocument project)
     {
         return project.Descendants("ProjectReference")
-            .Select(element => Path.GetFileNameWithoutExtension((string?)element.Attribute("Include")))
+            .Select(element => (string?)element.Attribute("Include"))
+            .Where(include => include is not null)
+            .Select(include => Path.GetFileNameWithoutExtension(include!.Replace('\\', '/')))
             .Where(name => name is not null)
             .Cast<string>()
             .OrderBy(name => name, StringComparer.Ordinal)

@@ -108,19 +108,28 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
             ConfirmAsync(client, prepared.AlertId, prepared.Version, "phase6-confirm-concurrent"));
         var statuses = responses.Select(response => response.StatusCode).ToArray();
         var bodies = new List<ConfirmAlertReviewResult>();
+        var nonOkBodies = new List<string>();
         foreach (var response in responses)
         {
             if (response.StatusCode == HttpStatusCode.OK)
             {
                 bodies.Add((await response.Content.ReadFromJsonAsync<ConfirmAlertReviewResult>())!);
             }
+            else
+            {
+                nonOkBodies.Add(await response.Content.ReadAsStringAsync());
+            }
 
             response.Dispose();
         }
 
-        statuses.Should().OnlyContain(status => status == HttpStatusCode.OK || status == HttpStatusCode.Conflict);
+        statuses.Should().OnlyContain(
+            status => status == HttpStatusCode.OK,
+            "non-OK response bodies were: {0}",
+            string.Join(" | ", nonOkBodies));
+        bodies.Should().HaveCount(2);
         bodies.Should().ContainSingle(result => !result.Replayed);
-        bodies.Should().Contain(result => result.Replayed);
+        bodies.Should().ContainSingle(result => result.Replayed);
 
         await using var db = fixture.CreateContext();
         (await db.OutboxMessages.CountAsync(message => message.AggregateId == prepared.AlertId)).Should().Be(1);

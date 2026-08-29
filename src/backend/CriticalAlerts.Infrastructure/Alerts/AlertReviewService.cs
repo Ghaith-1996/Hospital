@@ -209,7 +209,24 @@ public sealed class AlertReviewService(
                 return null;
             }
 
-            EnsureReviewable(alert);
+            try
+            {
+                EnsureReviewable(alert);
+            }
+            catch (AlertReviewValidationException exception) when (exception.Code == "review-not-ready")
+            {
+                var replay = await TryReplayConcurrentConfirmationAsync(
+                    organizationId,
+                    key,
+                    requestHash,
+                    cancellationToken);
+                if (replay is not null)
+                {
+                    return replay;
+                }
+
+                throw;
+            }
             var recipientIds = alert.CurrentRecipients
                 .Select(recipient => recipient.PractitionerId)
                 .Distinct()
@@ -289,24 +306,70 @@ public sealed class AlertReviewService(
             await transaction.CommitAsync(cancellationToken);
             return result;
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return await ResolveConcurrentConfirmationAsync(organizationId, key, requestHash, cancellationToken);
+        }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
             await transaction.RollbackAsync(cancellationToken);
-            var concurrent = await db.IdempotencyRecords
-                .AsNoTracking()
-                .SingleOrDefaultAsync(record => record.OrganizationId == organizationId
-                    && record.OperationType == "confirm-review"
-                    && record.IdempotencyKey == key, cancellationToken);
-            if (concurrent?.Status == IdempotencyProcessingStatus.Completed
-                && FixedEquals(concurrent.RequestHash, requestHash))
-            {
-                return DecodeResult(concurrent.ResultReference, replayed: true);
-            }
-
-            throw new AlertReviewValidationException(
-                "confirmation-conflict",
-                "The confirmation could not be committed. Reload the alert and retry safely.");
+            return await ResolveConcurrentConfirmationAsync(organizationId, key, requestHash, cancellationToken);
         }
+    }
+
+    private async Task<ConfirmAlertReviewResult> ResolveConcurrentConfirmationAsync(
+        OrganizationId organizationId,
+        string key,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        var replay = await TryReplayConcurrentConfirmationAsync(
+            organizationId,
+            key,
+            requestHash,
+            cancellationToken);
+        if (replay is not null)
+        {
+            return replay;
+        }
+
+        throw new AlertReviewValidationException(
+            "confirmation-conflict",
+            "The confirmation could not be committed. Reload the alert and retry safely.");
+    }
+
+    private async Task<ConfirmAlertReviewResult?> TryReplayConcurrentConfirmationAsync(
+        OrganizationId organizationId,
+        string key,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        var concurrent = await db.IdempotencyRecords
+            .AsNoTracking()
+            .SingleOrDefaultAsync(record => record.OrganizationId == organizationId
+                && record.OperationType == "confirm-review"
+                && record.IdempotencyKey == key, cancellationToken);
+        if (concurrent is null)
+        {
+            return null;
+        }
+
+        if (!FixedEquals(concurrent.RequestHash, requestHash))
+        {
+            throw new AlertReviewValidationException(
+                "idempotency-conflict",
+                "The idempotency key was already used for a different confirmation request.");
+        }
+
+        if (concurrent.Status == IdempotencyProcessingStatus.Completed)
+        {
+            return DecodeResult(concurrent.ResultReference, replayed: true);
+        }
+
+        throw new AlertReviewValidationException(
+            "confirmation-in-progress",
+            "A confirmation with this idempotency key is already in progress. Retry with the same key.");
     }
 
     private static void EnsureReviewable(Alert alert)
