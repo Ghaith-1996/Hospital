@@ -1,10 +1,10 @@
 ﻿# Critical Clinician Alert Platform
 
-Status: Phase 5 simulation-only alert drafting is approved, tagged `phase-5`, and published. Phase 6 recipient selection and final-review planning is underway; no Phase 6 application code has been added.
+Status: Phase 6 simulation-only recipient selection and exact review are implementation-complete locally and awaiting project-owner review. The reviewed Phase 5 baseline remains tagged `phase-5`; no Phase 6 tag, merge, or push has been made.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 is being planned for manual fictional-recipient selection, exact review, and idempotent human confirmation. Provider integrations, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, and outbox processing remain out of scope.
+Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates but does not process an identifier-only outbox item. Provider integrations, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, and outbox processing remain out of scope.
 
 ## Source and decision precedence
 
@@ -38,9 +38,9 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. Phase 6 planning is ready for project-owner review before implementation begins. Hospital directory connections remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. The Phase 6 plan was approved for inline execution, and its implementation is now ready for project-owner review. Hospital directory connections, production recipient eligibility, freshness limits, channel mappings, and confirmer role mapping remain `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. The original operator-entered source content is persisted separately from the structured SBAR representation and is never silently overwritten by normalization. No alert can reach `DispatchQueued` through any Phase 5 endpoint. The Phase 6 plan adds no executable behavior and keeps provider integrations, hospital connectors, AI features, outbox processing, delivery attempts, and production SSO out of scope.
+Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. Phase 6 preserves the original source separately from SBAR and approved content, replaces recipients as one exact versioned set, shows safe directory evidence, and confirms only the exact reviewed version. Confirmation creates an identifier-only outbox row atomically; no Phase 6 code processes it, creates delivery attempts, calls providers, retries, escalates, or exposes a live screen. Provider integrations, hospital connectors, AI features, and production SSO remain out of scope.
 
 The Phase 6 specification is [recipient selection and review](docs/architecture/recipient-selection-and-review.md), and its executable work plan is [Phase 6 recipient selection and review](docs/superpowers/plans/2026-08-27-phase-6-recipient-selection-and-review.md).
 

@@ -2,9 +2,9 @@
 
 ## Status and authority
 
-This document specifies Phase 6 simulation behavior for project-owner review. It does not create hospital policy or authorize clinical use. Production recipient eligibility, on-call ownership, directory freshness limits, communication channels, final confirmer roles, and confirmation wording are `REQUIRES_HOSPITAL_DECISION`.
+This document records the Phase 6 simulation behavior implemented locally for project-owner review. It does not create hospital policy or authorize clinical use. Production recipient eligibility, on-call ownership, directory freshness limits, communication channels, final confirmer roles, and confirmation wording are `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 6 begins only after this specification and its implementation plan are approved. It uses fictional directory and patient data exclusively.
+The Phase 6 implementation plan was approved for inline execution in this task. The implementation uses fictional directory and patient data exclusively and remains pending project-owner approval at the phase gate.
 
 ## Scope
 

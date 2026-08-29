@@ -1,256 +1,88 @@
-﻿"use client";
+"use client";
 
-import React, { ChangeEvent, FormEvent, useState } from "react";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SimulationChrome } from "../../simulation-chrome";
+import { AlertFormFields, AlertFormState, initialAlertForm } from "../alert-form";
+import { createAlertDraft, isAlertApiError } from "../../../lib/alerts";
 
 const simulationSiteId = "11111111-1111-4111-8111-111111111201";
 const simulationDepartmentId = "11111111-1111-4111-8111-111111110301";
 
-type AlertField = {
-  alertVersion: number;
-  fieldId: string;
-  originalValue: string;
-  normalizedValue: string;
-  unit: string | null;
-  status: string;
-};
+function errorStatus(error: unknown, fallback: string): string {
+  if (isAlertApiError(error) && error.status === 401) {
+    return "Sign in with a seeded Operator or Administrator identity to draft an alert.";
+  }
+  if (isAlertApiError(error) && error.status === 403) {
+    return "Practitioner identities cannot create or edit alert drafts.";
+  }
+  return fallback;
+}
 
-type AlertDraft = {
-  alertId: string;
-  state: string;
-  draftVersion: number;
-  simulationPatientReference: string;
-  location: string;
-  urgencyLabel: string;
-  sourceType: string;
-  sourceText: string | null;
-  sbar: {
-    situation: string;
-    background: string;
-    assessment: string;
-    recommendation: string;
-  } | null;
-  criticalFields: AlertField[];
-};
+export default function NewAlertPage() {
+  const router = useRouter();
+  const [form, setForm] = useState<AlertFormState>(initialAlertForm);
+  const [status, setStatus] = useState(
+    "Create a typed simulation alert draft. Phase 6 adds manual recipient selection and exact human review.",
+  );
+  const [saving, setSaving] = useState(false);
 
-type FormState = {
-  simulationPatientReference: string;
-  location: string;
-  urgencyLabel: string;
-  sourceText: string;
-  situation: string;
-  background: string;
-  assessment: string;
-  recommendation: string;
-  criticalValue: string;
-  criticalUnit: string;
-};
-
-const initialForm: FormState = {
-  simulationPatientReference: "SIM-PAT-0001",
-  location: "North Wing / Simulation Room 204",
-  urgencyLabel: "Urgent",
-  sourceText: "SIMULATION: fictional typed source",
-  situation: "SIMULATION: fictional situation",
-  background: "SIMULATION: fictional background",
-  assessment: "SIMULATION: fictional assessment",
-  recommendation: "SIMULATION: fictional recommendation",
-  criticalValue: "118",
-  criticalUnit: "beats/min",
-};
-
-export default function AlertComposePage() {
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [draft, setDraft] = useState<AlertDraft | null>(null);
-  const [status, setStatus] = useState("Create a typed simulation alert draft. Nothing is dispatched from this page.");
-
-  function update(field: keyof FormState) {
-    return (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setForm((current) => ({ ...current, [field]: event.target.value }));
-    };
+  function update(field: keyof AlertFormState, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
   }
 
-  async function save(event: FormEvent) {
+  async function createDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const payload = draft
-      ? {
-          expectedVersion: draft.draftVersion,
-          location: form.location,
-          urgencyLabel: form.urgencyLabel,
-          sourceText: form.sourceText,
-          sbar: {
-            situation: form.situation,
-            background: form.background,
-            assessment: form.assessment,
-            recommendation: form.recommendation,
+    setSaving(true);
+    try {
+      const draft = await createAlertDraft({
+        siteId: simulationSiteId,
+        departmentId: simulationDepartmentId,
+        simulationPatientReference: form.simulationPatientReference,
+        location: form.location,
+        urgencyLabel: form.urgencyLabel,
+        sourceText: form.sourceText,
+        sbar: {
+          situation: form.situation,
+          background: form.background,
+          assessment: form.assessment,
+          recommendation: form.recommendation,
+        },
+        criticalFields: [
+          {
+            fieldId: "heartRate",
+            originalValue: form.criticalValue,
+            unit: form.criticalUnit,
           },
-          criticalFields: [
-            {
-              fieldId: "heartRate",
-              originalValue: form.criticalValue,
-              unit: form.criticalUnit,
-            },
-          ],
-        }
-      : {
-          siteId: simulationSiteId,
-          departmentId: simulationDepartmentId,
-          simulationPatientReference: form.simulationPatientReference,
-          location: form.location,
-          urgencyLabel: form.urgencyLabel,
-          sourceText: form.sourceText,
-          sbar: {
-            situation: form.situation,
-            background: form.background,
-            assessment: form.assessment,
-            recommendation: form.recommendation,
-          },
-          criticalFields: [
-            {
-              fieldId: "heartRate",
-              originalValue: form.criticalValue,
-              unit: form.criticalUnit,
-            },
-          ],
-        };
-    const path = draft ? `/api/alerts/${draft.alertId}` : "/api/alerts/drafts";
-    const response = await fetch(path, {
-      method: draft ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
-    if (response.status === 401) {
-      setStatus("Sign in with a seeded Operator or Administrator identity to draft an alert.");
-      return;
+        ],
+      });
+      setStatus("Draft created. Opening the compose workspace.");
+      router.push(`/alerts/${draft.alertId}/compose`);
+    } catch (error) {
+      setStatus(
+        errorStatus(error, "The simulation draft could not be created. Check the required fields and simulation markers."),
+      );
+    } finally {
+      setSaving(false);
     }
-    if (response.status === 403) {
-      setStatus("Practitioner identities cannot create or edit alert drafts.");
-      return;
-    }
-    if (response.status === 409) {
-      setStatus("This draft changed elsewhere. Reload it before saving again.");
-      return;
-    }
-    if (!response.ok) {
-      setStatus("The simulation draft could not be saved. Check the required fields and simulation markers.");
-      return;
-    }
-
-    const loaded = (await response.json()) as AlertDraft;
-    setDraft(loaded);
-    setStatus("Draft saved. Critical values remain unresolved until explicitly confirmed.");
-  }
-
-  async function confirmField(field: AlertField) {
-    if (!draft) {
-      return;
-    }
-
-    const response = await fetch(`/api/alerts/${draft.alertId}/field-confirmations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        expectedVersion: draft.draftVersion,
-        fieldId: field.fieldId,
-        originalValue: field.originalValue,
-        normalizedValue: field.normalizedValue,
-        unit: field.unit,
-      }),
-    });
-    if (response.status === 409) {
-      setStatus("This draft changed elsewhere. Reload it before confirming the field.");
-      return;
-    }
-    if (!response.ok) {
-      setStatus("The critical field could not be confirmed.");
-      return;
-    }
-
-    setDraft((await response.json()) as AlertDraft);
-    setStatus("Critical field confirmed by the authenticated simulation user.");
-  }
-
-  async function submitForConfirmation() {
-    if (!draft) {
-      return;
-    }
-
-    const response = await fetch(`/api/alerts/${draft.alertId}/submit-for-confirmation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ expectedVersion: draft.draftVersion }),
-    });
-    if (response.status === 409) {
-      setStatus("This draft changed elsewhere. Reload it before submitting for confirmation.");
-      return;
-    }
-    if (!response.ok) {
-      setStatus("The draft needs complete SBAR content and confirmed critical fields before submission.");
-      return;
-    }
-
-    setDraft((await response.json()) as AlertDraft);
-    setStatus("Draft submitted for confirmation. Recipient selection and dispatch are not available in this phase.");
   }
 
   return (
     <SimulationChrome
-      title="Typed alert drafting"
-      lead="Phase 5 supports a fictional typed source, SBAR content, critical-field confirmation, and optimistic draft versions. Recipient selection and dispatch remain unavailable."
+      title="Create typed simulation alert"
+      lead="Create a fictional typed alert, preserve its source and SBAR separately, then continue to manual recipient selection and exact review. No provider action is available in Phase 6."
     >
-      <form className="directory-search" onSubmit={save}>
-        <label htmlFor="alert-patient">Synthetic patient reference</label>
-        <input id="alert-patient" value={form.simulationPatientReference} onChange={update("simulationPatientReference")} required />
-        <label htmlFor="alert-location">Simulation location</label>
-        <input id="alert-location" value={form.location} onChange={update("location")} required />
-        <label htmlFor="alert-urgency">Urgency label</label>
-        <input id="alert-urgency" value={form.urgencyLabel} onChange={update("urgencyLabel")} required />
-        <label htmlFor="alert-source">Typed source</label>
-        <textarea id="alert-source" value={form.sourceText} onChange={update("sourceText")} required />
-        <label htmlFor="alert-situation">Situation</label>
-        <textarea id="alert-situation" value={form.situation} onChange={update("situation")} required />
-        <label htmlFor="alert-background">Background</label>
-        <textarea id="alert-background" value={form.background} onChange={update("background")} required />
-        <label htmlFor="alert-assessment">Assessment</label>
-        <textarea id="alert-assessment" value={form.assessment} onChange={update("assessment")} required />
-        <label htmlFor="alert-recommendation">Recommendation</label>
-        <textarea id="alert-recommendation" value={form.recommendation} onChange={update("recommendation")} required />
-        <label htmlFor="critical-value">Critical value (simulation)</label>
-        <input id="critical-value" value={form.criticalValue} onChange={update("criticalValue")} required />
-        <label htmlFor="critical-unit">Critical value unit</label>
-        <input id="critical-unit" value={form.criticalUnit} onChange={update("criticalUnit")} required />
-        {draft ? <p>Saving a draft edit invalidates all earlier critical-field confirmations.</p> : null}
-        <button type="submit">{draft ? "Save draft" : "Create draft"}</button>
-      </form>
-      <p role="status">{status}</p>
-      {draft ? (
-        <section aria-label="Draft status">
-          <p>
-            Draft version: {draft.draftVersion} · State: {draft.state} · Source type: {draft.sourceType}
-          </p>
-          <h2>Critical-field confirmation</h2>
-          {draft.criticalFields.length === 0 ? <p>No critical fields were recorded.</p> : null}
-          {draft.criticalFields.map((field) => (
-            <div key={field.fieldId}>
-              <p>
-                {field.fieldId}: {field.normalizedValue} {field.unit ?? ""} ({field.status})
-              </p>
-              {field.status !== "Confirmed" ? (
-                <button type="button" onClick={() => void confirmField(field)}>
-                  Confirm {field.fieldId}
-                </button>
-              ) : null}
-            </div>
-          ))}
-          <button type="button" onClick={() => void submitForConfirmation()} disabled={draft.state !== "Draft"}>
-            Submit for confirmation
+      <form className="alert-form" onSubmit={createDraft}>
+        <AlertFormFields form={form} onChange={update} />
+        <div className="form-actions">
+          <button type="submit" disabled={saving}>
+            {saving ? "Creating draft…" : "Create draft"}
           </button>
-          <p>Recipient selection and dispatch are intentionally unavailable in Phase 5.</p>
-        </section>
-      ) : null}
+        </div>
+      </form>
+      <p className="status-message" role="status" aria-live="polite">
+        {status}
+      </p>
     </SimulationChrome>
   );
 }

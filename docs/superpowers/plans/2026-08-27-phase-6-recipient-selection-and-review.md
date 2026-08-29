@@ -12,6 +12,10 @@
 
 **Phase boundary:** This plan creates an `AlertDispatchRequested` outbox row because it is part of the atomic confirmation invariant. It does not alter `CriticalAlerts.Worker`, create a delivery attempt, lease/process an outbox row, call a provider, retry, escalate, expose callbacks, or add `/alerts/{id}/live`.
 
+## Execution status
+
+The plan was approved for inline execution. Its Phase 6 implementation is complete locally and is awaiting project-owner review. The backend slices are implemented and the web/docs changes are in this worktree; the final handoff records the pinned-container formatting and linked-worktree architecture-test limitations. No Phase 7 behavior has been started.
+
 ---
 
 ## Task 1: Make alert content and recipients exact-version snapshots
@@ -522,7 +526,7 @@ Expected: PASS from the reviewed commit without untracked source files.
 
 - [ ] **Step 6: Prepare the required handoff and stop**
 
-Report files changed, decisions made, commands run, test results, limitations, human actions, and proposed commit message `feat: complete phase 6 recipient review`. Do not tag `phase-6`, merge, push, or begin Phase 7 until the project owner approves.
+Report files changed, decisions made, commands run, test results, limitations, human actions, and proposed commit message `feat: add manual recipient selection and exact alert review`. Do not tag `phase-6`, merge, push, or begin Phase 7 until the project owner approves.
 
 ---
 
