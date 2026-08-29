@@ -1,6 +1,6 @@
 # Logging Policy
 
-Status: Phase 0 PHI-safe logging baseline. This policy is a design control, not a hospital-approved retention schedule.
+Status: Phase 6 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
 
 ## Purpose
 
@@ -77,6 +77,10 @@ Audit events must identify confirmation, edit/reconfirmation, recipient selectio
 - Apply redaction at the logging boundary and test it with synthetic payloads containing sentinel values.
 - Add automated checks that fail if known synthetic message bodies, patient references, phone numbers, tokens, or secret patterns appear in logs or errors.
 - Verify that correlation IDs cannot be used to retrieve protected content without authorization.
+
+## Phase 6 boundary
+
+Phase 6 confirmation audit metadata is limited to actor and organization identifiers, alert and version identifiers, action/outcome, UTC time, recipient count, channel kinds, `DEMO` policy version identifiers, and correlation ID. The identifier-only outbox item contains only the alert identifier and draft version. Source text, SBAR, approved message, patient content, practitioner names, contact values, and complete request bodies remain excluded from logs, audit metadata, idempotency records, and outbox payloads.
 
 ## Access, retention, and incident response
 

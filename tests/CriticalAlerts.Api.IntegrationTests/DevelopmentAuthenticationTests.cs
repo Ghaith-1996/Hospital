@@ -230,6 +230,9 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
 
     public Guid JordanUserId => DemoDataSeeder.JordanUserId.Value;
 
+    public CriticalAlertsDbContext CreateContext()
+        => DatabaseOperations.CreateContext(inner.ConnectionString);
+
     public IReadOnlyList<string> LogEntries => logProvider.Entries;
 
     public async Task InitializeAsync()

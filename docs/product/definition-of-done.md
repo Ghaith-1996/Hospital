@@ -130,8 +130,37 @@ Phase 5 is ready for human review only when the following are true:
 - [x] PostgreSQL integration tests cover Operator, Administrator, Practitioner, unauthenticated, organization-scoping, validation, protected-content, and concurrency behavior.
 - [x] No Phase 6 recipient selection, Phase 7 dispatch, provider adapter, hospital connection, SCIM, Graph, FHIR, AI, speech, or production identity behavior was added.
 - [x] Fresh `scripts/test-all.ps1`, repository safety, `git diff --check`, and scope review pass in the pinned environment before human review.
-- [ ] The project owner reviews and approves Phase 5 before a `phase-5` tag or any Phase 6 work.
+- [x] The project owner reviews and approves Phase 5 before a `phase-5` tag or any Phase 6 work.
 
 ### Phase 5 closure evidence
 
 On 2026-08-27, `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 147 backend tests, 16 web unit tests, typecheck, lint, and 1 Playwright smoke test. The focused PostgreSQL Phase 5 API suite passed 13 tests, including exact version/value/unit confirmation, critical-value and unit edit invalidation, stale-command conflicts, source/SBAR preservation, log non-disclosure sentinels, positive Operator and Administrator access, Practitioner and anonymous denial, persisted foreign-organization read/update denial, ignored client-supplied organization context, and proof that Phase 5 endpoints stop at `PendingConfirmation`. No production or hospital integration was added.
+
+The project owner approved Phase 5 on 2026-08-27. Commit `3d8bc56` was fast-forwarded to `main`, pushed to GitHub, and tagged `phase-5`.
+
+## Phase 6: recipient selection and exact review
+
+Phase 6 is ready for human review only when all of the following are true:
+
+- [x] Operator and Administrator can replace the complete recipient set from the authenticated organization's fictional directory; Practitioner and unauthenticated identities cannot.
+- [x] Recipient selection is manual only. No AI, ranking, default, on-call rule, background task, or server process selects a practitioner.
+- [x] Each selected recipient records the exact alert draft version, practitioner, optional role, channel, selecting user, selection time, safe directory revision, source timestamp, and displayed on-call snapshot.
+- [x] A recipient edit increments `DraftVersion` once for the full replacement, invalidates earlier critical-field confirmations, and makes stale commands return RFC 7807 conflict/reload guidance.
+- [x] Inactive, foreign-organization, duplicate, channel-ineligible, and changed-directory selections are rejected without exposing contact values.
+- [x] The operator-approved message is protected and persisted separately from original source and structured SBAR content; editing it increments `DraftVersion` and invalidates earlier confirmations.
+- [x] The review response and page show one exact version containing synthetic patient reference, location, urgency, approved message, confirmed critical values and units, recipients, channels, directory timestamps/on-call labels, and `DEMO` policy versions.
+- [x] Confirmation requires an authenticated authorized human, the exact reviewed draft version, and an `Idempotency-Key`.
+- [x] Confirmation, sanitized audit, idempotency result, state transition, and one identifier-only outbox item are committed atomically; no Phase 6 code processes that item or calls a provider.
+- [x] Repeating the same confirmation key and request returns the original result without a duplicate state transition, audit event, or outbox item; reusing the key for a different request returns a safe conflict.
+- [x] Clinical content, patient content, approved message, recipient contact values, and complete request payloads do not appear in general logs, exceptions, audit metadata, idempotency records, or outbox payloads.
+- [x] PostgreSQL integration tests cover authorization, organization isolation, version conflicts, directory revision conflicts, recipient snapshots, idempotency races, atomic rollback, and identifier-only outbox contents.
+- [x] The web flow includes dynamic compose, recipients, and review routes with deliberate confirmation and double-submission protection; the live/dispatch screen remains unavailable.
+- [x] No worker, provider adapter, delivery attempt, retry, callback, acknowledgement, responsibility acceptance, escalation, hospital connector, or production identity behavior is added.
+- [ ] Fresh format, build, test, typecheck, lint, PostgreSQL integration, browser, sensitive-data, and scope checks pass before human review.
+- [ ] The project owner reviews and approves Phase 6 before a `phase-6` tag or any Phase 7 implementation.
+
+### Phase 6 implementation evidence
+
+On 2026-08-28, the pinned .NET 10.0.100 Release build passed with zero warnings and errors. The functional backend suite passed 160 tests (42 domain, 25 application, 64 API integration, and 29 infrastructure), including PostgreSQL/Testcontainers coverage for recipient snapshots, authorization, organization isolation, directory revisions, idempotency, rollback, and identifier-only outbox contents. The web suite passed 17 unit tests, typecheck, lint, production build, and 1 Playwright browser smoke test. The sensitive-data scan, `git diff --check`, and Phase 5 boundary scan passed.
+
+The host does not have the .NET SDK, so `scripts/test-all.ps1` was not run directly; its pinned-container build and test stages plus the host Node checks were run individually. The full backend solution test also includes three architecture tests that cannot pass from this Windows linked worktree mounted in Linux: two project-graph checks interpret Windows project-reference separators as part of the project name, and the tracked-file safety check cannot run `git ls-files` through the linked-worktree `.git` file. The changed-file `dotnet format` check has the same environment limitation because the repository's Windows encoding/path baseline is evaluated in the Linux container. These limitations remain open for owner review; no phase approval or tag is claimed.

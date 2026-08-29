@@ -1,6 +1,6 @@
 # Security Threat Model
 
-Status: Phase 0 repository-scoped design model. No application source exists yet, so the controls below are requirements to verify during implementation, not claims that controls have been tested or approved.
+Status: Phase 6 repository-scoped review model. The Phase 0 design baseline is extended by the locally implemented recipient-selection and exact-review boundary; this is not hospital approval or a production security conclusion.
 
 ## Overview
 
@@ -17,7 +17,11 @@ The highest-value security properties are:
 - durable, tamper-evident-enough audit and operator-visible failures;
 - fail-closed separation between simulation and production.
 
-Relevant design anchors are [AGENTS.md](../../AGENTS.md), [workflow](../product/workflow.md), [containers](../architecture/containers.md), [data model](../architecture/data-model.md), [state machine](../architecture/alert-state-machine.md), [directory integration](../architecture/directory-integration.md), and [logging policy](logging-policy.md).
+Relevant design anchors are [AGENTS.md](../../AGENTS.md), [workflow](../product/workflow.md), [containers](../architecture/containers.md), [data model](../architecture/data-model.md), [state machine](../architecture/alert-state-machine.md), [directory integration](../architecture/directory-integration.md), [recipient selection and review](../architecture/recipient-selection-and-review.md), and [logging policy](logging-policy.md).
+
+### Current Phase 6 boundary
+
+The current implementation permits only manual selection from the authenticated organization's fictional directory, exact-version compose/review, and authenticated idempotent confirmation. It creates an identifier-only outbox request atomically with the state transition, audit event, and idempotency record, but no worker processes the request and no provider or live dispatch surface exists. Production identity, directory, communications, retention, clinical, escalation, and policy decisions remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 
@@ -64,7 +68,7 @@ Operators control source text, human approvals, recipient selection, and respons
 
 ### Assumptions and exclusions
 
-- Phase 0 contains no runtime source, so no implementation control is verified.
+- Phase 6 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
 - Simulation data and providers are fictional and local; no real hospital network or provider is trusted or connected.
 - Production identity, privacy, data residency, retention, directory, scheduling, communication, and clinical workflow decisions are `REQUIRES_HOSPITAL_DECISION`.
 - The system is not an EHR, clinical decision support tool, medical device integration, or replacement for a hospital's approved fallback.

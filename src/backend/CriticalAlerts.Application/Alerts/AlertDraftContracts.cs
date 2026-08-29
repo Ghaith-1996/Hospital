@@ -40,6 +40,18 @@ public sealed record ConfirmAlertCriticalFieldRequest(
 
 public sealed record SubmitAlertDraftRequest(int ExpectedVersion);
 
+public sealed record SetApprovedMessageRequest(int ExpectedVersion, string? ApprovedMessage);
+
+public sealed record AlertRecipientInput(
+    Guid PractitionerId,
+    Guid? PractitionerRoleId,
+    string? Channel,
+    string? DirectoryRevision);
+
+public sealed record ReplaceAlertRecipientsRequest(
+    int ExpectedVersion,
+    IReadOnlyList<AlertRecipientInput>? Recipients);
+
 public sealed record AlertFieldConfirmationView(
     int AlertVersion,
     string FieldId,
@@ -49,6 +61,15 @@ public sealed record AlertFieldConfirmationView(
     string Status,
     Guid ConfirmedByUserId,
     DateTimeOffset ConfirmedAtUtc);
+
+public sealed record AlertRecipientSelectionView(
+    Guid PractitionerId,
+    Guid? PractitionerRoleId,
+    string Channel,
+    DateTimeOffset SelectedAtUtc,
+    string DirectoryRevision,
+    DateTimeOffset? DirectorySourceUpdatedAtUtc,
+    string? OnCallSnapshot);
 
 public sealed record AlertDraftView(
     Guid AlertId,
@@ -60,7 +81,9 @@ public sealed record AlertDraftView(
     string SourceType,
     string? SourceText,
     AlertSbarDraft? Sbar,
-    IReadOnlyList<AlertFieldConfirmationView> CriticalFields);
+    IReadOnlyList<AlertFieldConfirmationView> CriticalFields,
+    string? ApprovedMessage,
+    IReadOnlyList<AlertRecipientSelectionView> Recipients);
 
 public sealed class AlertDraftValidationException(string code, string message) : DomainException(message)
 {
@@ -103,5 +126,21 @@ public interface IAlertDraftService
         string correlationId,
         AlertId alertId,
         SubmitAlertDraftRequest request,
+        CancellationToken cancellationToken);
+
+    Task<AlertDraftView?> SetApprovedMessageAsync(
+        OrganizationId organizationId,
+        UserId actorUserId,
+        string correlationId,
+        AlertId alertId,
+        SetApprovedMessageRequest request,
+        CancellationToken cancellationToken);
+
+    Task<AlertDraftView?> ReplaceRecipientsAsync(
+        OrganizationId organizationId,
+        UserId actorUserId,
+        string correlationId,
+        AlertId alertId,
+        ReplaceAlertRecipientsRequest request,
         CancellationToken cancellationToken);
 }

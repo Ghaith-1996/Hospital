@@ -61,6 +61,28 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         body.Should().OnlyContain(item => item.LastName == "Martin");
     }
 
+    [Fact]
+    public async Task DirectorySearchReturnsSafeSelectionMetadataAndFilters()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
+
+        using var response = await client.GetAsync(
+            "/api/directory/practitioners?department=Fictional%20Emergency%20Care&site=North%20Wing%20Simulation%20Site&includeInactive=false");
+        var bodyText = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.Should().NotBeNullOrEmpty();
+        body!.Should().OnlyContain(item => item.Department == "Fictional Emergency Care");
+        body.Should().OnlyContain(item => item.Site == "North Wing Simulation Site");
+        body.Should().OnlyContain(item => item.IsActive);
+        body.Should().OnlyContain(item => item.SelectionRevision.Length > 0);
+        body.Single(item => item.SimulationCode == "SIM-PRAC-0101").AvailableChannels
+            .Should().BeEquivalentTo("SecureMessage", "Sms");
+        bodyText.Should().NotContain("+1 555");
+        bodyText.Should().NotContain("sim-secure://");
+    }
+
     [Theory]
     [InlineData(DemoDataSeeder.JordanHandle)]
     [InlineData(DemoDataSeeder.RileyHandle)]

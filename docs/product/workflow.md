@@ -1,6 +1,8 @@
 # Workflow Specification
 
-Status: Proposed simulation workflow. It is not a hospital-approved clinical workflow or escalation policy.
+Status: Proposed simulation workflow with the Phase 6 review path implemented locally. It is not a hospital-approved clinical workflow or escalation policy.
+
+Phase 6 stops after authenticated confirmation creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. It does not process that item, create delivery attempts, call providers, retry, escalate, receive callbacks, or expose a live screen. Those behaviors remain later-phase work and production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Workflow identity
 

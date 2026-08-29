@@ -43,6 +43,113 @@ public sealed class AlertStateMachineTests
     }
 
     [Fact]
+    public void ReplacingRecipientSetCreatesOneExactVersion()
+    {
+        var alert = CreateAlert();
+        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
+        var before = alert.DraftVersion;
+        var maya = CreatePractitioner(alert.OrganizationId);
+        var noah = CreatePractitioner(alert.OrganizationId);
+
+        alert.ReplaceRecipients(
+            [
+                RecipientSelection(maya, NotificationChannel.SecureMessage),
+                RecipientSelection(noah, NotificationChannel.Voice),
+            ],
+            alert.CreatedByUserId,
+            before,
+            Now);
+
+        alert.DraftVersion.Value.Should().Be(before.Value + 1);
+        alert.CurrentRecipients.Should().HaveCount(2)
+            .And.OnlyContain(item => item.AlertVersion == alert.DraftVersion);
+        alert.FieldConfirmations
+            .Where(item => item.AlertVersion == alert.DraftVersion)
+            .Should().OnlyContain(item => item.Status == FieldConfirmationStatus.Unresolved);
+    }
+
+    [Fact]
+    public void DuplicateRecipientReplacementFailsBeforeMutation()
+    {
+        var alert = CreateAlert();
+        var before = alert.DraftVersion;
+        var practitioner = CreatePractitioner(alert.OrganizationId);
+
+        var act = () => alert.ReplaceRecipients(
+            [
+                RecipientSelection(practitioner, NotificationChannel.SecureMessage),
+                RecipientSelection(practitioner, NotificationChannel.SecureMessage),
+            ],
+            alert.CreatedByUserId,
+            before,
+            Now);
+
+        act.Should().Throw<DuplicateRecipientException>();
+        alert.DraftVersion.Should().Be(before);
+        alert.CurrentRecipients.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void EmptyRecipientReplacementClearsCurrentRecipients()
+    {
+        var alert = CreateAlert();
+        var practitioner = CreatePractitioner(alert.OrganizationId);
+        alert.ReplaceRecipients(
+            [RecipientSelection(practitioner, NotificationChannel.SecureMessage)],
+            alert.CreatedByUserId,
+            alert.DraftVersion,
+            Now);
+        var before = alert.DraftVersion;
+
+        alert.ReplaceRecipients([], alert.CreatedByUserId, before, Now);
+
+        alert.DraftVersion.Should().Be(before.Next());
+        alert.CurrentRecipients.Should().BeEmpty();
+        alert.RecipientSelections.Should().ContainSingle(item => item.AlertVersion == before);
+    }
+
+    [Fact]
+    public void ContentAndApprovedMessageEditsCarryRecipientsToTheNewVersion()
+    {
+        var alert = CreateAlert();
+        var practitioner = CreatePractitioner(alert.OrganizationId);
+        alert.ReplaceRecipients(
+            [RecipientSelection(practitioner, NotificationChannel.SecureMessage)],
+            alert.CreatedByUserId,
+            alert.DraftVersion,
+            Now);
+        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
+        alert.ConfirmCriticalField("heartRate", "118", "118", "beats/min", alert.CreatedByUserId, alert.DraftVersion, Now);
+
+        alert.UpdateTypedContent(
+            "North Wing / Simulation Room 205",
+            "Emergent",
+            Protect("SIMULATION: revised typed source"),
+            Protect("{\"situation\":\"revised\"}"),
+            alert.DraftVersion,
+            Now);
+
+        var contentVersion = alert.DraftVersion;
+        alert.CurrentRecipients.Should().ContainSingle(item =>
+            item.AlertVersion == contentVersion
+            && item.PractitionerId == practitioner.Id
+            && item.Channel == NotificationChannel.SecureMessage);
+        alert.FieldConfirmations.Should().ContainSingle(item =>
+            item.AlertVersion == contentVersion
+            && item.Status == FieldConfirmationStatus.Unresolved);
+
+        alert.SetApprovedMessage(Protect("SIMULATION: approved message"), contentVersion, Now);
+
+        alert.CurrentRecipients.Should().ContainSingle(item =>
+            item.AlertVersion == alert.DraftVersion
+            && item.PractitionerId == practitioner.Id
+            && item.Channel == NotificationChannel.SecureMessage);
+        alert.FieldConfirmations.Should().Contain(item =>
+            item.AlertVersion == alert.DraftVersion
+            && item.Status == FieldConfirmationStatus.Unresolved);
+    }
+
+    [Fact]
     public void SubmitRequiresStructuredTypedContent()
     {
         var alert = CreateAlert(includeStructuredContent: false);
@@ -98,6 +205,18 @@ public sealed class AlertStateMachineTests
         var act = () => alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [], Now, "corr-1");
 
         act.Should().Throw<RecipientsRequiredException>();
+    }
+
+    [Fact]
+    public void ConfirmationRequiresAnApprovedMessage()
+    {
+        var (alert, practitioner) = CreatePendingAlert(includeApprovedMessage: false);
+
+        var act = () => alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [practitioner], Now, "corr-1");
+
+        act.Should().Throw<DomainException>();
+        alert.State.Should().Be(AlertState.PendingConfirmation);
+        alert.PendingDispatchRequests.Should().BeEmpty();
     }
 
     [Fact]
@@ -311,33 +430,18 @@ public sealed class AlertStateMachineTests
     {
         var alert = CreateAlert();
         var practitioner = CreatePractitioner(alert.OrganizationId);
-        alert.SelectRecipient(practitioner, null, NotificationChannel.SecureMessage, UserId.New(), alert.DraftVersion, Now);
+        var before = alert.DraftVersion;
 
-        var act = () => alert.SelectRecipient(practitioner, null, NotificationChannel.SecureMessage, UserId.New(), alert.DraftVersion, Now);
+        var act = () => alert.ReplaceRecipients(
+            [
+                RecipientSelection(practitioner, NotificationChannel.SecureMessage),
+                RecipientSelection(practitioner, NotificationChannel.SecureMessage),
+            ],
+            UserId.New(),
+            before,
+            Now);
 
         act.Should().Throw<DuplicateRecipientException>();
-    }
-
-    [Fact]
-    public void InactivePractitionerCannotBeSelected()
-    {
-        var alert = CreateAlert();
-        var practitioner = CreatePractitioner(alert.OrganizationId, isActive: false);
-
-        var act = () => alert.SelectRecipient(practitioner, null, NotificationChannel.SecureMessage, UserId.New(), alert.DraftVersion, Now);
-
-        act.Should().Throw<InactivePractitionerException>();
-    }
-
-    [Fact]
-    public void CrossOrganizationRecipientIsRejected()
-    {
-        var alert = CreateAlert();
-        var foreign = CreatePractitioner(OrganizationId.New());
-
-        var act = () => alert.SelectRecipient(foreign, null, NotificationChannel.SecureMessage, UserId.New(), alert.DraftVersion, Now);
-
-        act.Should().Throw<OrganizationIsolationException>();
     }
 
     [Fact]
@@ -457,11 +561,20 @@ public sealed class AlertStateMachineTests
         attempt.OpenedState.Should().Be(ObservationState.NotApplicable);
     }
 
-    private static (Alert Alert, Practitioner Practitioner) CreatePendingAlert()
+    private static (Alert Alert, Practitioner Practitioner) CreatePendingAlert(bool includeApprovedMessage = true)
     {
         var alert = CreateAlert();
         var practitioner = CreatePractitioner(alert.OrganizationId);
-        alert.SelectRecipient(practitioner, null, NotificationChannel.SecureMessage, UserId.New(), alert.DraftVersion, Now);
+        alert.ReplaceRecipients(
+            [RecipientSelection(practitioner, NotificationChannel.SecureMessage)],
+            alert.CreatedByUserId,
+            alert.DraftVersion,
+            Now);
+        if (includeApprovedMessage)
+        {
+            alert.SetApprovedMessage(Protect("SIMULATION: approved alert message"), alert.DraftVersion, Now);
+        }
+
         alert.SubmitForConfirmation(alert.CreatedByUserId, alert.DraftVersion, Now);
         return (alert, practitioner);
     }
@@ -487,6 +600,17 @@ public sealed class AlertStateMachineTests
 
         return alert;
     }
+
+    private static ValidatedRecipientSelection RecipientSelection(
+        Practitioner practitioner,
+        NotificationChannel channel)
+        => new(
+            practitioner.Id,
+            null,
+            channel,
+            "SIM-REVISION-0001",
+            Now,
+            "On-call not displayed");
 
     private static Practitioner CreatePractitioner(OrganizationId organizationId, bool isActive = true)
     {

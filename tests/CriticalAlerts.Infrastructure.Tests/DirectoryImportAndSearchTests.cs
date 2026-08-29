@@ -236,6 +236,141 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
     }
 
     [Fact]
+    public async Task SearchFiltersReturnSafeChannelsAndAStableSelectionRevision()
+    {
+        await fixture.ResetAsync();
+        try
+        {
+            await using var db = fixture.CreateContext();
+            var now = DateTimeOffset.Parse("2026-08-04T12:00:00Z");
+            var search = new DirectorySearchService(db, new FixedTimeProvider(now));
+            var query = new DirectorySearchQuery(
+                DemoDataSeeder.OrganizationId,
+                null,
+                "Fictional Emergency Care",
+                "North Wing Simulation Site",
+                true,
+                false);
+
+            var first = await search.SearchAsync(query, CancellationToken.None);
+            var second = await search.SearchAsync(query, CancellationToken.None);
+
+            first.Should().ContainSingle();
+            var maya = first.Single();
+            maya.SimulationCode.Should().Be("SIM-PRAC-0101");
+            maya.PractitionerRoleId.Should().NotBeNull();
+            maya.AvailableChannels.Should().BeEquivalentTo("SecureMessage", "Sms");
+            maya.SelectionRevision.Should().NotBeNullOrWhiteSpace();
+            second.Single().SelectionRevision.Should().Be(maya.SelectionRevision);
+
+            var resolver = new DirectorySelectionResolver(db);
+            var resolved = await resolver.ResolveAsync(
+                DemoDataSeeder.OrganizationId,
+                [new DirectorySelectionCandidate(
+                    new PractitionerId(maya.PractitionerId),
+                    maya.PractitionerRoleId is Guid roleId ? new PractitionerRoleId(roleId) : null,
+                    NotificationChannel.SecureMessage,
+                    maya.SelectionRevision)],
+                now,
+                CancellationToken.None);
+
+            resolved.Should().ContainSingle(selection =>
+                selection.PractitionerId == DemoDataSeeder.MayaChenId
+                && selection.Channel == NotificationChannel.SecureMessage
+                && selection.DirectoryRevision == maya.SelectionRevision
+                && selection.DirectorySourceUpdatedAtUtc == now.AddDays(-3)
+                && selection.OnCallSnapshot == "Primary");
+        }
+        finally
+        {
+            await fixture.ResetAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ChangedDirectoryRevisionIsRejectedBeforeSelectionIsReturned()
+    {
+        await fixture.ResetAsync();
+        try
+        {
+            await using var db = fixture.CreateContext();
+            var now = DateTimeOffset.Parse("2026-08-04T12:00:00Z");
+            var search = new DirectorySearchService(db, new FixedTimeProvider(now));
+            var maya = (await search.SearchAsync(
+                    new DirectorySearchQuery(DemoDataSeeder.OrganizationId, "Maya", null, null, null, false),
+                    CancellationToken.None))
+                .Single();
+            var candidate = new DirectorySelectionCandidate(
+                new PractitionerId(maya.PractitionerId),
+                maya.PractitionerRoleId is Guid roleId ? new PractitionerRoleId(roleId) : null,
+                NotificationChannel.SecureMessage,
+                maya.SelectionRevision);
+
+            var practitioner = await db.Practitioners.SingleAsync(item => item.Id == DemoDataSeeder.MayaChenId);
+            practitioner.Reconcile("Maya", "Chen", "Updated simulation specialty", isActive: true);
+            await db.SaveChangesAsync();
+
+            var resolver = new DirectorySelectionResolver(db);
+            var act = () => resolver.ResolveAsync(
+                DemoDataSeeder.OrganizationId,
+                [candidate],
+                now,
+                CancellationToken.None);
+
+            await act.Should().ThrowAsync<DirectorySelectionRevisionConflictException>();
+        }
+        finally
+        {
+            await fixture.ResetAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ResolverRejectsInactiveForeignAndWrongRoleSelections()
+    {
+        await using var db = fixture.CreateContext();
+        var now = DateTimeOffset.Parse("2026-08-04T12:00:00Z");
+        var search = new DirectorySearchService(db, new FixedTimeProvider(now));
+        var maya = (await search.SearchAsync(
+                new DirectorySearchQuery(DemoDataSeeder.OrganizationId, "Maya", null, null, null, false),
+                CancellationToken.None))
+            .Single();
+        var taylor = (await search.SearchAsync(
+                new DirectorySearchQuery(DemoDataSeeder.OrganizationId, "Taylor", null, null, null, true),
+                CancellationToken.None))
+            .Single();
+        var resolver = new DirectorySelectionResolver(db);
+
+        var inactive = () => resolver.ResolveAsync(
+            DemoDataSeeder.OrganizationId,
+            [new DirectorySelectionCandidate(
+                new PractitionerId(taylor.PractitionerId),
+                taylor.PractitionerRoleId is Guid inactiveRoleId ? new PractitionerRoleId(inactiveRoleId) : null,
+                NotificationChannel.SecureMessage,
+                taylor.SelectionRevision)],
+            now,
+            CancellationToken.None);
+        var foreign = () => resolver.ResolveAsync(
+            DemoDataSeeder.OrganizationId,
+            [new DirectorySelectionCandidate(PractitionerId.New(), null, NotificationChannel.SecureMessage, maya.SelectionRevision)],
+            now,
+            CancellationToken.None);
+        var wrongRole = () => resolver.ResolveAsync(
+            DemoDataSeeder.OrganizationId,
+            [new DirectorySelectionCandidate(
+                new PractitionerId(maya.PractitionerId),
+                new PractitionerRoleId(Guid.Parse("11111111-1111-4111-8111-111111110704")),
+                NotificationChannel.SecureMessage,
+                maya.SelectionRevision)],
+            now,
+            CancellationToken.None);
+
+        await inactive.Should().ThrowAsync<DirectorySelectionValidationException>();
+        await foreign.Should().ThrowAsync<DirectorySelectionValidationException>();
+        await wrongRole.Should().ThrowAsync<DirectorySelectionValidationException>();
+    }
+
+    [Fact]
     public async Task CrossOrganizationPreviewCannotUseTheSeededCatalog()
     {
         await using var db = fixture.CreateContext();
@@ -364,6 +499,11 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
         }
 
         throw new FileNotFoundException("Could not locate fixtures/simulation/directory-harborview.csv.");
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 
     private sealed class InvalidOnCallAdapter : IDirectorySourceAdapter

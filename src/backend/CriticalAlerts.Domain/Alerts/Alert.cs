@@ -149,7 +149,7 @@ public sealed class Alert
         ArgumentNullException.ThrowIfNull(originalSource);
         EnsureEditable(expectedVersion);
         OriginalSource = originalSource;
-        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "source-edited");
+        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "source-edited", carryRecipients: true);
     }
 
     public void UpdateTypedContent(
@@ -169,7 +169,7 @@ public sealed class Alert
         UrgencyLabel = urgencyLabel.Trim();
         OriginalSource = originalSource;
         StructuredSuggestion = structuredSuggestion;
-        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "typed-content-edited");
+        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "typed-content-edited", carryRecipients: true);
     }
 
     public void SetStructuredSuggestion(
@@ -180,7 +180,7 @@ public sealed class Alert
         ArgumentNullException.ThrowIfNull(structuredSuggestion);
         EnsureEditable(expectedVersion);
         StructuredSuggestion = structuredSuggestion;
-        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "sbar-edited");
+        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "sbar-edited", carryRecipients: true);
     }
 
     public void SetApprovedMessage(ProtectedValue approvedMessage, AlertDraftVersion expectedVersion, DateTimeOffset updatedAtUtc)
@@ -188,7 +188,7 @@ public sealed class Alert
         ArgumentNullException.ThrowIfNull(approvedMessage);
         EnsureEditable(expectedVersion);
         ApprovedMessage = approvedMessage;
-        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "approved-message-edited");
+        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "approved-message-edited", carryRecipients: true);
     }
 
     public void SubmitForConfirmation(UserId actorUserId, AlertDraftVersion expectedVersion, DateTimeOffset occurredAtUtc)
@@ -276,42 +276,50 @@ public sealed class Alert
             CreatedAtUtc);
     }
 
-    public void SelectRecipient(
-        Practitioner practitioner,
-        PractitionerRoleId? practitionerRoleId,
-        NotificationChannel channel,
+    public void ReplaceRecipients(
+        IReadOnlyCollection<ValidatedRecipientSelection> recipients,
         UserId selectedByUserId,
         AlertDraftVersion expectedVersion,
         DateTimeOffset selectedAtUtc)
     {
-        ArgumentNullException.ThrowIfNull(practitioner);
+        ArgumentNullException.ThrowIfNull(recipients);
         EnsureEditable(expectedVersion);
-        if (practitioner.OrganizationId != OrganizationId)
+        var selectedAt = UtcInstant.Require(selectedAtUtc, nameof(selectedAtUtc));
+        var validated = recipients.ToArray();
+        var pairs = new HashSet<(PractitionerId PractitionerId, NotificationChannel Channel)>();
+        foreach (var recipient in validated)
         {
-            throw new OrganizationIsolationException("Recipients must belong to the same organization as the alert.");
+            ArgumentNullException.ThrowIfNull(recipient);
+            AlertRecipientSelection.ValidateDirectoryRevision(recipient.DirectoryRevision);
+            AlertRecipientSelection.ValidateOnCallSnapshot(recipient.OnCallSnapshot);
+            if (recipient.DirectorySourceUpdatedAtUtc is not null)
+            {
+                UtcInstant.Require(recipient.DirectorySourceUpdatedAtUtc.Value, nameof(recipient.DirectorySourceUpdatedAtUtc));
+            }
+
+            if (!pairs.Add((recipient.PractitionerId, recipient.Channel)))
+            {
+                throw new DuplicateRecipientException("The practitioner is already selected for this channel.");
+            }
         }
 
-        if (!practitioner.IsActive)
+        InvalidateApprovalAndIncrementVersion(selectedAt, "recipients-replaced", carryRecipients: false);
+        foreach (var recipient in validated)
         {
-            throw new InactivePractitionerException("Inactive practitioners cannot be selected.");
+            recipientSelections.Add(new AlertRecipientSelection(
+                AlertRecipientSelectionId.New(),
+                OrganizationId,
+                Id,
+                DraftVersion,
+                recipient.PractitionerId,
+                recipient.PractitionerRoleId,
+                recipient.Channel,
+                selectedByUserId,
+                selectedAt,
+                recipient.DirectoryRevision,
+                recipient.DirectorySourceUpdatedAtUtc,
+                recipient.OnCallSnapshot));
         }
-
-        if (CurrentRecipients.Any(recipient => recipient.PractitionerId == practitioner.Id && recipient.Channel == channel))
-        {
-            throw new DuplicateRecipientException("The practitioner is already selected for this channel.");
-        }
-
-        InvalidateApprovalAndIncrementVersion(selectedAtUtc, "recipient-changed");
-        recipientSelections.Add(new AlertRecipientSelection(
-            AlertRecipientSelectionId.New(),
-            OrganizationId,
-            Id,
-            DraftVersion,
-            practitioner.Id,
-            practitionerRoleId,
-            channel,
-            selectedByUserId,
-            UtcInstant.Require(selectedAtUtc, nameof(selectedAtUtc))));
     }
 
     public void ConfirmForDispatch(
@@ -330,6 +338,11 @@ public sealed class Alert
         if (CurrentRecipients.Count == 0)
         {
             throw new RecipientsRequiredException("Confirmation requires at least one manually selected recipient.");
+        }
+
+        if (ApprovedMessage is null)
+        {
+            throw new DomainException("Confirmation requires an approved message.");
         }
 
         if (CurrentFieldConfirmations.Any(confirmation => confirmation.Status != FieldConfirmationStatus.Confirmed))
@@ -431,15 +444,50 @@ public sealed class Alert
         }
     }
 
-    private void InvalidateApprovalAndIncrementVersion(DateTimeOffset updatedAtUtc, string reasonCode)
+    private void InvalidateApprovalAndIncrementVersion(DateTimeOffset updatedAtUtc, string reasonCode, bool carryRecipients)
     {
         var occurredAt = UtcInstant.Require(updatedAtUtc, nameof(updatedAtUtc));
+        var previousRecipients = carryRecipients ? CurrentRecipients.ToArray() : [];
+        var previousFields = CurrentFieldConfirmations.ToArray();
         DraftVersion = DraftVersion.Next();
         ConfirmedDraftVersion = null;
         ConfirmedByUserId = null;
         ConfirmedAtUtc = null;
         pendingDispatchRequests.Clear();
         UpdatedAtUtc = occurredAt;
+        foreach (var field in previousFields)
+        {
+            fieldConfirmations.Add(new AlertFieldConfirmation(
+                AlertFieldConfirmationId.New(),
+                OrganizationId,
+                Id,
+                DraftVersion,
+                field.FieldId,
+                field.OriginalValue,
+                field.NormalizedValue,
+                field.Unit,
+                FieldConfirmationStatus.Unresolved,
+                CreatedByUserId,
+                CreatedAtUtc));
+        }
+
+        foreach (var recipient in previousRecipients)
+        {
+            recipientSelections.Add(new AlertRecipientSelection(
+                AlertRecipientSelectionId.New(),
+                OrganizationId,
+                Id,
+                DraftVersion,
+                recipient.PractitionerId,
+                recipient.PractitionerRoleId,
+                recipient.Channel,
+                recipient.SelectedByUserId,
+                recipient.SelectedAtUtc,
+                recipient.DirectoryRevision,
+                recipient.DirectorySourceUpdatedAtUtc,
+                recipient.OnCallSnapshot));
+        }
+
         if (State == AlertState.PendingConfirmation)
         {
             TransitionTo(AlertState.Draft, CreatedByUserId, reasonCode, "DEMO", occurredAt);

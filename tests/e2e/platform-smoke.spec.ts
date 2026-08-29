@@ -9,6 +9,11 @@ test("shows the simulation platform boundary", async ({ page }) => {
   await expect(page.getByRole("button", { name: /dispatch/i })).toHaveCount(0);
   await expect(page.getByLabel("Simulation user")).toHaveCount(0);
 
+  await page.goto("/alerts/new");
+  await expect(page.getByRole("heading", { name: "Create typed simulation alert" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create draft" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /dispatch/i })).toHaveCount(0);
+
   await page.goto("/directory");
   await expect(page.getByRole("heading", { name: "Fictional practitioner directory" })).toBeVisible();
   await expect(page.getByLabel("Search practitioners")).toBeVisible();

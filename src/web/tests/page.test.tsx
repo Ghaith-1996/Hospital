@@ -17,7 +17,7 @@ vi.mock("next/link", () => ({
   }) => React.createElement("a", { href, className }, children),
 }));
 
-describe("Phase 4 web shell", () => {
+describe("Phase 6 web shell", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
