@@ -9,7 +9,7 @@ Approved in chat on 2026-08-30 for design documentation. The project owner expli
 The implementation is governed, in order, by:
 
 1. the project owner's direct instructions and approvals in the 2026-08-30 conversation;
-2. the user-supplied nine-screen image mockup;
+2. the user-supplied nine-screen image mockup preserved at `docs/design/frontend-prototype-nine-screen-mockup.png`;
 3. `Critical_Alerts_Frontend_Implementation_Plan.docx` as supporting scope and interaction guidance; and
 4. the repository's safety, terminology, accessibility, and simulation constraints.
 
