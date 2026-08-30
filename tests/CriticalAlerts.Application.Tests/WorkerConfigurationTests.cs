@@ -6,18 +6,20 @@ namespace CriticalAlerts.Application.Tests;
 public sealed class WorkerConfigurationTests
 {
     [Fact]
-    public void WorkerDoesNotRegisterAlertDispatchHandlers()
+    public void WorkerRegistersOnlyTheSimulationDispatchBoundary()
     {
         var workerProgram = Path.Combine(RepositoryRoot(), "src", "backend", "CriticalAlerts.Worker", "Program.cs");
 
-        File.Exists(workerProgram).Should().BeTrue("the Phase 1 worker shell must be present");
+        File.Exists(workerProgram).Should().BeTrue("the worker entry point must be present");
         var source = File.ReadAllText(workerProgram);
 
-        source.IndexOf("AlertDispatchHandler", StringComparison.OrdinalIgnoreCase).Should().Be(-1);
-        source.IndexOf("OutboxMessage", StringComparison.OrdinalIgnoreCase).Should().Be(-1);
-        source.IndexOf("NotificationDispatcher", StringComparison.OrdinalIgnoreCase).Should().Be(-1);
-        source.IndexOf("EscalationEvaluator", StringComparison.OrdinalIgnoreCase).Should().Be(-1);
-        source.IndexOf("ProviderAdapter", StringComparison.OrdinalIgnoreCase).Should().Be(-1);
+        source.Should().Contain("SimulationDispatchEnvironmentGuard");
+        source.Should().Contain("AddSimulationDispatch");
+        source.Should().Contain("SimulationDispatchWorker");
+        source.Should().NotContain("HttpClient");
+        source.Should().NotContain("Twilio");
+        source.Should().NotContain("Azure.Communication");
+        source.Should().NotContain("Vonage");
     }
 
     private static string RepositoryRoot()

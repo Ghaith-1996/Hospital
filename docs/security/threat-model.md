@@ -1,6 +1,6 @@
 # Security Threat Model
 
-Status: Phase 6 repository-scoped review model. The Phase 0 design baseline is extended by the locally implemented recipient-selection and exact-review boundary; this is not hospital approval or a production security conclusion.
+Status: Phase 7 repository-scoped review model. The Phase 0 design baseline is extended by the implemented recipient-selection, exact-review, and simulation-only dispatch boundaries; this is not hospital approval or a production security conclusion.
 
 ## Overview
 
@@ -17,11 +17,17 @@ The highest-value security properties are:
 - durable, tamper-evident-enough audit and operator-visible failures;
 - fail-closed separation between simulation and production.
 
-Relevant design anchors are [AGENTS.md](../../AGENTS.md), [workflow](../product/workflow.md), [containers](../architecture/containers.md), [data model](../architecture/data-model.md), [state machine](../architecture/alert-state-machine.md), [directory integration](../architecture/directory-integration.md), [recipient selection and review](../architecture/recipient-selection-and-review.md), and [logging policy](logging-policy.md).
+Relevant design anchors are [AGENTS.md](../../AGENTS.md), [workflow](../product/workflow.md), [containers](../architecture/containers.md), [data model](../architecture/data-model.md), [state machine](../architecture/alert-state-machine.md), [directory integration](../architecture/directory-integration.md), [recipient selection and review](../architecture/recipient-selection-and-review.md), [simulated dispatch](../architecture/simulated-dispatch.md), and [logging policy](logging-policy.md).
 
 ### Current Phase 6 boundary
 
 The current implementation permits only manual selection from the authenticated organization's fictional directory, exact-version compose/review, and authenticated idempotent confirmation. It creates an identifier-only outbox request atomically with the state transition, audit event, and idempotency record, but no worker processes the request and no provider or live dispatch surface exists. Production identity, directory, communications, retention, clinical, escalation, and policy decisions remain `REQUIRES_HOSPITAL_DECISION`.
+
+### Current Phase 7 boundary
+
+The Phase 7 implementation consumes the Phase 6 outbox request only through a worker that is explicitly enabled in `Development` or `Test`. The worker claims pending or expired-lease rows with database locking, verifies the strict identifier-only payload against an organization-scoped alert and confirmed version, creates stable per-recipient/channel attempts, and uses typed in-process simulation adapters. It records normalized synthetic events with organization-scoped uniqueness, monotonic status application, bounded retries, visible terminal failure, and sanitized audit metadata. The delivery-status projection is organization-scoped and operationally safe.
+
+No real provider SDK, network call, external callback endpoint, doctor response, live monitoring screen, or escalation decision exists in this phase. Production enablement, provider authentication/signatures, callback replay windows, delivery SLAs, retry policy, escalation policy, and operational ownership remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 
@@ -68,7 +74,7 @@ Operators control source text, human approvals, recipient selection, and respons
 
 ### Assumptions and exclusions
 
-- Phase 6 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
+- Phase 7 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
 - Simulation data and providers are fictional and local; no real hospital network or provider is trusted or connected.
 - Production identity, privacy, data residency, retention, directory, scheduling, communication, and clinical workflow decisions are `REQUIRES_HOSPITAL_DECISION`.
 - The system is not an EHR, clinical decision support tool, medical device integration, or replacement for a hospital's approved fallback.

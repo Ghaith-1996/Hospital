@@ -1,6 +1,6 @@
 # Alert State Machine
 
-Status: Phase 5 simulation draft implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical escalation or resolution policy.
+Status: Phase 7 simulation dispatch implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical escalation or resolution policy.
 
 ## Alert lifecycle states
 
@@ -53,6 +53,10 @@ Phase 2 persists the Phase 0 lifecycle states above. Names used in some later su
 Phase 5 exposes only typed simulation draft creation/editing, protected source and SBAR storage, optimistic draft-version checks, critical-field confirmation, and submission to `PendingConfirmation`. Source and SBAR text must carry the `SIMULATION:` marker; patient references remain `SIM-` values. Critical fields are unresolved until an authenticated human confirms the exact value and unit.
 
 The Phase 5 API does not select recipients, confirm dispatch, create outbox work, call providers, or run escalation. Those are later phases and remain unavailable.
+
+## Phase 7 dispatch boundary
+
+Phase 6 confirmation is the only entry into `DispatchQueued`. Phase 7 may move a confirmed alert to `Active` only after a durable simulation delivery attempt is recorded. The worker does not create a recipient, alter the approved version, infer a role, or select a new channel. It records delivery attempts and normalized synthetic provider events separately from opened, acknowledged, and responsibility-accepted states. A completed simulation delivery does not resolve the alert, and an outage or invalid dispatch remains visible as `Failed` or queued retry activity.
 
 ## Dispatch confirmation invariant
 

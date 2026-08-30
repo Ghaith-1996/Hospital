@@ -16,7 +16,8 @@ public sealed class DeliveryEvent
         string eventType,
         string providerEventId,
         DateTimeOffset receivedAtUtc,
-        string sanitizedMetadata)
+        string sanitizedMetadata,
+        DateTimeOffset? occurredAtUtc = null)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -24,6 +25,7 @@ public sealed class DeliveryEvent
         EventType = eventType;
         ProviderEventId = providerEventId;
         ReceivedAtUtc = receivedAtUtc;
+        OccurredAtUtc = occurredAtUtc ?? receivedAtUtc;
         SanitizedMetadata = sanitizedMetadata;
     }
 
@@ -39,6 +41,8 @@ public sealed class DeliveryEvent
 
     public DateTimeOffset ReceivedAtUtc { get; private set; }
 
+    public DateTimeOffset OccurredAtUtc { get; private set; }
+
     public string SanitizedMetadata { get; private set; }
 
     public static DeliveryEvent Create(
@@ -48,7 +52,8 @@ public sealed class DeliveryEvent
         string eventType,
         string providerEventId,
         DateTimeOffset receivedAtUtc,
-        string sanitizedMetadata)
+        string sanitizedMetadata,
+        DateTimeOffset? occurredAtUtc = null)
     {
         if (string.IsNullOrWhiteSpace(eventType) || string.IsNullOrWhiteSpace(providerEventId))
         {
@@ -62,6 +67,7 @@ public sealed class DeliveryEvent
             eventType.Trim(),
             providerEventId.Trim(),
             UtcInstant.Require(receivedAtUtc, nameof(receivedAtUtc)),
-            sanitizedMetadata.Trim());
+            sanitizedMetadata.Trim(),
+            occurredAtUtc is null ? null : UtcInstant.Require(occurredAtUtc.Value, nameof(occurredAtUtc)));
     }
 }

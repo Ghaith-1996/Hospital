@@ -49,8 +49,11 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.Property(entity => entity.NextAttemptAtUtc).HasColumnName("next_attempt_at_utc").IsRequired();
         builder.Property(entity => entity.ProcessedAtUtc).HasColumnName("processed_at_utc");
         builder.Property(entity => entity.LastErrorCategory).HasColumnName("last_error_category").HasMaxLength(64).IsRequired();
+        builder.Property(entity => entity.LeaseOwner).HasColumnName("lease_owner").HasMaxLength(100);
+        builder.Property(entity => entity.LeaseExpiresAtUtc).HasColumnName("lease_expires_at_utc");
         builder.HasIndex(entity => entity.IdempotencyKey).IsUnique();
         builder.HasIndex(entity => new { entity.ProcessingState, entity.NextAttemptAtUtc });
+        builder.HasIndex(entity => new { entity.ProcessingState, entity.NextAttemptAtUtc, entity.LeaseExpiresAtUtc });
         builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 }

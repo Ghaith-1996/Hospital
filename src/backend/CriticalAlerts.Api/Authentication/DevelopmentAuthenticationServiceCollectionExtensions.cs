@@ -38,6 +38,12 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
             options.AddPolicy(
                 AuthorizationPolicies.AlertDraftEditor,
                 policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
+            options.AddPolicy(
+                AuthorizationPolicies.DispatchScenarioAdministrator,
+                policy => policy.RequireRole(AuthorizationRoles.Administrator));
+            options.AddPolicy(
+                AuthorizationPolicies.AlertDeliveryReader,
+                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
         });
 
         return services;

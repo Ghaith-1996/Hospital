@@ -1,6 +1,6 @@
 # Logging Policy
 
-Status: Phase 6 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
+Status: Phase 7 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
 
 ## Purpose
 
@@ -64,6 +64,7 @@ Audit events must identify confirmation, edit/reconfirmation, recipient selectio
 - Log identifiers, channel type, attempt number, status category, and timing—not endpoint values or message bodies.
 - Store provider callback IDs only where needed for idempotency, preferably as protected/hashed references.
 - Record duplicate, out-of-order, rejected-signature, and rate-limit outcomes as safe categories.
+- The Phase 7 simulation worker may log only synthetic provider names/references, safe status categories, retry/lease outcomes, and opaque organization/resource identifiers. It must never decrypt protected endpoints or serialize the outbox payload, approved message, policy body, or provider request.
 
 ### AI and transcription
 
@@ -81,6 +82,10 @@ Audit events must identify confirmation, edit/reconfirmation, recipient selectio
 ## Phase 6 boundary
 
 Phase 6 confirmation audit metadata is limited to actor and organization identifiers, alert and version identifiers, action/outcome, UTC time, recipient count, channel kinds, `DEMO` policy version identifiers, and correlation ID. The identifier-only outbox item contains only the alert identifier and draft version. Source text, SBAR, approved message, patient content, practitioner names, contact values, and complete request bodies remain excluded from logs, audit metadata, idempotency records, and outbox payloads.
+
+## Phase 7 boundary
+
+Phase 7 worker audit metadata is limited to organization, alert/attempt identifiers, channel, provider name, attempt number, safe status or failure category, retry timing, event ordering outcome, and correlation ID. Simulation scenario controls record only the selected channel and scenario name. Delivery-status responses expose status/timestamps and safe failure categories, never protected message ciphertext, decrypted contact values, source content, or raw provider payloads. The simulation adapter has no network boundary and must remain unavailable outside Development/Test.
 
 ## Access, retention, and incident response
 

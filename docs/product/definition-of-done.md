@@ -155,12 +155,35 @@ Phase 6 is ready for human review only when all of the following are true:
 - [x] Clinical content, patient content, approved message, recipient contact values, and complete request payloads do not appear in general logs, exceptions, audit metadata, idempotency records, or outbox payloads.
 - [x] PostgreSQL integration tests cover authorization, organization isolation, version conflicts, directory revision conflicts, recipient snapshots, idempotency races, atomic rollback, and identifier-only outbox contents.
 - [x] The web flow includes dynamic compose, recipients, and review routes with deliberate confirmation and double-submission protection; the live/dispatch screen remains unavailable.
-- [x] No worker, provider adapter, delivery attempt, retry, callback, acknowledgement, responsibility acceptance, escalation, hospital connector, or production identity behavior is added.
+- [x] At the Phase 6 boundary, no worker, provider adapter, delivery attempt, retry, callback, acknowledgement, responsibility acceptance, escalation, hospital connector, or production identity behavior was included.
 - [ ] Fresh format, build, test, typecheck, lint, PostgreSQL integration, browser, sensitive-data, and scope checks pass before human review.
-- [ ] The project owner reviews and approves Phase 6 before a `phase-6` tag or any Phase 7 implementation.
+- [x] The Phase 6 boundary was accepted as the prerequisite to Phase 7 implementation; Phase 7 has its own review gate below.
 
 ### Phase 6 implementation evidence
 
 On 2026-08-28, the pinned .NET 10.0.100 Release build passed with zero warnings and errors. The functional backend suite passed 160 tests (42 domain, 25 application, 64 API integration, and 29 infrastructure), including PostgreSQL/Testcontainers coverage for recipient snapshots, authorization, organization isolation, directory revisions, idempotency, rollback, and identifier-only outbox contents. The web suite passed 17 unit tests, typecheck, lint, production build, and 1 Playwright browser smoke test. The sensitive-data scan, `git diff --check`, and Phase 5 boundary scan passed.
 
 The host does not have the .NET SDK, so `scripts/test-all.ps1` was not run directly; its pinned-container build and test stages plus the host Node checks were run individually. The full backend solution test also includes three architecture tests that cannot pass from this Windows linked worktree mounted in Linux: two project-graph checks interpret Windows project-reference separators as part of the project name, and the tracked-file safety check cannot run `git ls-files` through the linked-worktree `.git` file. The changed-file `dotnet format` check has the same environment limitation because the repository's Windows encoding/path baseline is evaluated in the Linux container. These limitations remain open for owner review; no phase approval or tag is claimed.
+
+## Phase 7: simulated dispatch worker
+
+Phase 7 is ready for project-owner review only when all of the following are true:
+
+- [x] The worker fails closed unless simulation dispatch is enabled explicitly in `Development` or `Test`; `Staging` and `Production` reject the enabled setting at startup.
+- [x] The worker claims pending and expired-lease outbox rows with PostgreSQL locking, records owner/expiry, and permits only the current owner to complete, retry, or fail a row.
+- [x] The outbox payload remains strict identifier-only data and is reconciled to the organization-scoped confirmed alert/version before processing.
+- [x] SecureMessage, SMS, and Voice use typed in-process simulation ports with deterministic fictional scenarios and no network/provider SDK.
+- [x] Delivery attempts use stable per-recipient/channel attempt keys; provider events are unique by organization and provider event ID; duplicate and out-of-order events do not regress status.
+- [x] Provider-outage and delayed scenarios use bounded retry/backoff; invalid work becomes a visible terminal failure; worker restart/expired-lease behavior is covered by regression tests.
+- [x] Scenario controls are Administrator-only, organization-scoped, and unavailable outside Development/Test; caller-supplied organization/user/role fields are ignored.
+- [x] Delivery status is organization-scoped and returns only operational fields, not protected message/contact values or raw provider metadata.
+- [x] The worker preserves the distinction between submitted, delivered, opened, acknowledged, responsibility accepted, and resolved; no response, live screen, or escalation behavior is added.
+- [x] Documentation records the simulation boundary, lease/retry/idempotency model, safe logging/status fields, and `REQUIRES_HOSPITAL_DECISION` production choices.
+- [x] Pinned .NET restore, Release build, focused domain/application/adapter tests, and compile-time API/worker regression coverage pass in the current worktree.
+- [x] PostgreSQL/Testcontainers worker, persistence, and API integration tests pass with a reachable Docker engine.
+- [x] Full `scripts/test-all.ps1`, frontend/browser checks, sensitive-data scan, scope scan, and fresh-clone migrate/seed verification pass.
+- [ ] The project owner reviews Phase 7 and separately authorizes any commit/tag/push action.
+
+### Phase 7 implementation evidence
+
+On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution build passed with zero warnings and errors. Focused domain, application, and simulation-adapter tests passed (6, 10, and 6 respectively). The complete backend solution passed 204 tests (9 architecture, 48 domain, 34 application, 42 infrastructure, and 71 API), including PostgreSQL/Testcontainers worker, persistence, authorization, organization isolation, lease recovery, retry, duplicate, and out-of-order coverage. The prescribed `scripts/test-all.ps1` passed its sensitive-data scan, Release build, backend tests, web 17-test suite, typecheck, lint, and Playwright 1-test browser smoke. A fresh clone of commit `15fa771` applied all migrations through `20260829234957_Phase7SimulatedDispatch` and seeded 3 fictional users and 12 fictional practitioners against an isolated PostgreSQL 18.4 container. The Phase 7 review gate remains open for project-owner review and any separately authorized tag/push; no push or tag has been made.

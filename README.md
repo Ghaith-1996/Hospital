@@ -1,10 +1,10 @@
 ﻿# Critical Clinician Alert Platform
 
-Status: Phase 6 simulation-only recipient selection and exact review are implementation-complete locally and awaiting project-owner review. The reviewed Phase 5 baseline remains tagged `phase-5`; no Phase 6 tag, merge, or push has been made.
+Status: Phase 7 simulation-only dispatch-worker implementation is in progress locally and awaiting project-owner review. The reviewed Phase 5 baseline remains tagged `phase-5`; this task has not pushed or created a Phase 7 tag.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates but does not process an identifier-only outbox item. Provider integrations, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, and outbox processing remain out of scope.
+Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, callbacks, doctor responses, live screens, and escalation remain out of scope.
 
 ## Source and decision precedence
 
@@ -38,11 +38,11 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. The Phase 6 plan was approved for inline execution, and its implementation is now ready for project-owner review. Hospital directory connections, production recipient eligibility, freshness limits, channel mappings, and confirmer role mapping remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. The Phase 6 recipient-selection boundary is the implemented predecessor, and the Phase 7 simulation-only worker plan was approved for inline execution. Phase 7 is now ready for project-owner review after fresh verification is complete. Hospital directory connections, production recipient eligibility, freshness limits, channel mappings, provider contracts, callback authentication, and confirmer role mapping remain `REQUIRES_HOSPITAL_DECISION`.
 
-Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. Phase 6 preserves the original source separately from SBAR and approved content, replaces recipients as one exact versioned set, shows safe directory evidence, and confirms only the exact reviewed version. Confirmation creates an identifier-only outbox row atomically; no Phase 6 code processes it, creates delivery attempts, calls providers, retries, escalates, or exposes a live screen. Provider integrations, hospital connectors, AI features, and production SSO remain out of scope.
+Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. Phase 6 preserves the original source separately from SBAR and approved content, replaces recipients as one exact versioned set, shows safe directory evidence, and confirms only the exact reviewed version. Phase 7 consumes only that durable identifier-only outbox row: the worker leases it, reloads organization-scoped durable data, invokes typed deterministic simulation adapters, records safe delivery attempts/events, and completes, retries, or visibly fails the work. Simulation dispatch is fail-closed outside Development/Test and has no network/provider side effects.
 
-The Phase 6 specification is [recipient selection and review](docs/architecture/recipient-selection-and-review.md), and its executable work plan is [Phase 6 recipient selection and review](docs/superpowers/plans/2026-08-27-phase-6-recipient-selection-and-review.md).
+The Phase 6 specification is [recipient selection and review](docs/architecture/recipient-selection-and-review.md), and the Phase 7 boundary is [simulated dispatch](docs/architecture/simulated-dispatch.md).
 
 ### Local verification
 

@@ -62,6 +62,8 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public DbSet<DeliveryEvent> DeliveryEvents => Set<DeliveryEvent>();
 
+    public DbSet<SimulationDispatchScenarioSetting> SimulationDispatchScenarioSettings => Set<SimulationDispatchScenarioSetting>();
+
     public DbSet<RecipientResponse> RecipientResponses => Set<RecipientResponse>();
 
     public DbSet<ResponsibilityAssignment> ResponsibilityAssignments => Set<ResponsibilityAssignment>();

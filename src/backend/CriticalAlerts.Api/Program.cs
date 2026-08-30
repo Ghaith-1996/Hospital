@@ -2,6 +2,8 @@ using System.Text.Json;
 using CriticalAlerts.Api.Authentication;
 using CriticalAlerts.Api.Health;
 using CriticalAlerts.Api.Http;
+using CriticalAlerts.Application.Dispatch;
+using CriticalAlerts.Infrastructure.Dispatch;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -22,6 +24,7 @@ builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentNam
 builder.Services.AddCriticalAlertsPersistence(
     builder.Configuration.GetConnectionString("CriticalAlerts"),
     builder.Configuration["DataProtection:Key"] ?? builder.Configuration["CRITICAL_ALERTS_DATA_PROTECTION_KEY"]);
+builder.Services.AddSimulationDispatch();
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
@@ -54,6 +57,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapDevelopmentAuthenticationEndpoints(developmentAuthenticationEnabled);
+app.MapSimulationDispatchEndpoints(builder.Environment.EnvironmentName);
+app.MapDeliveryStatusEndpoints();
 app.MapDirectoryEndpoints();
 app.MapAlertDraftEndpoints();
 

@@ -48,8 +48,9 @@ internal sealed class DeliveryEventConfiguration : IEntityTypeConfiguration<Deli
         builder.Property(entity => entity.EventType).HasColumnName("event_type").HasMaxLength(64).IsRequired();
         builder.Property(entity => entity.ProviderEventId).HasColumnName("provider_event_id").HasMaxLength(100).IsRequired();
         builder.Property(entity => entity.ReceivedAtUtc).HasColumnName("received_at_utc").IsRequired();
+        builder.Property(entity => entity.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
         builder.Property(entity => entity.SanitizedMetadata).HasColumnName("sanitized_metadata").HasMaxLength(500).IsRequired();
-        builder.HasIndex(entity => entity.ProviderEventId).IsUnique();
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.ProviderEventId }).IsUnique();
         builder.HasOne<DeliveryAttempt>().WithMany().HasForeignKey(entity => new { entity.DeliveryAttemptId, entity.OrganizationId }).HasPrincipalKey(attempt => new { attempt.Id, attempt.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
     }
 }

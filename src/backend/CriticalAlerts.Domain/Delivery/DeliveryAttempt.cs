@@ -104,9 +104,59 @@ public sealed class DeliveryAttempt
             UtcInstant.Require(requestedAtUtc, nameof(requestedAtUtc)));
     }
 
+    public void SetProviderReference(string providerReference)
+    {
+        if (string.IsNullOrWhiteSpace(providerReference))
+        {
+            throw new DomainException("Delivery attempts require a provider reference.");
+        }
+
+        var normalized = providerReference.Trim();
+        if (ProviderReference.Length > 0 && !string.Equals(ProviderReference, normalized, StringComparison.Ordinal))
+        {
+            throw new DomainException("A delivery attempt cannot change its provider reference.");
+        }
+
+        ProviderReference = normalized;
+    }
+
+    public void MarkSubmitted(string providerReference, DateTimeOffset submittedAtUtc)
+    {
+        if (Status is DeliveryAttemptStatus.Delivered or DeliveryAttemptStatus.Failed)
+        {
+            return;
+        }
+
+        SetProviderReference(providerReference);
+        Status = DeliveryAttemptStatus.Submitted;
+        SubmittedAtUtc ??= UtcInstant.Require(submittedAtUtc, nameof(submittedAtUtc));
+    }
+
     public void MarkDelivered(DateTimeOffset deliveredAtUtc)
     {
+        if (Status is DeliveryAttemptStatus.Delivered or DeliveryAttemptStatus.Failed)
+        {
+            return;
+        }
+
         Status = DeliveryAttemptStatus.Delivered;
-        DeliveredAtUtc = UtcInstant.Require(deliveredAtUtc, nameof(deliveredAtUtc));
+        DeliveredAtUtc ??= UtcInstant.Require(deliveredAtUtc, nameof(deliveredAtUtc));
+    }
+
+    public void MarkFailed(string failureCategory, DateTimeOffset failedAtUtc)
+    {
+        if (Status is DeliveryAttemptStatus.Delivered or DeliveryAttemptStatus.Failed)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(failureCategory))
+        {
+            throw new DomainException("Delivery failures require a safe failure category.");
+        }
+
+        Status = DeliveryAttemptStatus.Failed;
+        FailureCategory = failureCategory.Trim();
+        FailedAtUtc ??= UtcInstant.Require(failedAtUtc, nameof(failedAtUtc));
     }
 }

@@ -1,8 +1,8 @@
 # Workflow Specification
 
-Status: Proposed simulation workflow with the Phase 6 review path implemented locally. It is not a hospital-approved clinical workflow or escalation policy.
+Status: Proposed simulation workflow with the Phase 7 dispatch-worker path implemented locally. It is not a hospital-approved clinical workflow or escalation policy.
 
-Phase 6 stops after authenticated confirmation creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. It does not process that item, create delivery attempts, call providers, retry, escalate, receive callbacks, or expose a live screen. Those behaviors remain later-phase work and production choices remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. It does not call real providers, receive external callbacks, collect doctor responses, expose a live screen, or perform escalation. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Workflow identity
 
@@ -99,6 +99,14 @@ The operator explicitly confirms the exact version and recipient set. The confir
 ### 7. Queue dispatch
 
 The confirmation transaction persists the approved version, recipients, state transition, audit event, and `AlertDispatchRequested` outbox message together. No provider is called before the approved version is durable.
+
+### Phase 7 simulation dispatch boundary
+
+When `SimulationDispatch:Enabled` is explicitly enabled, the worker may run only in `Development` or `Test`; startup fails closed in `Staging` and `Production`. It claims one pending or expired-lease outbox item with PostgreSQL row locking, records a bounded lease owner and expiry, and reloads the alert, recipients, policy, practitioners, roles, and active synthetic endpoints using the authenticated organization stored on the outbox record. The identifier-only payload is parsed strictly and cannot supply message text, endpoint values, roles, or organization scope.
+
+Each recipient/channel pair gets a stable synthetic attempt key. Typed SecureMessage, SMS, and Voice adapters return deterministic local events for `ImmediateSuccess`, `DelayedDelivery`, `SmsFailure`, `VoiceNoAnswer`, `ProviderOutage`, `DuplicateCallback`, and `OutOfOrderCallback`. The normalizer allowlists event types and safe metadata. Delivery events are unique by `(organization, provider event ID)`, and attempt status only moves forward by status rank and event time; duplicates and late regressions are retained safely without regressing durable state.
+
+The worker marks an outbox item complete only after durable attempts, events, state, and sanitized audit metadata are written. Provider outage/pending work is rescheduled with bounded delay and attempts; validation failures become visible terminal failures. A restart or expired lease can reclaim work without creating a second attempt for the same recipient/channel/attempt number. The delivery-status API returns organization-scoped operational fields only; it does not return protected message or contact endpoint values. No scenario control or status route is a production control surface.
 
 ### 8. Deliver and track
 

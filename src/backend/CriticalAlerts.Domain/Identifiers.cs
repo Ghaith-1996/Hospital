@@ -97,6 +97,11 @@ public readonly record struct DeliveryEventId(Guid Value)
     public static DeliveryEventId New() => new(Guid.NewGuid());
 }
 
+public readonly record struct SimulationDispatchScenarioSettingId(Guid Value)
+{
+    public static SimulationDispatchScenarioSettingId New() => new(Guid.NewGuid());
+}
+
 public readonly record struct RecipientResponseId(Guid Value)
 {
     public static RecipientResponseId New() => new(Guid.NewGuid());

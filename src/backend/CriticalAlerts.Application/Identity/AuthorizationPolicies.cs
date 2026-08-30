@@ -15,6 +15,8 @@ public static class AuthorizationPolicies
     public const string DirectoryReader = "DirectoryReader";
     public const string DirectoryAdministrator = "DirectoryAdministrator";
     public const string AlertDraftEditor = "AlertDraftEditor";
+    public const string DispatchScenarioAdministrator = "DispatchScenarioAdministrator";
+    public const string AlertDeliveryReader = "AlertDeliveryReader";
 }
 
 public static class AuthenticationClaimTypes

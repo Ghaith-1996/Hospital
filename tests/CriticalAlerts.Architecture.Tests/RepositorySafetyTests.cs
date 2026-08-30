@@ -71,21 +71,28 @@ public sealed class RepositorySafetyTests
         var startInfo = new ProcessStartInfo
         {
             FileName = "git",
-            Arguments = "ls-files -z --",
             WorkingDirectory = RepositoryRoot(),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add($"safe.directory={RepositoryRoot()}");
+        startInfo.ArgumentList.Add("-C");
+        startInfo.ArgumentList.Add(RepositoryRoot());
+        startInfo.ArgumentList.Add("ls-files");
+        startInfo.ArgumentList.Add("-z");
+        startInfo.ArgumentList.Add("--");
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("git ls-files failed to start.");
         var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
         process.WaitForExit();
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException("git ls-files failed.");
+            throw new InvalidOperationException($"git ls-files failed: {error.Trim()}");
         }
 
         return output.Split('\0', StringSplitOptions.RemoveEmptyEntries)

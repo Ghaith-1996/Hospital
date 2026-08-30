@@ -2,9 +2,9 @@
 
 ## Status and authority
 
-This document records the Phase 6 simulation behavior implemented locally for project-owner review. It does not create hospital policy or authorize clinical use. Production recipient eligibility, on-call ownership, directory freshness limits, communication channels, final confirmer roles, and confirmation wording are `REQUIRES_HOSPITAL_DECISION`.
+This document records the Phase 6 simulation behavior that precedes the Phase 7 worker. It does not create hospital policy or authorize clinical use. Production recipient eligibility, on-call ownership, directory freshness limits, communication channels, final confirmer roles, and confirmation wording are `REQUIRES_HOSPITAL_DECISION`.
 
-The Phase 6 implementation plan was approved for inline execution in this task. The implementation uses fictional directory and patient data exclusively and remains pending project-owner approval at the phase gate.
+The Phase 6 implementation uses fictional directory and patient data exclusively. Phase 7 is separately scoped to consume the resulting identifier-only outbox item through deterministic local simulation adapters; this document does not authorize provider calls or recipient changes by the worker.
 
 ## Scope
 
@@ -18,7 +18,7 @@ Phase 6 adds:
 - sanitized audit records; and
 - atomic creation of one identifier-only outbox item when the reviewed version is confirmed.
 
-Phase 6 does not lease or process outbox items, create delivery attempts, call channels or providers, retry, escalate, receive callbacks, expose a live screen, acknowledge, or accept responsibility. Those behaviors begin no earlier than Phase 7. No provider code can run through a Phase 6 endpoint.
+Phase 6 does not lease or process outbox items, create delivery attempts, call channels or providers, retry, escalate, receive callbacks, expose a live screen, acknowledge, or accept responsibility. Those behaviors are separately constrained by the Phase 7 simulation-only dispatch boundary. No provider code can run through a Phase 6 endpoint.
 
 ## Preserved content records
 
@@ -137,7 +137,7 @@ All errors use RFC 7807. Stale draft or directory revisions use HTTP 409 with re
 
 The simulation flow is `/alerts/new` to `/alerts/{id}/compose` to `/alerts/{id}/recipients`, then back to compose to reconfirm the new version's critical values before `/alerts/{id}/review`. This return is required because a recipient edit increments the exact draft version and invalidates prior critical confirmations. The final control is deliberately labelled **Confirm and queue simulation alert**, displays the exact version, requires an explicit confirmation checkbox, disables during submission, and handles replay safely.
 
-There is no Phase 6 `/live` experience. After success, the UI reports that the simulation alert is queued for a future Phase 7 dispatcher; it does not claim delivery.
+There is no Phase 6 `/live` experience. After success, the UI reports that the simulation alert is queued for the Phase 7 simulation dispatcher; it does not claim delivery.
 
 ## Phase gate
 
