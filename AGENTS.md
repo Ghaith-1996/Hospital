@@ -4,7 +4,12 @@ This file governs all future work in this repository. Read it and the relevant `
 
 ## Current phase
 
-The repository is at the Phase 7 simulation-only dispatch-worker implementation/review gate. Phase 0 through Phase 5 are the approved/tagged baseline, and the Phase 6 recipient-selection and exact-review boundary is the predecessor implemented in the repository. Phase 7 was approved for inline execution in this task. Until the project owner approves Phase 7, make only review corrections to the transactional outbox worker, lease ownership and expiry recovery, typed simulation dispatch ports, deterministic fictional channel scenarios, bounded retry and monotonic event handling, safe delivery-status projection, and the existing Phase 6 confirmation boundary. Do not begin Phase 8, add real providers, callbacks, doctor responses, live screens, escalation, hospital directory connections, SCIM, Graph, FHIR, production identity, or any other behavior outside the Phase 7 simulation scope.
+The active work is the approved frontend-only prototype redesign described in
+`docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`.
+It may implement the nine fictional operator/doctor UI states with local mock
+state only. Phase 7 remains the backend baseline. Do not add backend doctor
+responses, live delivery behavior, escalation processing, real providers,
+production identity, hospital integration, or real data.
 
 The approved phase is the only phase in scope. At the end of every phase, report files changed, decisions made, commands run, test results, limitations, human actions, and a proposed commit message, then stop for review.
 

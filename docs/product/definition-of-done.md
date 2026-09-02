@@ -187,3 +187,21 @@ Phase 7 is ready for project-owner review only when all of the following are tru
 ### Phase 7 implementation evidence
 
 On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution build passed with zero warnings and errors. Focused domain, application, and simulation-adapter tests passed (6, 10, and 6 respectively). The complete backend solution passed 204 tests (9 architecture, 48 domain, 34 application, 42 infrastructure, and 71 API), including PostgreSQL/Testcontainers worker, persistence, authorization, organization isolation, lease recovery, retry, duplicate, and out-of-order coverage. The prescribed `scripts/test-all.ps1` passed its sensitive-data scan, Release build, backend tests, web 17-test suite, typecheck, lint, and Playwright 1-test browser smoke. A fresh clone of commit `15fa771` applied all migrations through `20260829234957_Phase7SimulatedDispatch` and seeded 3 fictional users and 12 fictional practitioners against an isolated PostgreSQL 18.4 container. The Phase 7 review gate remains open for project-owner review and any separately authorized tag/push; no push or tag has been made.
+
+## Frontend Prototype Phase: redesign review gate
+
+The approved frontend redesign is ready for review only when all of the following are true:
+
+- [ ] All nine visual states and eight routes are present and connected.
+- [ ] The supplied mockup's design system and page anatomy are faithfully reproduced.
+- [ ] The operator and doctor workflows update one persistent fictional state model.
+- [ ] The fictional-user switcher and reset action work.
+- [ ] Directory, Reports, and Settings are clearly disabled or show the approved Coming later state.
+- [ ] Mobile and tablet layouts remain usable.
+- [ ] Loading, empty, validation, error, and not-found states are implemented.
+- [ ] Accessibility requirements and visible simulation treatment are present.
+- [ ] Doctor response controls, response summaries, and escalation rendering are explicitly marked `SIMULATION_ONLY_ASSUMPTION` in product documentation and remain local mock state only.
+- [ ] Real doctor response workflow authority, escalation policy values, escalation intervals, recipient-selection policy, privacy conclusions, and clinical recommendations remain `REQUIRES_HOSPITAL_DECISION`.
+- [ ] No backend, API, database, notification, response processor, or escalation engine change is included.
+- [ ] Frontend tests, typecheck, lint, build, browser verification, safety checks, and visual comparison pass.
+- [ ] Remaining intentional deviations from the supplied mockup are documented for human review.
