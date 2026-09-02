@@ -199,7 +199,11 @@ The approved frontend redesign is ready for review only when all of the followin
 - [ ] Directory, Reports, and Settings are clearly disabled or show the approved Coming later state.
 - [ ] Mobile and tablet layouts remain usable.
 - [ ] Loading, empty, validation, error, and not-found states are implemented.
-- [ ] Accessibility requirements and visible simulation treatment are present.
+- [ ] Each screen presents one obvious primary action and preserves the visible simulation treatment.
+- [ ] All navigation and controls are keyboard operable with visible, consistent focus indicators.
+- [ ] Fields, dialogs, tables, and mobile-card equivalents preserve semantic labels and accessible descriptions.
+- [ ] Status, urgency, and response meaning are conveyed textually in addition to color.
+- [ ] Practical interactive targets are approximately 44 pixels.
 - [ ] Doctor response controls, response summaries, and escalation rendering are explicitly marked `SIMULATION_ONLY_ASSUMPTION` in product documentation and remain local mock state only.
 - [ ] Real doctor response workflow authority, escalation policy values, escalation intervals, recipient-selection policy, privacy conclusions, and clinical recommendations remain `REQUIRES_HOSPITAL_DECISION`.
 - [ ] No backend, API, database, notification, response processor, or escalation engine change is included.

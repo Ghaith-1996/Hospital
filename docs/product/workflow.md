@@ -16,7 +16,7 @@ Within the frontend prototype only:
 
 - Local doctor response controls and summaries are `SIMULATION_ONLY_ASSUMPTION`.
 - Local live-detail/status rendering is `SIMULATION_ONLY_ASSUMPTION`.
-- Local demo escalation steps, elapsed time labels, and fixed progress states are `SIMULATION_ONLY_ASSUMPTION`.
+- Local demo escalation steps and fixed progress states are `SIMULATION_ONLY_ASSUMPTION`.
 - No backend, API, database, migration, worker, provider, authentication, or infrastructure change is authorized for this prototype surface.
 - Real doctor response workflow authority, escalation triggers, delays, retry counts, stop conditions, backup hierarchy, override rules, and any hospital policy values remain `REQUIRES_HOSPITAL_DECISION`.
 
@@ -138,9 +138,9 @@ These are not a single linear clinical state. A supported state may be pending/n
 
 ### 9. Respond and escalate
 
-Fictional recipients may acknowledge, accept, decline, or mark unavailable. In the frontend-only prototype surface, these response values are `SIMULATION_ONLY_ASSUMPTION` local mock state only. The system records the actor, time, response type, and sanitized reason code. Any rendered escalation progress in the prototype is `SIMULATION_ONLY_ASSUMPTION` local mock state only and is tied to a visibly demo-labelled policy version captured at confirmation.
+Fictional recipients may acknowledge, accept, decline, or mark unavailable. In the frontend-only prototype surface, these response values are `SIMULATION_ONLY_ASSUMPTION` local mock state only. The prototype may show actor, response type, and sanitized reason-code details as local mock state only. Any rendered escalation progress in the prototype is `SIMULATION_ONLY_ASSUMPTION` local mock state only and stays a fixed, clearly demo-labelled visual state with no timers, schedulers, retries, or automatic transitions.
 
-The exact production trigger, delay, retry count, stop condition, backup hierarchy, and override authority are `REQUIRES_HOSPITAL_DECISION`. Simulation timing is labelled `DEMO` and uses a fake clock.
+The exact production trigger, delay, retry count, stop condition, backup hierarchy, and override authority are `REQUIRES_HOSPITAL_DECISION`.
 
 ### 10. Resolve, cancel, or use fallback
 
