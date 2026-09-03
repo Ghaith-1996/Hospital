@@ -153,4 +153,22 @@ describe("respond to alert route", () => {
     expect(screen.getByRole("status", { name: "Fictional alert not found" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Back to Inbox" })).toHaveAttribute("href", "/my-alerts");
   });
+
+  it("does not offer submit controls when the selected doctor is not a recipient", () => {
+    navigation.params.id = "alert-in-progress-1";
+    window.history.pushState({}, "", "/my-alerts/alert-in-progress-1/respond?response=accepted");
+
+    renderPrototype(<RespondToAlertPage />, {
+      state: {
+        ...createSeedState(),
+        selectedUserId: "user-julie",
+      },
+    });
+
+    expect(screen.getByRole("status", { name: "Fictional alert not found" })).toBeVisible();
+    expect(screen.getByText("This fictional alert is not assigned to the selected doctor.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Submit Response" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Accept" })).not.toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
 });

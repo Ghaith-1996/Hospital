@@ -209,6 +209,29 @@ describe("prototype alert store", () => {
     expect(selectAlertById(state, "alert-critical-1")?.recipients[0].note).toHaveLength(500);
   });
 
+  it("ignores doctor responses when the alert or clinician recipient is absent", () => {
+    const initial = createSeedState();
+    const unchangedForMissingAlert = prototypeReducer(initial, {
+      type: "doctor-responded",
+      alertId: "missing-alert",
+      clinicianId: "clinician-marc",
+      response: "accepted",
+      note: "SIMULATION: should not be recorded.",
+      occurredAt: DEMO_NOW,
+    });
+    const unchangedForMissingRecipient = prototypeReducer(initial, {
+      type: "doctor-responded",
+      alertId: "alert-in-progress-1",
+      clinicianId: "clinician-julie",
+      response: "accepted",
+      note: "SIMULATION: should not be recorded.",
+      occurredAt: DEMO_NOW,
+    });
+
+    expect(unchangedForMissingAlert).toEqual(initial);
+    expect(unchangedForMissingRecipient).toEqual(initial);
+  });
+
   it("preserves in-memory state when storage writes fail and exposes a storage error", async () => {
     const storage = {
       getItem: () => null,

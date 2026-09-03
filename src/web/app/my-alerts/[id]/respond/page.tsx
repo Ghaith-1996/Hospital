@@ -77,6 +77,22 @@ export default function RespondToAlertPage() {
 
   const resolvedAlertId = alertId;
   const clinicianId = currentUser.clinicianId;
+  const currentRecipient = alert.recipients.find((recipient) => recipient.clinicianId === clinicianId);
+
+  if (!currentRecipient) {
+    return (
+      <ScreenState
+        kind="not-found"
+        label="Fictional alert not found"
+        description="This fictional alert is not assigned to the selected doctor."
+        action={
+          <Link className="focus-link" href="/my-alerts">
+            Back to Inbox
+          </Link>
+        }
+      />
+    );
+  }
 
   function submitResponse(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

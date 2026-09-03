@@ -189,6 +189,13 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
   }
 
   if (action.type === "doctor-responded") {
+    const targetAlert = state.alerts.find((alert) => alert.id === action.alertId);
+    const targetRecipient = targetAlert?.recipients.find((recipient) => recipient.clinicianId === action.clinicianId);
+
+    if (!targetAlert || !targetRecipient) {
+      return state;
+    }
+
     return {
       ...state,
       alerts: state.alerts.map((alert) => {
