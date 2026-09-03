@@ -1,13 +1,13 @@
 "use client";
 
-import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useReducer } from "react";
 import { useRouter } from "next/navigation";
 import { AlertSummary } from "../../../components/alerts/alert-summary";
 import { ClinicianSelector } from "../../../components/alerts/clinician-selector";
 import { PageHeader } from "../../../components/ui/page-header";
 import { searchClinicians, selectAlertById } from "../../../features/alerts/selectors";
 import { usePrototype } from "../../../features/alerts/prototype-store";
-import type { Clinician, NewAlertInput, Urgency } from "../../../features/alerts/types";
+import type { AlertRecord, Clinician, NewAlertInput, Urgency } from "../../../features/alerts/types";
 
 const MAX_CASE_DETAILS_LENGTH = 4000;
 const DEFAULT_LOCATION = "Fictional ER - Simulation Bed 12";
@@ -15,11 +15,47 @@ const DEFAULT_DEPARTMENT = "Fictional Emergency";
 
 type EntryMode = "type" | "dictate";
 
+type FormState = {
+  patientReference: string;
+  urgency: Urgency;
+  caseDetails: string;
+  entryMode: EntryMode;
+  clinicianQuery: string;
+  selectedIds: string[];
+  submitted: boolean;
+  editId: string | null;
+  loadedEditId: string | null;
+};
+
 type ValidationErrors = {
   patientReference?: string;
   urgency?: string;
   caseDetails?: string;
   clinicians?: string;
+};
+
+type FormAction =
+  | { type: "patient-reference-changed"; value: string }
+  | { type: "urgency-changed"; value: Urgency }
+  | { type: "case-details-changed"; value: string }
+  | { type: "entry-mode-changed"; value: EntryMode }
+  | { type: "clinician-query-changed"; value: string }
+  | { type: "clinician-added"; id: string }
+  | { type: "clinician-removed"; id: string }
+  | { type: "submitted" }
+  | { type: "cleared"; queryEditId: string | null }
+  | { type: "edit-loaded"; alert: AlertRecord };
+
+const initialFormState: FormState = {
+  patientReference: "",
+  urgency: "critical",
+  caseDetails: "",
+  entryMode: "type",
+  clinicianQuery: "",
+  selectedIds: [],
+  submitted: false,
+  editId: null,
+  loadedEditId: null,
 };
 
 function selectedClinicians(clinicians: Clinician[], selectedIds: string[]) {
@@ -37,87 +73,97 @@ function buildValidationErrors(patientReference: string, urgency: Urgency | "", 
   return errors;
 }
 
+function formReducer(state: FormState, action: FormAction): FormState {
+  if (action.type === "patient-reference-changed") return { ...state, patientReference: action.value };
+  if (action.type === "urgency-changed") return { ...state, urgency: action.value };
+  if (action.type === "case-details-changed") {
+    return { ...state, caseDetails: action.value.slice(0, MAX_CASE_DETAILS_LENGTH) };
+  }
+  if (action.type === "entry-mode-changed") return { ...state, entryMode: action.value };
+  if (action.type === "clinician-query-changed") return { ...state, clinicianQuery: action.value };
+  if (action.type === "clinician-added") {
+    return state.selectedIds.includes(action.id)
+      ? state
+      : { ...state, selectedIds: [...state.selectedIds, action.id] };
+  }
+  if (action.type === "clinician-removed") {
+    return { ...state, selectedIds: state.selectedIds.filter((selectedId) => selectedId !== action.id) };
+  }
+  if (action.type === "submitted") return { ...state, submitted: true };
+  if (action.type === "cleared") return { ...initialFormState, loadedEditId: action.queryEditId };
+  return {
+    ...initialFormState,
+    patientReference: action.alert.patientReference,
+    urgency: action.alert.urgency,
+    caseDetails: action.alert.caseDetails.slice(0, MAX_CASE_DETAILS_LENGTH),
+    selectedIds: action.alert.recipients.map((recipient) => recipient.clinicianId),
+    editId: action.alert.id,
+    loadedEditId: action.alert.id,
+  };
+}
+
 export default function NewAlertPage() {
   const router = useRouter();
   const { createAlert, hydrated, state, updateAlert } = usePrototype();
-  const [patientReference, setPatientReference] = useState("");
-  const [urgency, setUrgency] = useState<Urgency>("critical");
-  const [caseDetails, setCaseDetails] = useState("");
-  const [entryMode, setEntryMode] = useState<EntryMode>("type");
-  const [clinicianQuery, setClinicianQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [submitted, setSubmitted] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [loadedEditId, setLoadedEditId] = useState<string | null>(null);
+  const [form, dispatch] = useReducer(formReducer, initialFormState);
 
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;
 
     const queryEditId = new URLSearchParams(window.location.search).get("edit");
-    if (!queryEditId || queryEditId === loadedEditId) return;
+    if (!queryEditId || queryEditId === form.loadedEditId) return;
 
     const alert = selectAlertById(state, queryEditId);
     if (!alert) return;
 
-    setEditId(queryEditId);
-    setLoadedEditId(queryEditId);
-    setPatientReference(alert.patientReference);
-    setUrgency(alert.urgency);
-    setCaseDetails(alert.caseDetails.slice(0, MAX_CASE_DETAILS_LENGTH));
-    setSelectedIds(alert.recipients.map((recipient) => recipient.clinicianId));
-    setSubmitted(false);
-    setClinicianQuery("");
-    setEntryMode("type");
-  }, [hydrated, loadedEditId, state]);
+    dispatch({ type: "edit-loaded", alert });
+  }, [form.loadedEditId, hydrated, state]);
 
-  const errors = submitted ? buildValidationErrors(patientReference, urgency, caseDetails, selectedIds) : {};
+  const errors = form.submitted
+    ? buildValidationErrors(form.patientReference, form.urgency, form.caseDetails, form.selectedIds)
+    : {};
   const clinicianOptions = useMemo(() => searchClinicians(state, ""), [state]);
-  const selected = useMemo(() => selectedClinicians(clinicianOptions, selectedIds), [clinicianOptions, selectedIds]);
-
-  function updateCaseDetails(value: string) {
-    setCaseDetails(value.slice(0, MAX_CASE_DETAILS_LENGTH));
-  }
+  const selected = useMemo(
+    () => selectedClinicians(clinicianOptions, form.selectedIds),
+    [clinicianOptions, form.selectedIds],
+  );
 
   function addClinician(id: string) {
-    setSelectedIds((current) => (current.includes(id) ? current : [...current, id]));
+    dispatch({ type: "clinician-added", id });
   }
 
   function removeClinician(id: string) {
-    setSelectedIds((current) => current.filter((selectedId) => selectedId !== id));
+    dispatch({ type: "clinician-removed", id });
   }
 
   function clearForm() {
-    setPatientReference("");
-    setUrgency("critical");
-    setCaseDetails("");
-    setEntryMode("type");
-    setClinicianQuery("");
-    setSelectedIds([]);
-    setSubmitted(false);
-    setEditId(null);
-    setLoadedEditId(null);
+    const queryEditId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("edit");
+    dispatch({ type: "cleared", queryEditId });
+    if (queryEditId) {
+      router.replace("/alerts/new");
+    }
   }
 
   function buildInput(): NewAlertInput {
     return {
-      patientReference: patientReference.trim(),
+      patientReference: form.patientReference.trim(),
       location: DEFAULT_LOCATION,
       department: DEFAULT_DEPARTMENT,
-      urgency,
-      caseDetails: caseDetails.trim(),
-      clinicianIds: selectedIds,
+      urgency: form.urgency,
+      caseDetails: form.caseDetails.trim(),
+      clinicianIds: form.selectedIds,
     };
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitted(true);
+    dispatch({ type: "submitted" });
 
-    const nextErrors = buildValidationErrors(patientReference, urgency, caseDetails, selectedIds);
+    const nextErrors = buildValidationErrors(form.patientReference, form.urgency, form.caseDetails, form.selectedIds);
     if (Object.keys(nextErrors).length > 0) return;
 
     const input = buildInput();
-    const existingEditId = editId && selectAlertById(state, editId) ? editId : null;
+    const existingEditId = form.editId && selectAlertById(state, form.editId) ? form.editId : null;
     const alertId = existingEditId ?? createAlert(input);
 
     if (existingEditId) {
@@ -141,8 +187,8 @@ export default function NewAlertPage() {
             Patient Reference
             <input
               id="patient-reference"
-              value={patientReference}
-              onChange={(event) => setPatientReference(event.target.value)}
+              value={form.patientReference}
+              onChange={(event) => dispatch({ type: "patient-reference-changed", value: event.target.value })}
               aria-describedby={errors.patientReference ? "patient-reference-error" : undefined}
             />
           </label>
@@ -156,8 +202,8 @@ export default function NewAlertPage() {
             Urgency Level
             <select
               id="urgency-level"
-              value={urgency}
-              onChange={(event) => setUrgency(event.target.value as Urgency)}
+              value={form.urgency}
+              onChange={(event) => dispatch({ type: "urgency-changed", value: event.target.value as Urgency })}
               aria-describedby={errors.urgency ? "urgency-level-error" : undefined}
             >
               <option value="critical">Critical</option>
@@ -172,21 +218,29 @@ export default function NewAlertPage() {
           ) : null}
 
           <div className="entry-mode" aria-label="Case detail entry mode">
-            <button type="button" aria-pressed={entryMode === "type"} onClick={() => setEntryMode("type")}>
+            <button
+              type="button"
+              aria-pressed={form.entryMode === "type"}
+              onClick={() => dispatch({ type: "entry-mode-changed", value: "type" })}
+            >
               Type
             </button>
-            <button type="button" aria-pressed={entryMode === "dictate"} onClick={() => setEntryMode("dictate")}>
+            <button
+              type="button"
+              aria-pressed={form.entryMode === "dictate"}
+              onClick={() => dispatch({ type: "entry-mode-changed", value: "dictate" })}
+            >
               Dictate
             </button>
           </div>
 
-          {entryMode === "type" ? (
+          {form.entryMode === "type" ? (
             <label className="filter-field" htmlFor="case-details">
               Case Details
               <textarea
                 id="case-details"
-                value={caseDetails}
-                onChange={(event) => updateCaseDetails(event.target.value)}
+                value={form.caseDetails}
+                onChange={(event) => dispatch({ type: "case-details-changed", value: event.target.value })}
                 rows={9}
                 aria-describedby={errors.caseDetails ? "case-details-error case-details-counter" : "case-details-counter"}
               />
@@ -198,7 +252,7 @@ export default function NewAlertPage() {
             </section>
           )}
           <p className="character-counter" id="case-details-counter">
-            {caseDetails.length}/4000 characters
+            {form.caseDetails.length}/4000 characters
           </p>
           {errors.caseDetails ? (
             <p className="field-error" id="case-details-error">
@@ -213,9 +267,9 @@ export default function NewAlertPage() {
 
           <ClinicianSelector
             clinicians={clinicianOptions}
-            selectedIds={selectedIds}
-            query={clinicianQuery}
-            onQueryChange={setClinicianQuery}
+            selectedIds={form.selectedIds}
+            query={form.clinicianQuery}
+            onQueryChange={(query) => dispatch({ type: "clinician-query-changed", value: query })}
             onAdd={addClinician}
             onRemove={removeClinician}
             error={errors.clinicians}
@@ -230,9 +284,9 @@ export default function NewAlertPage() {
         </section>
 
         <AlertSummary
-          patientReference={patientReference}
-          urgency={urgency}
-          caseDetails={caseDetails}
+          patientReference={form.patientReference}
+          urgency={form.urgency}
+          caseDetails={form.caseDetails}
           selectedClinicians={selected}
         />
       </form>

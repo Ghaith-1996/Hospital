@@ -750,7 +750,7 @@ p {
 }
 
 .entry-mode button {
-  min-height: 40px;
+  min-height: 44px;
   border-radius: 0;
   background: var(--surface);
   color: var(--text-secondary);

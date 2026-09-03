@@ -1,21 +1,19 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
 import { ScreenState } from "../../../../components/ui/screen-state";
 
 export default function AlertReviewPage() {
-  const router = useRouter();
-
-  React.useEffect(() => {
-    router.replace("/alerts/new");
-  }, [router]);
-
   return (
     <ScreenState
-      kind="loading"
-      label="Returning to alert creation"
-      description="Exact review is scheduled for a later frontend-only prototype task."
+      kind="empty"
+      label="Review step pending"
+      description="This fictional local draft is ready for review. The full review and confirmation workflow is scheduled for the next frontend prototype task."
+      action={
+        <a className="focus-link" href="/alerts/new">
+          Back to Alert Doctor
+        </a>
+      }
     />
   );
 }

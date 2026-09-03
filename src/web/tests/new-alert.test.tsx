@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import AlertReviewPage from "../app/alerts/[id]/review/page";
 import NewAlertPage from "../app/alerts/new/page";
 import { createSeedState } from "../features/alerts/seed";
 import { selectAlertById } from "../features/alerts/selectors";
@@ -8,10 +9,14 @@ import { usePrototype } from "../features/alerts/prototype-store";
 import { renderPrototype } from "./test-utils";
 
 export const mockPush = vi.fn();
+export const mockReplace = vi.fn((href: string) => {
+  window.history.replaceState({}, "", href);
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
+    replace: mockReplace,
   }),
 }));
 
@@ -38,6 +43,7 @@ function renderNewAlert(path = "/alerts/new") {
 describe("new alert workflow", () => {
   beforeEach(() => {
     mockPush.mockClear();
+    mockReplace.mockClear();
     window.history.pushState({}, "", "/alerts/new");
   });
 
@@ -141,6 +147,21 @@ describe("new alert workflow", () => {
     expect(screen.getByTestId("alert-summary")).toHaveTextContent("None selected");
   });
 
+  it("clears edit mode and removes the edit query so the form stays empty", async () => {
+    renderNewAlert("/alerts/new?edit=alert-critical-1");
+
+    expect(await screen.findByDisplayValue("SIM-PAT-1001")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(mockReplace).toHaveBeenCalledWith("/alerts/new");
+    expect(window.location.pathname).toBe("/alerts/new");
+    expect(window.location.search).toBe("");
+    expect(screen.getByLabelText("Patient Reference")).toHaveValue("");
+    expect(screen.getByLabelText("Case Details")).toHaveValue("");
+    expect(screen.getByText("Selected Clinicians (0)")).toBeVisible();
+  });
+
   it("loads an edit query, updates the canonical alert, and returns to the same review route", async () => {
     window.history.pushState({}, "", "/alerts/new?edit=alert-critical-1");
     renderPrototype(
@@ -167,5 +188,15 @@ describe("new alert workflow", () => {
         "SIM-PAT-1001|Fictional ER - Simulation Bed 12|Fictional Emergency|critical|SIMULATION: fictional updated chest pain narrative.|clinician-marc",
       );
     });
+  });
+
+  it("leaves the review route visible with a recoverable placeholder", () => {
+    window.history.pushState({}, "", "/alerts/alert-custom-1/review");
+
+    renderPrototype(<AlertReviewPage />);
+
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByRole("status", { name: "Review step pending" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back to Alert Doctor" })).toHaveAttribute("href", "/alerts/new");
   });
 });
