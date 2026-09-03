@@ -179,11 +179,12 @@ describe("prototype alert store", () => {
     ]);
     expect(selectDoctorAlerts(state, "clinician-marc", "unread").map((alert) => alert.id)).toEqual(["alert-critical-1"]);
     expect(selectDoctorAlerts(state, "clinician-marc", "in-progress").map((alert) => alert.id)).toEqual([
-      "alert-critical-1",
       "alert-in-progress-1",
       "alert-escalating-1",
     ]);
-    expect(selectDoctorAlerts(state, "clinician-marc", "completed")).toEqual([]);
+    expect(selectDoctorAlerts(state, "clinician-marc", "completed").map((alert) => alert.id)).toEqual([
+      "alert-escalating-1",
+    ]);
   });
 
   it("searches clinicians across names, specialties, departments, sites, and initials", () => {

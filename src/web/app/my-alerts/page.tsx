@@ -8,7 +8,7 @@ import { StatusBadge } from "../../components/ui/status-badge";
 import { Tabs } from "../../components/ui/tabs";
 import { selectCurrentUser, selectDoctorAlerts } from "../../features/alerts/selectors";
 import { usePrototype } from "../../features/alerts/prototype-store";
-import type { AlertRecord, AlertRecipient, DoctorInboxTab, DoctorResponse } from "../../features/alerts/types";
+import type { AlertRecord, DoctorInboxTab } from "../../features/alerts/types";
 
 const inboxTitles: Record<string, string> = {
   "alert-critical-1": "Chest pain, hypotension",
@@ -37,46 +37,7 @@ function alertTitle(alert: AlertRecord) {
   return inboxTitles[alert.id] ?? fallbackTitle(alert);
 }
 
-function recipientFor(alert: AlertRecord, clinicianId: string): AlertRecipient | undefined {
-  return alert.recipients.find((recipient) => recipient.clinicianId === clinicianId);
-}
-
-function isCompletedResponse(response: DoctorResponse | undefined) {
-  return response === "declined" || response === "unavailable";
-}
-
-function isInProgressResponse(response: DoctorResponse | undefined) {
-  return response === "acknowledged" || response === "accepted";
-}
-
-function isCompletedAlert(alert: AlertRecord, recipient: AlertRecipient | undefined) {
-  return alert.status === "resolved" || isCompletedResponse(recipient?.response);
-}
-
-function isInProgressAlert(alert: AlertRecord, recipient: AlertRecipient | undefined) {
-  return !isCompletedAlert(alert, recipient) && (alert.status === "in-progress" || isInProgressResponse(recipient?.response));
-}
-
-function filterDoctorAlerts(alerts: AlertRecord[], clinicianId: string, tab: DoctorInboxTab) {
-  if (tab === "all") return alerts;
-
-  return alerts.filter((alert) => {
-    const recipient = recipientFor(alert, clinicianId);
-
-    if (tab === "unread") return recipient?.response === "none";
-    if (tab === "in-progress") return isInProgressAlert(alert, recipient);
-    return isCompletedAlert(alert, recipient);
-  });
-}
-
-function inboxStatus(alert: AlertRecord, clinicianId: string) {
-  const recipient = recipientFor(alert, clinicianId);
-  if (isCompletedAlert(alert, recipient)) return { label: "Completed", tone: "success" as const };
-  if (isInProgressAlert(alert, recipient)) return { label: "In Progress", tone: "warning" as const };
-  return { label: "New", tone: "info" as const };
-}
-
-function DoctorInboxTable({ alerts, clinicianId }: { alerts: AlertRecord[]; clinicianId: string }) {
+function DoctorInboxTable({ alerts }: { alerts: AlertRecord[] }) {
   return (
     <div className="table-wrap doctor-inbox__table-wrap">
       <table className="alerts-table doctor-inbox__table" aria-label="Fictional doctor inbox">
@@ -93,7 +54,6 @@ function DoctorInboxTable({ alerts, clinicianId }: { alerts: AlertRecord[]; clin
         <tbody>
           {alerts.map((alert) => {
             const title = alertTitle(alert);
-            const status = inboxStatus(alert, clinicianId);
             return (
               <tr key={alert.id}>
                 <th scope="row">
@@ -109,7 +69,7 @@ function DoctorInboxTable({ alerts, clinicianId }: { alerts: AlertRecord[]; clin
                   <StatusBadge urgency={alert.urgency} />
                 </td>
                 <td>
-                  <StatusBadge label={status.label} tone={status.tone} />
+                  <StatusBadge status={alert.status} />
                 </td>
                 <td>{formatDate(alert.receivedAt ?? alert.updatedAt)}</td>
               </tr>
@@ -121,12 +81,11 @@ function DoctorInboxTable({ alerts, clinicianId }: { alerts: AlertRecord[]; clin
   );
 }
 
-function DoctorInboxCards({ alerts, clinicianId }: { alerts: AlertRecord[]; clinicianId: string }) {
+function DoctorInboxCards({ alerts }: { alerts: AlertRecord[] }) {
   return (
     <div className="doctor-inbox__cards" aria-label="Fictional doctor inbox cards">
       {alerts.map((alert) => {
         const title = alertTitle(alert);
-        const status = inboxStatus(alert, clinicianId);
 
         return (
           <article className="doctor-inbox-card" key={alert.id} aria-label={`${title} alert card`}>
@@ -154,7 +113,7 @@ function DoctorInboxCards({ alerts, clinicianId }: { alerts: AlertRecord[]; clin
               <div>
                 <dt>Status</dt>
                 <dd>
-                  <StatusBadge label={status.label} tone={status.tone} />
+                  <StatusBadge status={alert.status} />
                 </dd>
               </div>
               <div>
@@ -199,11 +158,11 @@ export default function DoctorInboxPage() {
   const assignedAlerts = selectDoctorAlerts(state, currentUser.clinicianId, "all");
   const counts = {
     all: assignedAlerts.length,
-    unread: filterDoctorAlerts(assignedAlerts, currentUser.clinicianId, "unread").length,
-    "in-progress": filterDoctorAlerts(assignedAlerts, currentUser.clinicianId, "in-progress").length,
-    completed: filterDoctorAlerts(assignedAlerts, currentUser.clinicianId, "completed").length,
+    unread: selectDoctorAlerts(state, currentUser.clinicianId, "unread").length,
+    "in-progress": selectDoctorAlerts(state, currentUser.clinicianId, "in-progress").length,
+    completed: selectDoctorAlerts(state, currentUser.clinicianId, "completed").length,
   };
-  const visibleAlerts = filterDoctorAlerts(assignedAlerts, currentUser.clinicianId, activeTab);
+  const visibleAlerts = selectDoctorAlerts(state, currentUser.clinicianId, activeTab);
   const tabs = [
     { value: "all", label: "All", count: counts.all },
     { value: "unread", label: "Unread", count: counts.unread },
@@ -219,8 +178,8 @@ export default function DoctorInboxPage() {
 
       {visibleAlerts.length > 0 ? (
         <div className="doctor-inbox__list">
-          <DoctorInboxTable alerts={visibleAlerts} clinicianId={currentUser.clinicianId} />
-          <DoctorInboxCards alerts={visibleAlerts} clinicianId={currentUser.clinicianId} />
+          <DoctorInboxTable alerts={visibleAlerts} />
+          <DoctorInboxCards alerts={visibleAlerts} />
         </div>
       ) : (
         <ScreenState

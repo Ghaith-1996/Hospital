@@ -24,16 +24,29 @@ export function selectDoctorAlerts(state: PrototypeState, clinicianId: string, t
   );
 
   if (tab === "all") return assignedAlerts;
-  if (tab === "unread") {
-    return assignedAlerts.filter((alert) =>
-      alert.recipients.some((recipient) => recipient.clinicianId === clinicianId && recipient.response === "none"),
-    );
-  }
+
   if (tab === "in-progress") {
-    return assignedAlerts.filter((alert) => alert.status === "sent" || alert.status === "in-progress" || alert.status === "escalating");
+    return assignedAlerts.filter((alert) => {
+      const recipient = alert.recipients.find((candidate) => candidate.clinicianId === clinicianId);
+      return (
+        recipient?.response === "acknowledged" ||
+        recipient?.response === "accepted" ||
+        alert.status === "in-progress" ||
+        alert.status === "escalating"
+      );
+    });
   }
 
-  return assignedAlerts.filter((alert) => alert.status === "resolved" || alert.status === "cancelled");
+  if (tab === "completed") {
+    return assignedAlerts.filter((alert) => {
+      const recipient = alert.recipients.find((candidate) => candidate.clinicianId === clinicianId);
+      return alert.status === "resolved" || recipient?.response === "declined" || recipient?.response === "unavailable";
+    });
+  }
+
+  return assignedAlerts.filter((alert) =>
+    alert.recipients.some((recipient) => recipient.clinicianId === clinicianId && recipient.response === "none"),
+  );
 }
 
 export function searchClinicians(state: PrototypeState, query: string): Clinician[] {

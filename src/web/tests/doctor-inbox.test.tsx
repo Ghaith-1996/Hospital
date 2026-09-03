@@ -3,6 +3,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DoctorInboxPage from "../app/my-alerts/page";
 import { createSeedState } from "../features/alerts/seed";
+import { selectDoctorAlerts } from "../features/alerts/selectors";
 import type { PrototypeState } from "../features/alerts/types";
 import { renderPrototype } from "./test-utils";
 
@@ -64,13 +65,13 @@ describe("doctor inbox", () => {
   it("filters completed and in-progress alerts by Marc's recipient state without showing unread sent alerts", () => {
     renderPrototype(<DoctorInboxPage />, { state: marcState() });
 
-    expect(screen.getByRole("tab", { name: "In Progress 1" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "In Progress 2" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Completed 1" })).toBeVisible();
 
-    fireEvent.click(screen.getByRole("tab", { name: "In Progress 1" }));
+    fireEvent.click(screen.getByRole("tab", { name: "In Progress 2" }));
     expect(screen.getAllByText("Respiratory distress").length).toBeGreaterThan(0);
     expect(screen.queryByText("Chest pain, hypotension")).not.toBeInTheDocument();
-    expect(screen.queryByText("Suspected sepsis")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Suspected sepsis").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("tab", { name: "Completed 1" }));
     expect(screen.getAllByText("Suspected sepsis").length).toBeGreaterThan(0);
@@ -79,6 +80,45 @@ describe("doctor inbox", () => {
       "href",
       "/my-alerts/alert-escalating-1",
     );
+  });
+
+  it("preserves canonical alert status in the status field for unread and completed response tabs", () => {
+    renderPrototype(<DoctorInboxPage />, { state: marcState() });
+
+    const unreadRow = within(screen.getByRole("table", { name: "Fictional doctor inbox" }))
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Chest pain, hypotension"));
+    expect(unreadRow).toBeDefined();
+    expect(within(unreadRow as HTMLElement).getByText("Sent")).toBeVisible();
+    expect(within(unreadRow as HTMLElement).queryByText("New")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Completed 1" }));
+
+    const escalatingRow = within(screen.getByRole("table", { name: "Fictional doctor inbox" }))
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Suspected sepsis"));
+    expect(escalatingRow).toBeDefined();
+    expect(within(escalatingRow as HTMLElement).getByText("Escalating")).toBeVisible();
+    expect(within(escalatingRow as HTMLElement).queryByText("Completed")).not.toBeInTheDocument();
+  });
+
+  it("uses the same tab contract as selectDoctorAlerts", () => {
+    const state = marcState();
+    renderPrototype(<DoctorInboxPage />, { state });
+
+    const tabExpectations = [
+      { tabName: "All 3", selectorTab: "all" as const },
+      { tabName: "Unread 1", selectorTab: "unread" as const },
+      { tabName: "In Progress 2", selectorTab: "in-progress" as const },
+      { tabName: "Completed 1", selectorTab: "completed" as const },
+    ];
+
+    for (const { tabName, selectorTab } of tabExpectations) {
+      fireEvent.click(screen.getByRole("tab", { name: tabName }));
+
+      const tableRows = within(screen.getByRole("table", { name: "Fictional doctor inbox" })).getAllByRole("row").slice(1);
+      expect(tableRows).toHaveLength(selectDoctorAlerts(state, "clinician-marc", selectorTab).length);
+    }
   });
 
   it("shows a useful empty state when the selected doctor has no assigned alerts", () => {
@@ -125,7 +165,7 @@ describe("doctor inbox", () => {
     expect(within(card).getByText("Urgency")).toBeVisible();
     expect(within(card).getByText("Critical")).toBeVisible();
     expect(within(card).getByText("Status")).toBeVisible();
-    expect(within(card).getByText("New")).toBeVisible();
+    expect(within(card).getByText("Sent")).toBeVisible();
     expect(within(card).getByText("Received")).toBeVisible();
 
     const cardLink = within(card).getByRole("link", { name: "Open Chest pain, hypotension" });
