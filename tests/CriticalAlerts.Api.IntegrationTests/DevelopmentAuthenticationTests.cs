@@ -230,6 +230,8 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
 
     public Guid JordanUserId => DemoDataSeeder.JordanUserId.Value;
 
+    public string DataProtectionKey => dataProtectionKey;
+
     public CriticalAlertsDbContext CreateContext()
         => DatabaseOperations.CreateContext(inner.ConnectionString);
 
@@ -245,6 +247,7 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
             builder.UseEnvironment("Development");
             builder.UseSetting("ConnectionStrings:CriticalAlerts", inner.ConnectionString);
             builder.UseSetting("DevelopmentAuthentication:Enabled", "true");
+            builder.UseSetting("SimulationResponses:Enabled", "true");
             builder.UseSetting("DataProtection:Key", dataProtectionKey);
         });
         factory.Server.Services.GetRequiredService<ILoggerFactory>().AddProvider(logProvider);

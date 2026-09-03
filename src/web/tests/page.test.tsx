@@ -17,7 +17,7 @@ vi.mock("next/link", () => ({
   }) => React.createElement("a", { href, className }, children),
 }));
 
-describe("Phase 6 web shell", () => {
+describe("Phase 8 web shell", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -55,6 +55,8 @@ describe("Phase 6 web shell", () => {
     render(<HomePage />);
 
     expect(screen.getByRole("heading", { name: "Critical Alerts Platform" })).toBeVisible();
+    expect(screen.getByText(/practitioner inbox and safe operator status projection/i)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Review the Phase 8 boundary" })).toBeVisible();
   });
 
   it("doesNotShowUserSwitcherWhenDevelopmentIdentitiesAreUnavailable", async () => {

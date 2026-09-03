@@ -85,8 +85,8 @@ export default function AlertReviewPage() {
       setResult(confirmed);
       setStatus(
         confirmed.replayed
-          ? "This exact confirmation was already recorded. The simulation alert remains queued for future Phase 7 dispatch."
-          : "Simulation alert queued for future Phase 7 dispatch.",
+          ? "This exact confirmation was already recorded. The simulation alert remains queued for simulation dispatch."
+          : "Simulation alert queued for simulation dispatch.",
       );
     } catch (error) {
       setStatus(
@@ -135,7 +135,7 @@ export default function AlertReviewPage() {
       lead="Confirm only after checking the exact version, approved message, critical values and units, complete recipient set, channels, and displayed policy versions."
     >
       <div className="review-notice" role="note">
-        This simulation alert is queued for future simulation dispatch. Phase 6 does not process the queued request or contact a provider.
+        Confirmation queues the Development/Test-only simulation worker. It does not contact a real provider, escalate, or resolve the alert.
       </div>
 
       <section className="alert-panel" aria-labelledby="review-version-heading">
@@ -242,6 +242,11 @@ export default function AlertReviewPage() {
           <Link className="button-secondary" href={`/alerts/${alertId}/compose`}>
             Return to compose
           </Link>
+          {result ? (
+            <Link className="button-secondary" href={`/alerts/${alertId}/live`}>
+              Open refreshed live status
+            </Link>
+          ) : null}
         </div>
       </section>
 

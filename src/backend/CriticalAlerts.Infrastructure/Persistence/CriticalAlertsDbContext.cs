@@ -30,6 +30,8 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
 
+    public DbSet<PractitionerUserLink> PractitionerUserLinks => Set<PractitionerUserLink>();
+
     public DbSet<Practitioner> Practitioners => Set<Practitioner>();
 
     public DbSet<PractitionerRoleAssignment> PractitionerRoles => Set<PractitionerRoleAssignment>();

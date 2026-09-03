@@ -451,14 +451,15 @@ public sealed class AlertStateMachineTests
             RecipientResponseId.New(),
             OrganizationId.New(),
             AlertId.New(),
-            AlertRecipientSelectionId.New(),
+            AlertDraftVersion.Initial,
+            PractitionerId.New(),
             RecipientResponseType.Acknowledged,
             UserId.New(),
             Now,
-            "acknowledged");
+            "simulation-acknowledged");
 
         response.ImpliesResponsibilityAcceptance.Should().BeFalse();
-        ResponsibilityAssignment.FromResponse(response, PractitionerId.New()).Should().BeNull();
+        ResponsibilityAssignment.FromResponse(response).Should().BeNull();
     }
 
     [Fact]
@@ -469,13 +470,14 @@ public sealed class AlertStateMachineTests
             RecipientResponseId.New(),
             OrganizationId.New(),
             AlertId.New(),
-            AlertRecipientSelectionId.New(),
+            AlertDraftVersion.Initial,
+            practitionerId,
             RecipientResponseType.Accepted,
             UserId.New(),
             Now,
-            "accepted");
+            "simulation-responsibility-accepted");
 
-        var assignment = ResponsibilityAssignment.FromResponse(response, practitionerId);
+        var assignment = ResponsibilityAssignment.FromResponse(response);
 
         assignment.Should().NotBeNull();
         assignment!.PractitionerId.Should().Be(practitionerId);

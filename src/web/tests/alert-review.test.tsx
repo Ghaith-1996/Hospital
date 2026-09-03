@@ -56,7 +56,7 @@ const review = {
   demoNotificationPolicyVersion: "DEMO",
 };
 
-describe("Phase 6 exact review", () => {
+describe("Phase 8 exact review", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -81,7 +81,7 @@ describe("Phase 6 exact review", () => {
     expect(screen.getByText("Maya Chen")).toBeVisible();
     expect(screen.getByText("Primary")).toBeVisible();
     expect(screen.getByRole("button", { name: "Confirm and queue simulation alert" })).toBeDisabled();
-    expect(screen.getByText(/future simulation dispatch/i)).toBeVisible();
+    expect(screen.getByText(/Development\/Test-only simulation worker/i)).toBeVisible();
     expect(screen.queryByRole("link", { name: /live/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /I reviewed/ }));
@@ -125,7 +125,11 @@ describe("Phase 6 exact review", () => {
     expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
     resolveConfirmation?.({});
 
-    expect(await screen.findByText("Simulation alert queued for future Phase 7 dispatch.")).toBeVisible();
+    expect(await screen.findByText("Simulation alert queued for simulation dispatch.")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open refreshed live status" })).toHaveAttribute(
+      "href",
+      `/alerts/${review.alertId}/live`,
+    );
     const confirmCall = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(confirmCall).toBeDefined();
     expect((confirmCall![1]?.headers as Record<string, string>) ["Idempotency-Key"]).toMatch(/^[A-Za-z0-9-]+$/);
