@@ -13,6 +13,14 @@ type StatusTab = "all" | "draft" | "sent" | "in-progress" | "resolved" | "cancel
 type DateWindow = "" | "last-hour" | "last-four-hours" | "today";
 
 const emptyFilters: AlertFilters = {};
+const statusTabLabels: Record<StatusTab, string> = {
+  all: "All",
+  draft: "Draft",
+  sent: "Sent",
+  "in-progress": "In Progress",
+  resolved: "Resolved",
+  cancelled: "Cancelled",
+};
 
 function sameFilters(left: AlertFilters, right: AlertFilters) {
   return (
@@ -46,6 +54,39 @@ function readDepartmentOptions(alerts: AlertRecord[]) {
   return Array.from(new Set(alerts.map((alert) => alert.department))).sort((left, right) => left.localeCompare(right));
 }
 
+function getEmptyStateContent(statusTab: StatusTab, filters: AlertFilters, hasAnyAlerts: boolean) {
+  const hasFilters = !sameFilters(filters, emptyFilters);
+
+  if (statusTab !== "all") {
+    const tabLabel = statusTabLabels[statusTab].toLowerCase();
+    return hasFilters
+      ? {
+          label: `No ${tabLabel} alerts match these filters.`,
+          description: "Try clearing the current filters or choosing a different status tab.",
+          showClearAction: true,
+        }
+      : {
+          label: `No ${tabLabel} alerts yet.`,
+          description: hasAnyAlerts
+            ? "Other fictional alerts exist, but none are in the currently selected tab."
+            : "This local overview will show fictional alerts once they are created.",
+          showClearAction: false,
+        };
+  }
+
+  return hasFilters
+    ? {
+        label: "No alerts match these filters.",
+        description: "Try clearing or changing the current filters to see other fictional alerts.",
+        showClearAction: true,
+      }
+    : {
+        label: "No alerts are available.",
+        description: "This local overview will show fictional alerts once they are created.",
+        showClearAction: false,
+      };
+}
+
 export default function AlertsOverviewPage() {
   const { state } = usePrototype();
   const [statusTab, setStatusTab] = React.useState<StatusTab>("all");
@@ -57,6 +98,7 @@ export default function AlertsOverviewPage() {
   const visibleAlerts = getStatusTabAlerts(filteredAlerts, statusTab);
   const departmentOptions = readDepartmentOptions(state.alerts);
   const activeFilterCount = countActiveFilters(appliedFilters);
+  const emptyState = getEmptyStateContent(statusTab, appliedFilters, state.alerts.length > 0);
   const tabs = [
     { value: "all", label: "All" },
     { value: "draft", label: "Draft" },
@@ -212,15 +254,11 @@ export default function AlertsOverviewPage() {
       ) : (
         <ScreenState
           kind="empty"
-          label={sameFilters(appliedFilters, emptyFilters) ? "No alerts are available." : "No alerts match these filters."}
-          description={
-            sameFilters(appliedFilters, emptyFilters)
-              ? "This local overview will show fictional alerts once they are created."
-              : "Try clearing or changing the current filters to see other fictional alerts."
-          }
+          label={emptyState.label}
+          description={emptyState.description}
           headingLevel="h2"
           action={
-            !sameFilters(appliedFilters, emptyFilters) ? (
+            emptyState.showClearAction ? (
               <button type="button" className="button-secondary" onClick={clearFilters}>
                 Clear filters
               </button>

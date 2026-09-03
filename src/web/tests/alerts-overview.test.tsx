@@ -23,6 +23,16 @@ describe("alerts overview", () => {
     window.history.pushState({}, "", "/alerts");
   });
 
+  it("shows tab-specific empty copy when the selected status tab has no alerts", () => {
+    renderPrototype(<AlertsOverviewPage />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Cancelled" }));
+
+    expect(screen.getByText("No cancelled alerts yet.")).toBeVisible();
+    expect(screen.getByText("Other fictional alerts exist, but none are in the currently selected tab.")).toBeVisible();
+    expect(screen.queryByText("No alerts are available.")).not.toBeInTheDocument();
+  });
+
   it("renders the seeded overview table, tab filtering, filter drawer actions, and mobile card fields", () => {
     renderPrototype(<AlertsOverviewPage />);
 
