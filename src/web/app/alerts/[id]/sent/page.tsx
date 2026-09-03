@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ProgressSteps } from "../../../../components/alerts/progress-steps";
 import { CheckIcon } from "../../../../components/ui/icons";
@@ -25,9 +26,9 @@ export default function AlertSentPage() {
         label="Fictional alert not found"
         description="This local prototype could not find that fictional alert."
         action={
-          <a className="focus-link" href="/alerts/new">
+          <Link className="focus-link" href="/alerts/new">
             Create another alert
-          </a>
+          </Link>
         }
       />
     );
@@ -48,9 +49,9 @@ export default function AlertSentPage() {
           This local prototype simulated sending to {recipientCount} fictional clinician
           {recipientCount === 1 ? "" : "s"}. No real notification was sent.
         </p>
-        <a className="button-primary" href={`/alerts/${alert.id}`}>
+        <Link className="button-primary" href={`/alerts/${alert.id}`}>
           View Alert Details
-        </a>
+        </Link>
       </section>
 
       <section className="sent-next-panel" aria-labelledby="sent-next-heading">
@@ -63,9 +64,9 @@ export default function AlertSentPage() {
       </section>
 
       <div className="sent-page__actions">
-        <a className="focus-link" href="/alerts/new">
+        <Link className="focus-link" href="/alerts/new">
           Create Another Alert
-        </a>
+        </Link>
       </div>
     </div>
   );

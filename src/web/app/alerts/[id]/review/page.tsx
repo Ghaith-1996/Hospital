@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ProgressSteps } from "../../../../components/alerts/progress-steps";
 import { ConfirmDialog } from "../../../../components/ui/confirm-dialog";
@@ -35,9 +36,9 @@ export default function AlertReviewPage() {
         label="Fictional alert not found"
         description="This local prototype could not find that fictional alert."
         action={
-          <a className="focus-link" href="/alerts/new">
+          <Link className="focus-link" href="/alerts/new">
             Create another alert
-          </a>
+          </Link>
         }
       />
     );
@@ -70,9 +71,9 @@ export default function AlertReviewPage() {
       <section className="review-card" aria-labelledby="alert-preview-heading">
         <div className="section-heading">
           <h2 id="alert-preview-heading">Alert Preview</h2>
-          <a className="button-secondary" href={`/alerts/new?edit=${reviewedAlert.id}`}>
+          <Link className="button-secondary" href={`/alerts/new?edit=${reviewedAlert.id}`}>
             Back/Edit
-          </a>
+          </Link>
         </div>
 
         <dl className="review-details">

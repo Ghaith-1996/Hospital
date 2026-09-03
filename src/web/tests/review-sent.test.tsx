@@ -1,10 +1,13 @@
 import React from "react";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import AlertDetailsPage from "../app/alerts/[id]/page";
 import AlertReviewPage from "../app/alerts/[id]/review/page";
 import AlertSentPage from "../app/alerts/[id]/sent/page";
+import { createSeedState } from "../features/alerts/seed";
 import { selectAlertById } from "../features/alerts/selectors";
 import { usePrototype } from "../features/alerts/prototype-store";
+import type { PrototypeState } from "../features/alerts/types";
 import { renderPrototype } from "./test-utils";
 
 export const mockPush = vi.fn();
@@ -30,6 +33,23 @@ function AlertStatusProbe({ id }: { id: string }) {
   );
 }
 
+function createDraftReviewState(): PrototypeState {
+  const state = createSeedState();
+
+  return {
+    ...state,
+    alerts: state.alerts.map((alert) =>
+      alert.id !== "alert-critical-1"
+        ? alert
+        : {
+            ...alert,
+            status: "draft",
+            activities: alert.activities.filter((activity) => activity.kind !== "sent"),
+          },
+    ),
+  };
+}
+
 describe("review confirmation and sent state", () => {
   beforeEach(() => {
     mockPush.mockClear();
@@ -43,6 +63,7 @@ describe("review confirmation and sent state", () => {
         <AlertReviewPage />
         <AlertStatusProbe id="alert-critical-1" />
       </>,
+      { state: createDraftReviewState() },
     );
 
     expect(screen.getByRole("heading", { name: "Review & Confirm Alert" })).toBeVisible();
@@ -57,6 +78,7 @@ describe("review confirmation and sent state", () => {
     expect(dialog).toBeVisible();
     expect(within(dialog).getByText(/send this fictional alert to 3 clinicians/i)).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(screen.getByTestId("alert-status-alert-critical-1")).toHaveTextContent("draft|not-observed|none,none,none");
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirm fictional dispatch" }));
 
@@ -120,6 +142,16 @@ describe("review confirmation and sent state", () => {
     expect(screen.getByText(/delivery, opened, acknowledged, and accepted stay separate/i)).toBeVisible();
     expect(screen.getByRole("link", { name: "View Alert Details" })).toHaveAttribute("href", "/alerts/alert-critical-1");
     expect(screen.getByRole("link", { name: "Create Another Alert" })).toHaveAttribute("href", "/alerts/new");
+  });
+
+  it("routes the sent primary action to an implemented alert details page", () => {
+    window.history.pushState({}, "", "/alerts/alert-critical-1");
+
+    renderPrototype(<AlertDetailsPage />);
+
+    expect(screen.getByRole("heading", { name: "Alert Details" })).toBeVisible();
+    expect(screen.getByText("SIM-PAT-01578")).toBeVisible();
+    expect(screen.getByText(/details view is a local transitional placeholder/i)).toBeVisible();
   });
 
   it("renders a not-found state when the sent alert is missing", () => {
