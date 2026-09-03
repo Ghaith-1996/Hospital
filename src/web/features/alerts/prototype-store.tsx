@@ -3,12 +3,13 @@ import { createSeedState, DEMO_NOW, PROTOTYPE_SCHEMA_VERSION, STORAGE_KEY } from
 import type {
   AlertActivity,
   AlertRecord,
+  AlertStatus,
   DoctorResponse,
   NewAlertInput,
   PrototypeState,
 } from "./types";
 
-type PrototypeAction =
+export type PrototypeAction =
   | { type: "user-selected"; userId: string }
   | { type: "alert-created"; alert: AlertRecord }
   | { type: "alert-updated"; alertId: string; input: NewAlertInput }
@@ -75,9 +76,8 @@ function isPrototypeState(value: unknown): value is PrototypeState {
   );
 }
 
-function deriveStatusFromResponse(response: Exclude<DoctorResponse, "none">, currentStatus: AlertRecord["status"]) {
+function deriveStatusFromResponse(response: Exclude<DoctorResponse, "none">, currentStatus: AlertStatus) {
   if (response === "accepted") return "in-progress";
-  if (response === "declined" || response === "unavailable") return currentStatus === "draft" ? "draft" : "escalating";
   return currentStatus;
 }
 

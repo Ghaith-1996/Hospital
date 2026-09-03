@@ -145,3 +145,98 @@ Output:
 ## Concerns
 
 - No blocking concerns. The only issue found during verification was the initial effect-based provider state update pattern, which was corrected before commit.
+
+## Fix Round 1
+
+### Reviewer Findings Addressed
+
+- Removed automatic reducer transitions from `declined` or `unavailable` into `escalating`; escalation remains a seeded demo-labelled state only.
+- Corrected the resolved seed alert so delivery/receipt/acknowledgement/acceptance are represented separately instead of collapsing them into `not-applicable`.
+- Exported `PrototypeAction` as part of the module contract.
+- Expanded the focused suite to cover selector behavior and the no-auto-escalation regression.
+
+### Changed Files
+
+- `src/web/features/alerts/prototype-store.tsx`
+- `src/web/features/alerts/seed.ts`
+- `src/web/tests/prototype-store.test.tsx`
+
+### Fix Round TDD
+
+RED command:
+
+```powershell
+npm --prefix src/web test -- --run tests/prototype-store.test.tsx
+```
+
+Relevant RED output:
+
+```text
+✗ records declined responses without auto-escalating a sent alert
+  expected 'escalating' to be 'sent'
+✗ records unavailable responses without auto-escalating a sent alert
+  expected 'escalating' to be 'sent'
+✗ seeds the resolved alert with distinct delivery and acceptance milestones
+  expected 'not-applicable' to be 'delivered'
+Tests  3 failed | 11 passed (14)
+```
+
+GREEN command:
+
+```powershell
+npm --prefix src/web test -- --run tests/prototype-store.test.tsx
+```
+
+GREEN output:
+
+```text
+✓ tests/prototype-store.test.tsx (14 tests)
+Test Files  1 passed (1)
+Tests  14 passed (14)
+```
+
+### Covering Verification
+
+Focused test:
+
+```powershell
+npm --prefix src/web test -- --run tests/prototype-store.test.tsx
+```
+
+Output:
+
+```text
+✓ tests/prototype-store.test.tsx (14 tests)
+Test Files  1 passed (1)
+Tests  14 passed (14)
+```
+
+Typecheck:
+
+```powershell
+npm --prefix src/web run typecheck
+```
+
+Output:
+
+```text
+> tsc --noEmit
+```
+
+Lint:
+
+```powershell
+npm --prefix src/web run lint
+```
+
+Output:
+
+```text
+> eslint . --max-warnings=0
+```
+
+### Notes
+
+- Kept exactly five seed alerts and the original mockup status variety.
+- Did not add any backend, fetch, or API code.
+- Verification remained scoped to the Task 2 focused suite plus `typecheck` and `lint`.

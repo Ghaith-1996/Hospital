@@ -185,10 +185,11 @@ const alerts: AlertRecord[] = [
     urgency: "routine",
     caseDetails: "SIMULATION: fictional post-op hypotension resolved for handoff review.",
     status: "resolved",
-    deliveryState: "not-applicable",
+    deliveryState: "delivered",
     createdByUserId: "user-sophie",
     createdAt: "2026-08-30T12:35:00.000Z",
     updatedAt: "2026-08-30T13:25:00.000Z",
+    receivedAt: "2026-08-30T12:39:00.000Z",
     recipients: [
       {
         clinicianId: "clinician-david",
@@ -206,6 +207,20 @@ const alerts: AlertRecord[] = [
         label: "SIMULATION: fictional responsibility accepted by Dr. David Nguyen.",
         occurredAt: "2026-08-30T12:42:00.000Z",
         tone: "success",
+      },
+      {
+        id: "activity-alert-resolved-1-acknowledged",
+        kind: "acknowledged",
+        label: "SIMULATION: fictional acknowledgement received from Dr. David Nguyen.",
+        occurredAt: "2026-08-30T12:40:00.000Z",
+        tone: "info",
+      },
+      {
+        id: "activity-alert-resolved-1-sent",
+        kind: "sent",
+        label: "SIMULATION: fictional alert sent to Dr. David Nguyen.",
+        occurredAt: "2026-08-30T12:37:00.000Z",
+        tone: "info",
       },
       {
         id: "activity-alert-resolved-1-created",
