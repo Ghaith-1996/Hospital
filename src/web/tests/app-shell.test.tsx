@@ -1,6 +1,8 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import AlertComposePage from "../app/alerts/[id]/compose/page";
+import AlertRecipientsPage from "../app/alerts/[id]/recipients/page";
 import NewAlertPage from "../app/alerts/new/page";
 import DirectoryPage from "../app/directory/page";
 import DirectoryImportPage from "../app/directory/import/page";
@@ -11,9 +13,12 @@ import { createSeedState } from "../features/alerts/seed";
 import { PrototypeProvider } from "../features/alerts/prototype-store";
 import type { PrototypeState } from "../features/alerts/types";
 
-const mockReplace = vi.fn();
-const mockPush = vi.fn();
-let mockPathname = "/alerts/new";
+const navigation = vi.hoisted(() => ({
+  mockReplace: vi.fn(),
+  mockPush: vi.fn(),
+  mockRedirect: vi.fn(),
+  pathname: "/alerts/new",
+}));
 
 vi.mock("next/link", () => ({
   default: ({
@@ -32,10 +37,11 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => mockPathname,
+  redirect: navigation.mockRedirect,
+  usePathname: () => navigation.pathname,
   useRouter: () => ({
-    push: mockPush,
-    replace: mockReplace,
+    push: navigation.mockPush,
+    replace: navigation.mockReplace,
   }),
 }));
 
@@ -58,9 +64,10 @@ function doctorState() {
 
 describe("prototype app shell", () => {
   beforeEach(() => {
-    mockReplace.mockClear();
-    mockPush.mockClear();
-    mockPathname = "/alerts/new";
+    navigation.mockReplace.mockClear();
+    navigation.mockPush.mockClear();
+    navigation.mockRedirect.mockClear();
+    navigation.pathname = "/alerts/new";
   });
 
   it("renders operator navigation and changes to doctor navigation after user switch", async () => {
@@ -75,7 +82,7 @@ describe("prototype app shell", () => {
     fireEvent.click(screen.getByRole("button", { name: /Sophie Bernard/ }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Dr. Marc Tremblay/ }));
 
-    expect(mockReplace).toHaveBeenCalledWith("/my-alerts");
+    expect(navigation.mockReplace).toHaveBeenCalledWith("/my-alerts");
     expect(screen.getByRole("navigation", { name: "Doctor navigation" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Inbox" })).toHaveAttribute("href", "/my-alerts");
   });
@@ -90,12 +97,12 @@ describe("prototype app shell", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Sophie Bernard/ })).toBeVisible();
     });
-    expect(mockReplace).toHaveBeenCalledWith("/alerts/new");
+    expect(navigation.mockReplace).toHaveBeenCalledWith("/alerts/new");
     expect(screen.getByRole("navigation", { name: "Operator navigation" })).toBeVisible();
   });
 
   it("marks the active link and toggles the tablet drawer semantics", () => {
-    mockPathname = "/alerts";
+    navigation.pathname = "/alerts";
     renderShell();
 
     expect(screen.getByRole("link", { name: "Alerts" })).toHaveAttribute("aria-current", "page");
@@ -109,7 +116,7 @@ describe("prototype app shell", () => {
   });
 
   it("marks only the exact alert creation route as current", () => {
-    mockPathname = "/alerts/new";
+    navigation.pathname = "/alerts/new";
     renderShell();
 
     expect(screen.getByRole("link", { name: "Alert Doctor" })).toHaveAttribute("aria-current", "page");
@@ -154,7 +161,7 @@ describe("prototype app shell", () => {
     expect(screen.getByRole("status", { name: "Loading fictional demo workspace" })).toBeVisible();
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/my-alerts");
+      expect(navigation.mockReplace).toHaveBeenCalledWith("/my-alerts");
     });
   });
 
@@ -172,19 +179,46 @@ describe("prototype app shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Dr. Marc Tremblay" }));
     fireEvent.click(screen.getByRole("button", { name: "Review & Confirm" }));
 
-    expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/^\/alerts\/alert-[a-z0-9-]+\/review$/));
+    expect(navigation.mockPush).toHaveBeenCalledWith(expect.stringMatching(/^\/alerts\/alert-[a-z0-9-]+\/review$/));
   });
 
-  it("keeps one page h1 when screen states follow page headers", () => {
+  it("renders approved local-only directory coming-later states without legacy controls", () => {
     const { rerender } = render(<DirectoryPage />);
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 1, name: "Directory" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Directory is coming later" })).toBeVisible();
+    expect(
+      screen.getByText(
+        "The redesigned frontend is local-only. A future backend phase will reconnect fictional directory management.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Alert Doctor" })).toHaveAttribute("href", "/alerts/new");
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /import/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/search/i)).not.toBeInTheDocument();
 
     rerender(<DirectoryImportPage />);
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 1, name: "Directory Import" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Directory is coming later" })).toBeVisible();
+    expect(
+      screen.getByText(
+        "The redesigned frontend is local-only. A future backend phase will reconnect fictional directory management.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Alert Doctor" })).toHaveAttribute("href", "/alerts/new");
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /import/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/search/i)).not.toBeInTheDocument();
+  });
+
+  it("redirects legacy alert compose and recipients routes to alert creation", () => {
+    AlertComposePage();
+    AlertRecipientsPage();
+
+    expect(navigation.mockRedirect).toHaveBeenCalledTimes(2);
+    expect(navigation.mockRedirect).toHaveBeenNthCalledWith(1, "/alerts/new");
+    expect(navigation.mockRedirect).toHaveBeenNthCalledWith(2, "/alerts/new");
   });
 
   it("moves the roving tab stop with arrow-key focus", () => {

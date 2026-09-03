@@ -1,19 +1,17 @@
-import { PageHeader } from "../../components/ui/page-header";
+import Link from "next/link";
 import { ScreenState } from "../../components/ui/screen-state";
 
 export default function DirectoryPage() {
   return (
-    <>
-      <PageHeader
-        title="Directory"
-        description="The fictional directory workspace is scheduled for a later prototype task."
-      />
-      <ScreenState
-        kind="empty"
-        label="Directory is coming later"
-        description="Use Alert Doctor or Alerts in this frontend-only prototype shell."
-        headingLevel="h2"
-      />
-    </>
+    <ScreenState
+      kind="empty"
+      label="Directory is coming later"
+      description="The redesigned frontend is local-only. A future backend phase will reconnect fictional directory management."
+      action={
+        <Link className="focus-link" href="/alerts/new">
+          Alert Doctor
+        </Link>
+      }
+    />
   );
 }
