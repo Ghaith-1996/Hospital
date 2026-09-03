@@ -2,87 +2,70 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SimulationChrome } from "../../simulation-chrome";
+import { PageHeader } from "../../../components/ui/page-header";
+import { usePrototype } from "../../../features/alerts/prototype-store";
+import type { Urgency } from "../../../features/alerts/types";
 import { AlertFormFields, AlertFormState, initialAlertForm } from "../alert-form";
-import { createAlertDraft, isAlertApiError } from "../../../lib/alerts";
 
-const simulationSiteId = "11111111-1111-4111-8111-111111111201";
-const simulationDepartmentId = "11111111-1111-4111-8111-111111110301";
+function urgencyFromLabel(label: string): Urgency {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("critical")) return "critical";
+  if (normalized.includes("urgent") || normalized.includes("high")) return "high";
+  return "routine";
+}
 
-function errorStatus(error: unknown, fallback: string): string {
-  if (isAlertApiError(error) && error.status === 401) {
-    return "Sign in with a seeded Operator or Administrator identity to draft an alert.";
-  }
-  if (isAlertApiError(error) && error.status === 403) {
-    return "Practitioner identities cannot create or edit alert drafts.";
-  }
-  return fallback;
+function caseDetailsFromForm(form: AlertFormState) {
+  return [
+    form.sourceText,
+    form.situation,
+    form.background,
+    form.assessment,
+    form.recommendation,
+    `SIMULATION: fictional critical value ${form.criticalValue} ${form.criticalUnit}.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 export default function NewAlertPage() {
   const router = useRouter();
+  const { createAlert, state } = usePrototype();
   const [form, setForm] = useState<AlertFormState>(initialAlertForm);
-  const [status, setStatus] = useState(
-    "Create a typed simulation alert draft. Phase 6 adds manual recipient selection and exact human review.",
-  );
-  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("Create a fictional local alert draft. No provider or backend is contacted.");
 
   function update(field: keyof AlertFormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
-  async function createDraft(event: FormEvent<HTMLFormElement>) {
+  function createDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
-    try {
-      const draft = await createAlertDraft({
-        siteId: simulationSiteId,
-        departmentId: simulationDepartmentId,
-        simulationPatientReference: form.simulationPatientReference,
-        location: form.location,
-        urgencyLabel: form.urgencyLabel,
-        sourceText: form.sourceText,
-        sbar: {
-          situation: form.situation,
-          background: form.background,
-          assessment: form.assessment,
-          recommendation: form.recommendation,
-        },
-        criticalFields: [
-          {
-            fieldId: "heartRate",
-            originalValue: form.criticalValue,
-            unit: form.criticalUnit,
-          },
-        ],
-      });
-      setStatus("Draft created. Opening the compose workspace.");
-      router.push(`/alerts/${draft.alertId}/compose`);
-    } catch (error) {
-      setStatus(
-        errorStatus(error, "The simulation draft could not be created. Check the required fields and simulation markers."),
-      );
-    } finally {
-      setSaving(false);
-    }
+    const alertId = createAlert({
+      patientReference: form.simulationPatientReference,
+      location: form.location,
+      department: "Fictional Emergency",
+      urgency: urgencyFromLabel(form.urgencyLabel),
+      caseDetails: caseDetailsFromForm(form),
+      clinicianIds: state.clinicians.slice(0, 1).map((clinician) => clinician.id),
+    });
+    setStatus("Draft created in local prototype state.");
+    router.push(`/alerts/${alertId}/compose`);
   }
 
   return (
-    <SimulationChrome
-      title="Create typed simulation alert"
-      lead="Create a fictional typed alert, preserve its source and SBAR separately, then continue to manual recipient selection and exact review. No provider action is available in Phase 6."
-    >
+    <>
+      <PageHeader
+        title="Create typed simulation alert"
+        description="Create a fictional typed alert in local prototype state. No provider action is available."
+      />
       <form className="alert-form" onSubmit={createDraft}>
         <AlertFormFields form={form} onChange={update} />
         <div className="form-actions">
-          <button type="submit" disabled={saving}>
-            {saving ? "Creating draft…" : "Create draft"}
-          </button>
+          <button type="submit">Create draft</button>
         </div>
       </form>
       <p className="status-message" role="status" aria-live="polite">
         {status}
       </p>
-    </SimulationChrome>
+    </>
   );
 }

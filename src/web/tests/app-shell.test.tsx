@@ -1,0 +1,148 @@
+import React from "react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import HomePage from "../app/page";
+import { AppShell } from "../components/layout/app-shell";
+import { createSeedState } from "../features/alerts/seed";
+import { PrototypeProvider } from "../features/alerts/prototype-store";
+import type { PrototypeState } from "../features/alerts/types";
+
+const mockReplace = vi.fn();
+const mockPush = vi.fn();
+let mockPathname = "/alerts/new";
+
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    className,
+    "aria-current": ariaCurrent,
+    onClick,
+  }: {
+    href: string;
+    children: React.ReactNode;
+    className?: string;
+    "aria-current"?: "page";
+    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  }) => React.createElement("a", { href, className, "aria-current": ariaCurrent, onClick }, children),
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockPathname,
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+  }),
+}));
+
+function renderShell(state: PrototypeState = createSeedState()) {
+  return render(
+    <PrototypeProvider initialState={state}>
+      <AppShell>
+        <h1>Route content</h1>
+      </AppShell>
+    </PrototypeProvider>,
+  );
+}
+
+function doctorState() {
+  return {
+    ...createSeedState(),
+    selectedUserId: "user-marc",
+  };
+}
+
+describe("prototype app shell", () => {
+  beforeEach(() => {
+    mockReplace.mockClear();
+    mockPush.mockClear();
+    mockPathname = "/alerts/new";
+  });
+
+  it("renders operator navigation and changes to doctor navigation after user switch", async () => {
+    renderShell();
+
+    expect(screen.getByRole("status", { name: "SIMULATION" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Operator navigation" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Alert Doctor" })).toHaveAttribute("href", "/alerts/new");
+    expect(screen.getByRole("link", { name: "Alerts" })).toHaveAttribute("href", "/alerts");
+    expect(screen.getByRole("button", { name: "Directory — Coming later" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Sophie Bernard/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Dr. Marc Tremblay/ }));
+
+    expect(mockReplace).toHaveBeenCalledWith("/my-alerts");
+    expect(screen.getByRole("navigation", { name: "Doctor navigation" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Inbox" })).toHaveAttribute("href", "/my-alerts");
+  });
+
+  it("resets demo data from the user menu without leaving the current role stale", async () => {
+    const state = doctorState();
+    renderShell(state);
+
+    fireEvent.click(screen.getByRole("button", { name: /Dr. Marc Tremblay/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reset demo data" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Sophie Bernard/ })).toBeVisible();
+    });
+    expect(mockReplace).toHaveBeenCalledWith("/alerts/new");
+    expect(screen.getByRole("navigation", { name: "Operator navigation" })).toBeVisible();
+  });
+
+  it("marks the active link and toggles the tablet drawer semantics", () => {
+    mockPathname = "/alerts";
+    renderShell();
+
+    expect(screen.getByRole("link", { name: "Alerts" })).toHaveAttribute("aria-current", "page");
+    const menuButton = screen.getByRole("button", { name: "Open navigation" });
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(menuButton);
+
+    expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Close navigation" })).toBeVisible();
+  });
+
+  it("withholds role navigation until prototype hydration completes", async () => {
+    const storedState = JSON.stringify(doctorState());
+    const storage = {
+      getItem: vi.fn(() => storedState),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+
+    render(
+      <PrototypeProvider storage={storage}>
+        <AppShell>
+          <h1>Hydrating route</h1>
+        </AppShell>
+      </PrototypeProvider>,
+    );
+
+    expect(screen.queryByRole("navigation", { name: /navigation/i })).not.toBeInTheDocument();
+
+    await screen.findByRole("navigation", { name: "Doctor navigation" });
+    expect(screen.queryByRole("navigation", { name: "Operator navigation" })).not.toBeInTheDocument();
+  });
+
+  it("shows root loading before replacing to the hydrated role route", async () => {
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify(doctorState())),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+
+    render(
+      <PrototypeProvider storage={storage}>
+        <HomePage />
+      </PrototypeProvider>,
+    );
+
+    expect(screen.getByRole("status", { name: "Loading fictional demo workspace" })).toBeVisible();
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/my-alerts");
+    });
+  });
+});
