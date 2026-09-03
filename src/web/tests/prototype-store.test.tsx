@@ -37,6 +37,56 @@ function PrototypeProbe() {
   );
 }
 
+function createMemoryStorage(initialState?: PrototypeState) {
+  let stored = initialState ? JSON.stringify(initialState) : null;
+  return {
+    getItem: () => stored,
+    setItem: (_key: string, value: string) => {
+      stored = value;
+    },
+    removeItem: () => {
+      stored = null;
+    },
+    read() {
+      return stored ? (JSON.parse(stored) as PrototypeState) : null;
+    },
+  };
+}
+
+function RapidActionsProbe() {
+  const { confirmAlert, createAlert, respondToAlert, selectUser, state } = usePrototype();
+  const customAlert = state.alerts.find((alert) => alert.patientReference === draftInput.patientReference);
+  const marcRecipient = selectAlertById(state, "alert-critical-1")?.recipients.find(
+    (recipient) => recipient.clinicianId === "clinician-marc",
+  );
+
+  return (
+    <div>
+      <p>custom-alert:{customAlert ? `${customAlert.id}:${customAlert.status}` : "missing"}</p>
+      <p>selected-user:{state.selectedUserId}</p>
+      <p>marc-response:{marcRecipient?.response ?? "missing"}</p>
+      <button
+        type="button"
+        onClick={() => {
+          const alertId = createAlert(draftInput);
+          confirmAlert(alertId);
+        }}
+      >
+        Create and confirm
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          selectUser("user-marc");
+          respondToAlert("alert-critical-1", "clinician-marc", "acknowledged", "SIMULATION: rapid response.");
+        }}
+      >
+        Switch and respond
+      </button>
+    </div>
+  );
+}
+
 describe("prototype alert store", () => {
   it("exports PrototypeAction for downstream typed consumers", () => {
     const action: PrototypeAction = {
@@ -252,5 +302,60 @@ describe("prototype alert store", () => {
         "storage-error:Demo changes are available for this session but could not be saved in this browser.",
       ),
     ).toBeVisible();
+  });
+
+  it("applies rapid sequential commands to the latest in-memory state and localStorage", async () => {
+    const storage = createMemoryStorage(createSeedState());
+
+    renderPrototype(<RapidActionsProbe />, { state: createSeedState(), storage });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create and confirm" }));
+
+    await screen.findByText(/^custom-alert:alert-custom-6:sent$/);
+    expect(storage.read()?.alerts.find((alert) => alert.patientReference === draftInput.patientReference)?.status).toBe(
+      "sent",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch and respond" }));
+
+    await screen.findByText("selected-user:user-marc");
+    await screen.findByText("marc-response:acknowledged");
+
+    const saved = storage.read();
+    expect(saved?.selectedUserId).toBe("user-marc");
+    expect(
+      saved?.alerts
+        .find((alert) => alert.id === "alert-critical-1")
+        ?.recipients.find((recipient) => recipient.clinicianId === "clinician-marc")?.response,
+    ).toBe("acknowledged");
+  });
+
+  it("creates unique same-time response activities in action order", () => {
+    const afterMarc = prototypeReducer(createSeedState(), {
+      type: "doctor-responded",
+      alertId: "alert-critical-1",
+      clinicianId: "clinician-marc",
+      response: "acknowledged",
+      note: "SIMULATION: first same-time response.",
+      occurredAt: DEMO_NOW,
+    });
+    const afterJulie = prototypeReducer(afterMarc, {
+      type: "doctor-responded",
+      alertId: "alert-critical-1",
+      clinicianId: "clinician-julie",
+      response: "acknowledged",
+      note: "SIMULATION: second same-time response.",
+      occurredAt: DEMO_NOW,
+    });
+
+    const acknowledgements =
+      selectAlertById(afterJulie, "alert-critical-1")?.activities.filter((activity) => activity.kind === "acknowledged") ??
+      [];
+
+    expect(new Set(acknowledgements.map((activity) => activity.id))).toHaveProperty("size", 2);
+    expect(acknowledgements.map((activity) => activity.id)).toEqual([
+      expect.stringContaining("clinician-marc"),
+      expect.stringContaining("clinician-julie"),
+    ]);
   });
 });

@@ -137,6 +137,31 @@ describe("ActivityTimeline", () => {
     expect(items[2]).toHaveTextContent("SIMULATION: fictional acceptance recorded.");
     expect(activities.map((activity) => activity.id)).toEqual(originalOrder);
   });
+
+  it("keeps same-time generated activity ties in deterministic sequence order", () => {
+    const activities: AlertActivity[] = [
+      {
+        id: "activity-alert-critical-1-acknowledged-clinician-julie-seq004-2026-08-30T14:24:00.000Z",
+        kind: "acknowledged",
+        label: "SIMULATION: second same-time response.",
+        occurredAt: "2026-08-30T14:24:00.000Z",
+        tone: "info",
+      },
+      {
+        id: "activity-alert-critical-1-acknowledged-clinician-marc-seq003-2026-08-30T14:24:00.000Z",
+        kind: "acknowledged",
+        label: "SIMULATION: first same-time response.",
+        occurredAt: "2026-08-30T14:24:00.000Z",
+        tone: "info",
+      },
+    ];
+
+    renderPrototype(<ActivityTimeline activities={activities} />);
+
+    const renderedItems = screen.getAllByRole("listitem").map((item) => item.textContent);
+    expect(renderedItems[0]).toContain("first same-time response");
+    expect(renderedItems[1]).toContain("second same-time response");
+  });
 });
 
 describe("ResponseSummary", () => {

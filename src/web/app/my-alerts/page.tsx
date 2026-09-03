@@ -6,15 +6,9 @@ import { PageHeader } from "../../components/ui/page-header";
 import { ScreenState } from "../../components/ui/screen-state";
 import { StatusBadge } from "../../components/ui/status-badge";
 import { Tabs } from "../../components/ui/tabs";
-import { selectCurrentUser, selectDoctorAlerts } from "../../features/alerts/selectors";
+import { formatAlertDisplayTitle, selectCurrentUser, selectDoctorAlerts } from "../../features/alerts/selectors";
 import { usePrototype } from "../../features/alerts/prototype-store";
 import type { AlertRecord, DoctorInboxTab } from "../../features/alerts/types";
-
-const inboxTitles: Record<string, string> = {
-  "alert-critical-1": "Chest pain, hypotension",
-  "alert-in-progress-1": "Respiratory distress",
-  "alert-escalating-1": "Suspected sepsis",
-};
 
 function formatDate(value: string | undefined) {
   if (!value) return "Not received";
@@ -26,15 +20,8 @@ function formatDate(value: string | undefined) {
   }).format(new Date(value));
 }
 
-function fallbackTitle(alert: AlertRecord) {
-  return alert.label
-    .replace(/^SIMULATION:\s*/i, "")
-    .replace(/^fictional\s*/i, "")
-    .replace(/[.!?]\s*$/u, "");
-}
-
 function alertTitle(alert: AlertRecord) {
-  return inboxTitles[alert.id] ?? fallbackTitle(alert);
+  return formatAlertDisplayTitle(alert);
 }
 
 function DoctorInboxTable({ alerts }: { alerts: AlertRecord[] }) {

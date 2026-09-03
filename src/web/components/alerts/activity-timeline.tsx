@@ -9,10 +9,17 @@ function formatTimelineTime(value: string) {
   }).format(new Date(value));
 }
 
+function readActivitySequence(id: string) {
+  const parsed = id.match(/-seq(\d+)-/u)?.[1];
+  return parsed ? Number(parsed) : 0;
+}
+
 export function ActivityTimeline({ activities }: { activities?: AlertActivity[] }) {
-  const sortedActivities = [...(activities ?? [])].sort((left, right) =>
-    left.occurredAt.localeCompare(right.occurredAt),
-  );
+  const sortedActivities = [...(activities ?? [])].sort((left, right) => {
+    const timeComparison = left.occurredAt.localeCompare(right.occurredAt);
+    if (timeComparison !== 0) return timeComparison;
+    return readActivitySequence(left.id) - readActivitySequence(right.id);
+  });
 
   return (
     <section className="activity-timeline detail-card" role="region" aria-label="Activity Timeline">

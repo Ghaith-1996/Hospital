@@ -101,6 +101,62 @@ describe("prototype app shell", () => {
     expect(screen.getByRole("navigation", { name: "Operator navigation" })).toBeVisible();
   });
 
+  it("resets the mounted new-alert form when reset is triggered in place", async () => {
+    render(
+      <PrototypeProvider initialState={createSeedState()}>
+        <AppShell>
+          <NewAlertPage />
+        </AppShell>
+      </PrototypeProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Patient Reference"), { target: { value: "SIM-PAT-RESET-1" } });
+    fireEvent.change(screen.getByLabelText("Case Details"), {
+      target: { value: "SIMULATION: fictional reset test details." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Dr. Marc Tremblay" }));
+
+    expect(screen.getByLabelText("Patient Reference")).toHaveValue("SIM-PAT-RESET-1");
+    expect(screen.getByTestId("alert-summary")).toHaveTextContent("Dr. Marc Tremblay");
+
+    fireEvent.click(screen.getByRole("button", { name: /Sophie Bernard/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reset demo data" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Patient Reference")).toHaveValue("");
+    });
+    expect(screen.getByLabelText("Case Details")).toHaveValue("");
+    expect(screen.getByTestId("alert-summary")).toHaveTextContent("None selected");
+  });
+
+  it("renders a recoverable storage warning below the route h1", async () => {
+    const storage = {
+      getItem: () => JSON.stringify(createSeedState()),
+      setItem: () => {
+        throw new Error("storage unavailable");
+      },
+      removeItem: () => undefined,
+    };
+
+    render(
+      <PrototypeProvider initialState={createSeedState()} storage={storage}>
+        <AppShell>
+          <h1>Route content</h1>
+        </AppShell>
+      </PrototypeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Sophie Bernard/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Dr. Marc Tremblay/ }));
+
+    await screen.findByRole("heading", {
+      level: 2,
+      name: "Demo changes are available for this session but could not be saved in this browser.",
+    });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Route content" })).toBeVisible();
+  });
+
   it("marks the active link and toggles the tablet drawer semantics", () => {
     navigation.pathname = "/alerts";
     renderShell();

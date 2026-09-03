@@ -54,6 +54,7 @@ export type EscalationStep = {
 export type AlertRecord = {
   id: string;
   label: string;
+  displayTitle?: string;
   patientReference: string;
   location: string;
   department: string;

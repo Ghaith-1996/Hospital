@@ -27,6 +27,15 @@ const comingLaterItems = [
   { label: "Settings", icon: SettingsIcon },
 ];
 
+const drawerFocusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
 function matchesPath(pathname: string, href: string) {
   return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 }
@@ -37,26 +46,50 @@ function activeNavigationHref(pathname: string, navigation: NavigationItem[]) {
     .find((item) => matchesPath(pathname, item.href))?.href;
 }
 
+function getDrawerModeSnapshot() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(max-width: 960px)").matches
+    : false;
+}
+
+function subscribeDrawerMode(onStoreChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => undefined;
+
+  const query = window.matchMedia("(max-width: 960px)");
+  query.addEventListener("change", onStoreChange);
+  return () => query.removeEventListener("change", onStoreChange);
+}
+
+function useDrawerMode() {
+  return React.useSyncExternalStore(subscribeDrawerMode, getDrawerModeSnapshot, () => false);
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hydrated, storageError, state } = usePrototype();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const drawerMode = useDrawerMode();
   const menuButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const sidebarRef = React.useRef<HTMLElement | null>(null);
   const currentUser = state.users.find((user) => user.id === state.selectedUserId) ?? state.users[0];
   const navigation = currentUser.role === "doctor" ? doctorNavigation : operatorNavigation;
   const navigationLabel = currentUser.role === "doctor" ? "Doctor navigation" : "Operator navigation";
   const activeHref = activeNavigationHref(pathname, navigation);
   const roleNavigationReady = hydrated;
+  const modalDrawerOpen = drawerMode && drawerOpen;
 
   React.useEffect(() => {
-    document.body.classList.toggle("drawer-open", drawerOpen);
+    document.body.classList.toggle("drawer-open", modalDrawerOpen);
     return () => {
       document.body.classList.remove("drawer-open");
     };
-  }, [drawerOpen]);
+  }, [modalDrawerOpen]);
 
   React.useEffect(() => {
-    if (!drawerOpen) return;
+    if (!modalDrawerOpen) return;
+
+    closeButtonRef.current?.focus();
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -65,9 +98,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }
     }
 
+    function trapDrawerFocus(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(sidebarRef.current?.querySelectorAll<HTMLElement>(drawerFocusableSelector) ?? []);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
     document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [drawerOpen]);
+    document.addEventListener("keydown", trapDrawerFocus);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", trapDrawerFocus);
+    };
+  }, [modalDrawerOpen]);
 
   function closeDrawer() {
     setDrawerOpen(false);
@@ -100,9 +157,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </span>
       </header>
 
-      {drawerOpen ? <div className="drawer-scrim" aria-hidden="true" onClick={closeDrawer} /> : null}
+      {modalDrawerOpen ? <div className="drawer-scrim" aria-hidden="true" onClick={closeDrawer} /> : null}
 
-      <aside className={`sidebar ${drawerOpen ? "sidebar--open" : ""}`} id="prototype-sidebar" aria-label="Prototype sidebar">
+      <aside
+        className={`sidebar ${modalDrawerOpen ? "sidebar--open" : ""}`}
+        id="prototype-sidebar"
+        ref={sidebarRef}
+        aria-label="Prototype sidebar"
+        aria-hidden={drawerMode && !drawerOpen ? true : undefined}
+        aria-modal={modalDrawerOpen ? true : undefined}
+        inert={drawerMode && !drawerOpen ? true : undefined}
+        role={modalDrawerOpen ? "dialog" : undefined}
+      >
         <div className="sidebar__top">
           <div className="brand">
             <ShieldIcon className="brand__mark" />
@@ -111,7 +177,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span>Simulation demo</span>
             </div>
           </div>
-          <button className="icon-button sidebar__close" type="button" aria-label="Close navigation" onClick={closeDrawer}>
+          <button
+            className="icon-button sidebar__close"
+            ref={closeButtonRef}
+            type="button"
+            aria-label="Close navigation"
+            onClick={closeDrawer}
+          >
             <CloseIcon />
           </button>
           <span className="simulation-pill simulation-pill--sidebar" role="status" aria-label="SIMULATION">
@@ -161,9 +233,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <UserSwitcher />
       </aside>
 
-      <main className="app-shell__main" id="main-content" tabIndex={-1}>
+      <main className="app-shell__main" id="main-content" tabIndex={-1} inert={modalDrawerOpen ? true : undefined}>
         <div className="app-shell__content">
-          {storageError ? <ScreenState kind="recoverable-storage" label={storageError} /> : null}
+          {storageError ? <ScreenState kind="recoverable-storage" label={storageError} headingLevel="h2" /> : null}
           {children}
         </div>
       </main>

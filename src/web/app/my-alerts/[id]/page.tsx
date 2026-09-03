@@ -7,15 +7,9 @@ import { ResponsePanel, responseLabel } from "../../../components/alerts/respons
 import { PageHeader } from "../../../components/ui/page-header";
 import { ScreenState } from "../../../components/ui/screen-state";
 import { StatusBadge } from "../../../components/ui/status-badge";
-import { selectAlertById, selectCurrentUser } from "../../../features/alerts/selectors";
+import { formatAlertDisplayTitle, selectAlertById, selectCurrentUser } from "../../../features/alerts/selectors";
 import { usePrototype } from "../../../features/alerts/prototype-store";
 import type { AlertRecord, Clinician, DoctorResponse } from "../../../features/alerts/types";
-
-const alertTitles: Record<string, string> = {
-  "alert-critical-1": "Chest pain, hypotension",
-  "alert-in-progress-1": "Respiratory distress",
-  "alert-escalating-1": "Suspected sepsis",
-};
 
 function readRouteId(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -32,15 +26,8 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function fallbackTitle(alert: AlertRecord) {
-  return alert.label
-    .replace(/^SIMULATION:\s*/i, "")
-    .replace(/^fictional\s*/i, "")
-    .replace(/[.!?]\s*$/u, "");
-}
-
 function alertTitle(alert: AlertRecord) {
-  return alertTitles[alert.id] ?? fallbackTitle(alert);
+  return formatAlertDisplayTitle(alert);
 }
 
 function findClinician(clinicians: Clinician[], clinicianId: string) {

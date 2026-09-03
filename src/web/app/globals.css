@@ -413,6 +413,10 @@ p {
   background: var(--surface-muted);
 }
 
+.sidebar__close.icon-button {
+  display: none;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -1026,10 +1030,12 @@ p {
 
 .review-details dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .review-case p {
   margin-bottom: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
@@ -1204,6 +1210,7 @@ p {
 
 .alerts-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.9rem;
 }
@@ -1226,6 +1233,7 @@ p {
 .alerts-table tbody th {
   color: var(--text);
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .alerts-table tbody tr:last-child th,
@@ -1234,7 +1242,9 @@ p {
 }
 
 .alert-open-link {
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
 }
 
 .alert-cards {
@@ -1256,6 +1266,8 @@ p {
 
 .alert-card__header h2 {
   margin-bottom: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .alert-card__details {
@@ -1278,6 +1290,7 @@ p {
 
 .alert-card__details dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .alert-details-page {
@@ -1657,12 +1670,18 @@ p {
   gap: 0.75rem;
 }
 
+.doctor-inbox__alert-cell > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .doctor-inbox__alert-link {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
   color: var(--text);
   font-weight: 700;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -1694,6 +1713,8 @@ p {
 
 .doctor-inbox-card__header h2 {
   margin-bottom: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .doctor-inbox-card__details {
@@ -2032,6 +2053,9 @@ p {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
+  }
+
+  .sidebar__close.icon-button {
     display: inline-grid;
   }
 
@@ -2049,7 +2073,6 @@ p {
 
   .form-grid,
   .recipient-controls,
-  .new-alert-layout,
   .clinician-selector__grid,
   .alerts-filter-drawer__grid,
   .detail-top-grid,
@@ -2058,6 +2081,14 @@ p {
   .doctor-alert__grid,
   .respond-form {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .new-alert-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .alert-summary {
+    position: static;
   }
 }
 
@@ -2108,10 +2139,6 @@ p {
   .respond-form,
   .response-panel__actions {
     grid-template-columns: 1fr;
-  }
-
-  .alert-summary {
-    position: static;
   }
 
   .channel-options,
@@ -2172,7 +2199,7 @@ p {
   }
 
   .response-panel--sticky {
-    bottom: 0.75rem;
+    position: static;
   }
 
   .response-panel__actions {

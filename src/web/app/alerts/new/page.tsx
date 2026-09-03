@@ -104,8 +104,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
 
 export default function NewAlertPage() {
   const router = useRouter();
-  const { createAlert, hydrated, state, updateAlert } = usePrototype();
+  const { createAlert, hydrated, resetGeneration, state, updateAlert } = usePrototype();
   const [form, dispatch] = useReducer(formReducer, initialFormState);
+  const previousResetGeneration = React.useRef(resetGeneration);
 
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;
@@ -118,6 +119,17 @@ export default function NewAlertPage() {
 
     dispatch({ type: "edit-loaded", alert });
   }, [form.loadedEditId, hydrated, state]);
+
+  useEffect(() => {
+    if (previousResetGeneration.current === resetGeneration) return;
+    previousResetGeneration.current = resetGeneration;
+
+    const queryEditId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("edit");
+    dispatch({ type: "cleared", queryEditId });
+    if (queryEditId) {
+      router.replace("/alerts/new");
+    }
+  }, [resetGeneration, router]);
 
   const errors = form.submitted
     ? buildValidationErrors(form.patientReference, form.urgency, form.caseDetails, form.selectedIds)

@@ -49,6 +49,15 @@ export function selectDoctorAlerts(state: PrototypeState, clinicianId: string, t
   );
 }
 
+export function formatAlertDisplayTitle(alert: AlertRecord) {
+  if (alert.displayTitle) return alert.displayTitle;
+
+  return alert.label
+    .replace(/^SIMULATION:\s*/i, "")
+    .replace(/^fictional\s*/i, "")
+    .replace(/[.!?]\s*$/u, "");
+}
+
 export function searchClinicians(state: PrototypeState, query: string): Clinician[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return state.clinicians;

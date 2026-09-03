@@ -24,8 +24,26 @@ async function expectNoHorizontalOverflow(page: Page) {
     .toBe(true);
 }
 
+async function selectStoredUser(page: Page, userId: string, path: string) {
+  await openWithFreshDemo(page, "/alerts/new");
+  await page.waitForFunction((key) => {
+    const state = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+    return Array.isArray(state.alerts) && state.alerts.length > 0;
+  }, storageKey);
+  await page.evaluate(
+    ({ key, selectedUserId }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+      state.selectedUserId = selectedUserId;
+      window.localStorage.setItem(key, JSON.stringify(state));
+    },
+    { key: storageKey, selectedUserId: userId },
+  );
+  await page.goto(path);
+}
+
 test("operator creates, reviews, sends, and opens a fictional alert", async ({ page }) => {
   await openWithFreshDemo(page, "/alerts/new");
+  await expect(page.getByRole("button", { name: "Close navigation" })).not.toBeVisible();
   await page.getByLabel("Patient Reference").fill("SIM-PAT-E2E-001");
   await page.getByLabel("Case Details").fill("SIMULATION: fictional E2E alert details.");
   await page.getByLabel("Search fictional clinicians").fill("Marc");
@@ -94,6 +112,14 @@ test("operator filters and opens the fixed demo escalation without automatic ste
 });
 
 test("mobile navigation, alert creation, cards, and overflow remain usable at 390x844", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 844 });
+  await openWithFreshDemo(page, "/alerts/new");
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.querySelector(".new-alert-layout")!).gridTemplateColumns.split(" ").length),
+    )
+    .toBe(1);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await openWithFreshDemo(page, "/alerts/new");
 
@@ -105,14 +131,20 @@ test("mobile navigation, alert creation, cards, and overflow remain usable at 39
   const menuButton = page.getByRole("button", { name: "Open navigation" });
   await expect(menuButton).toBeVisible();
   await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#prototype-sidebar")).toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByRole("button", { name: "Close navigation" })).toHaveCount(0);
   await menuButton.click();
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#prototype-sidebar")).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.getByRole("navigation", { name: "Operator navigation" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close navigation" })).toBeFocused();
+  await expect(page.locator("#main-content")).toHaveJSProperty("inert", true);
   await page.getByRole("button", { name: "Close navigation" }).click();
   await expect(menuButton).toHaveAttribute("aria-expanded", "false");
   await expect(menuButton).toBeFocused();
 
-  await page.getByLabel("Patient Reference").fill("SIM-PAT-MOBILE-001");
+  const longReference = `SIM-PAT-MOBILE-LONG-${"ABCDEFGH".repeat(12)}`;
+  await page.getByLabel("Patient Reference").fill(longReference);
   await page.getByLabel("Case Details").fill("SIMULATION: fictional mobile alert details.");
   await page.getByLabel("Search fictional clinicians").fill("Marc");
   await page.getByRole("button", { name: "Add Dr. Marc Tremblay" }).click();
@@ -123,11 +155,26 @@ test("mobile navigation, alert creation, cards, and overflow remain usable at 39
   await page.goto("/alerts");
   await expect(page.getByRole("table", { name: "Fictional alerts" })).not.toBeVisible();
   await expect(page.getByLabel("Fictional alert cards")).toBeVisible();
-  const mobileCard = page.getByRole("article").filter({ hasText: "SIM-PAT-MOBILE-001" });
+  const mobileCard = page.getByRole("article").filter({ hasText: longReference });
   await expect(mobileCard.getByText("Patient Reference")).toBeVisible();
   await expect(mobileCard.getByText("Urgency")).toBeVisible();
   await expect(mobileCard.getByText("Status")).toBeVisible();
   await expect(mobileCard.getByText("Recipients")).toBeVisible();
   await expect(mobileCard.getByText("Last Updated")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  await selectStoredUser(page, "user-marc", "/my-alerts/alert-critical-1");
+  await expect(page.getByRole("heading", { name: "Chest pain, hypotension" })).toBeVisible();
+  await page.getByRole("region", { name: "Respond to this fictional alert" }).scrollIntoViewIfNeeded();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const current = document.querySelector(".doctor-alert__current")?.getBoundingClientRect();
+        const panel = document.querySelector(".response-panel")?.getBoundingClientRect();
+        if (!current || !panel) return false;
+        return panel.top >= current.bottom - 1 && panel.bottom <= window.innerHeight;
+      }),
+    )
+    .toBe(true);
   await expectNoHorizontalOverflow(page);
 });

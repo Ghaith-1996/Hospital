@@ -42,17 +42,38 @@ function buildLabel(caseDetails: string): string {
 function createActivity(
   alertId: string,
   kind: AlertActivity["kind"],
+  actorId: string,
+  sequence: number,
   label: string,
   occurredAt: string,
   tone: AlertActivity["tone"],
 ): AlertActivity {
   return {
-    id: `${alertId}-${kind}-${occurredAt}`,
+    id: `activity-${alertId}-${kind}-${actorId}-seq${String(sequence).padStart(3, "0")}-${occurredAt}`,
     kind,
     label,
     occurredAt,
     tone,
   };
+}
+
+function readActivitySequence(activity: AlertActivity) {
+  const parsed = activity.id.match(/-seq(\d+)-/u)?.[1];
+  return parsed ? Number(parsed) : 0;
+}
+
+function nextActivitySequence(alert: AlertRecord) {
+  return Math.max(0, ...alert.activities.map(readActivitySequence)) + 1;
+}
+
+function compareActivitiesNewestFirst(left: AlertActivity, right: AlertActivity) {
+  const timeComparison = right.occurredAt.localeCompare(left.occurredAt);
+  if (timeComparison !== 0) return timeComparison;
+  return readActivitySequence(left) - readActivitySequence(right);
+}
+
+function addActivity(alert: AlertRecord, activity: AlertActivity) {
+  return [...alert.activities, activity].sort(compareActivitiesNewestFirst);
 }
 
 function resolveStorage(storage?: Pick<Storage, "getItem" | "setItem" | "removeItem">): Pick<
@@ -101,7 +122,7 @@ export function buildAlert(input: NewAlertInput, id: string): AlertRecord {
     updatedAt: DEMO_NOW,
     recipients: createRecipients(input.clinicianIds),
     activities: [
-      createActivity(id, "created", "SIMULATION: fictional operator draft created.", DEMO_NOW, "neutral"),
+      createActivity(id, "created", "user-sophie", 1, "SIMULATION: fictional operator draft created.", DEMO_NOW, "neutral"),
     ],
   };
 }
@@ -173,16 +194,18 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
               ...alert,
               status: "sent",
               updatedAt: action.occurredAt,
-              activities: [
+              activities: addActivity(
+                alert,
                 createActivity(
                   alert.id,
                   "sent",
+                  "user-sophie",
+                  nextActivitySequence(alert),
                   "SIMULATION: fictional alert confirmed without delivery observation.",
                   action.occurredAt,
                   "info",
                 ),
-                ...alert.activities,
-              ],
+              ),
             },
       ),
     };
@@ -217,16 +240,18 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
               note: trimNote(action.note),
             };
           }),
-          activities: [
+          activities: addActivity(
+            alert,
             createActivity(
               alert.id,
               action.response,
+              action.clinicianId,
+              nextActivitySequence(alert),
               `SIMULATION: fictional ${action.response} response recorded.`,
               action.occurredAt,
               action.response === "accepted" ? "success" : action.response === "acknowledged" ? "info" : action.response === "declined" ? "warning" : "critical",
             ),
-            ...alert.activities,
-          ],
+          ),
         };
       }),
     };
@@ -242,6 +267,7 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
 export type PrototypeContextValue = {
   state: PrototypeState;
   hydrated: boolean;
+  resetGeneration: number;
   storageError: string | null;
   selectUser(userId: string): void;
   createAlert(input: NewAlertInput): string;
@@ -257,13 +283,14 @@ type ProviderState = {
   prototype: PrototypeState;
   hydrated: boolean;
   storageError: string | null;
+  resetGeneration: number;
 };
 
 type ProviderAction =
   | { type: "hydrate"; state: PrototypeState }
   | { type: "persist-succeeded" }
   | { type: "persist-failed" }
-  | { type: "prototype-replaced"; state: PrototypeState }
+  | { type: "prototype-replaced"; state: PrototypeState; resetGeneration?: number }
   | { type: "prototype"; action: PrototypeAction };
 
 function providerReducer(state: ProviderState, action: ProviderAction): ProviderState {
@@ -272,6 +299,7 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
       prototype: action.state,
       hydrated: true,
       storageError: null,
+      resetGeneration: state.resetGeneration,
     };
   }
 
@@ -295,6 +323,7 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
     return {
       ...state,
       prototype: action.state,
+      resetGeneration: action.resetGeneration ?? state.resetGeneration,
     };
   }
 
@@ -317,14 +346,21 @@ export function PrototypeProvider({
     prototype: initialState ?? createSeedState(),
     hydrated: hasInitialState,
     storageError: null,
+    resetGeneration: 0,
   });
   const storageRef = React.useRef(resolveStorage(storage));
+  const prototypeRef = React.useRef(providerState.prototype);
 
   React.useEffect(() => {
     if (hasInitialState) return;
     const loaded = loadPrototypeState(storageRef.current ?? undefined);
+    prototypeRef.current = loaded;
     dispatch({ type: "hydrate", state: loaded });
   }, [hasInitialState]);
+
+  React.useEffect(() => {
+    prototypeRef.current = providerState.prototype;
+  }, [providerState.prototype]);
 
   React.useEffect(() => {
     if (!providerState.hydrated) return;
@@ -338,29 +374,35 @@ export function PrototypeProvider({
 
   const applyPrototypeAction = React.useCallback(
     (action: PrototypeAction) => {
-      const nextState = prototypeReducer(providerState.prototype, action);
+      const nextState = prototypeReducer(prototypeRef.current, action);
+      prototypeRef.current = nextState;
       try {
         savePrototypeState(nextState, storageRef.current ?? undefined);
         dispatch({ type: "persist-succeeded" });
       } catch {
         dispatch({ type: "persist-failed" });
       }
-      dispatch({ type: "prototype-replaced", state: nextState });
+      dispatch({
+        type: "prototype-replaced",
+        state: nextState,
+        resetGeneration: action.type === "demo-reset" ? providerState.resetGeneration + 1 : undefined,
+      });
       return nextState;
     },
-    [providerState.prototype],
+    [providerState.resetGeneration],
   );
 
   const value = React.useMemo<PrototypeContextValue>(
     () => ({
       state: providerState.prototype,
       hydrated: providerState.hydrated,
+      resetGeneration: providerState.resetGeneration,
       storageError: providerState.storageError,
       selectUser(userId: string) {
         applyPrototypeAction({ type: "user-selected", userId });
       },
       createAlert(input: NewAlertInput) {
-        const id = `alert-custom-${providerState.prototype.alerts.length + 1}`;
+        const id = `alert-custom-${prototypeRef.current.alerts.length + 1}`;
         applyPrototypeAction({ type: "alert-created", alert: buildAlert(input, id) });
         return id;
       },

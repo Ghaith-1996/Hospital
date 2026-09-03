@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "../../../../components/ui/page-header";
 import { ScreenState } from "../../../../components/ui/screen-state";
-import { selectAlertById, selectCurrentUser } from "../../../../features/alerts/selectors";
+import { formatAlertDisplayTitle, selectAlertById, selectCurrentUser } from "../../../../features/alerts/selectors";
 import { usePrototype } from "../../../../features/alerts/prototype-store";
 import type { AlertRecord, DoctorResponse } from "../../../../features/alerts/types";
 
@@ -29,18 +29,8 @@ function readRouteId(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function fallbackTitle(alert: AlertRecord) {
-  return alert.label
-    .replace(/^SIMULATION:\s*/i, "")
-    .replace(/^fictional\s*/i, "")
-    .replace(/[.!?]\s*$/u, "");
-}
-
 function alertTitle(alert: AlertRecord) {
-  if (alert.id === "alert-critical-1") return "Chest pain, hypotension";
-  if (alert.id === "alert-in-progress-1") return "Respiratory distress";
-  if (alert.id === "alert-escalating-1") return "Suspected sepsis";
-  return fallbackTitle(alert);
+  return formatAlertDisplayTitle(alert);
 }
 
 function initialResponse(queryValue: string | null): ResponseChoice {
