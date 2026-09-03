@@ -65,12 +65,13 @@ const clinicians: Clinician[] = [
 const alerts: AlertRecord[] = [
   {
     id: "alert-critical-1",
-    label: "SIMULATION: fictional chest pain and hypotension.",
-    patientReference: "SIM-PAT-1001",
-    location: "North Wing / Simulation Room 12",
+    label: "SIMULATION: fictional chest pain and shortness of breath.",
+    patientReference: "SIM-PAT-01578",
+    location: "Fictional ER - Simulation Bed 12",
     department: "Fictional Emergency",
     urgency: "critical",
-    caseDetails: "SIMULATION: fictional chest pain and hypotension.",
+    caseDetails:
+      "SIMULATION: fictional 66-year-old male with chest pain and shortness of breath for 30 minutes.\nBP 170/94, HR 128, SpO2 86% on 2L O2.\nReceived ASA 325 mg and NTG x1 with no relief.\nPast history: fictional hypertension and type 2 diabetes.\nNeed cardiology evaluation and possible cath lab activation.",
     status: "sent",
     deliveryState: "not-observed",
     createdByUserId: "user-sophie",
@@ -81,12 +82,20 @@ const alerts: AlertRecord[] = [
         clinicianId: "clinician-marc",
         response: "none",
       },
+      {
+        clinicianId: "clinician-julie",
+        response: "none",
+      },
+      {
+        clinicianId: "clinician-david",
+        response: "none",
+      },
     ],
     activities: [
       {
         id: "activity-alert-critical-1-sent",
         kind: "sent",
-        label: "SIMULATION: fictional alert sent to Dr. Marc Tremblay.",
+        label: "SIMULATION: fictional alert sent to 3 fictional clinicians.",
         occurredAt: "2026-08-30T14:11:00.000Z",
         tone: "info",
       },

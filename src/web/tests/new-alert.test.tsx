@@ -18,6 +18,9 @@ vi.mock("next/navigation", () => ({
     push: mockPush,
     replace: mockReplace,
   }),
+  useParams: () => ({
+    id: "alert-custom-1",
+  }),
 }));
 
 function AlertProbe({ id }: { id: string }) {
@@ -150,7 +153,7 @@ describe("new alert workflow", () => {
   it("clears edit mode and removes the edit query so the form stays empty", async () => {
     renderNewAlert("/alerts/new?edit=alert-critical-1");
 
-    expect(await screen.findByDisplayValue("SIM-PAT-1001")).toBeVisible();
+    expect(await screen.findByDisplayValue("SIM-PAT-01578")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
@@ -172,9 +175,11 @@ describe("new alert workflow", () => {
       { state: createSeedState() },
     );
 
-    expect(await screen.findByDisplayValue("SIM-PAT-1001")).toBeVisible();
-    expect(screen.getByLabelText("Case Details")).toHaveValue("SIMULATION: fictional chest pain and hypotension.");
-    expect(screen.getByText("Selected Clinicians (1)")).toBeVisible();
+    expect(await screen.findByDisplayValue("SIM-PAT-01578")).toBeVisible();
+    expect(screen.getByLabelText("Case Details")).toHaveValue(
+      "SIMULATION: fictional 66-year-old male with chest pain and shortness of breath for 30 minutes.\nBP 170/94, HR 128, SpO2 86% on 2L O2.\nReceived ASA 325 mg and NTG x1 with no relief.\nPast history: fictional hypertension and type 2 diabetes.\nNeed cardiology evaluation and possible cath lab activation.",
+    );
+    expect(screen.getByText("Selected Clinicians (3)")).toBeVisible();
     expect(within(screen.getByTestId("alert-summary")).getByText("Dr. Marc Tremblay")).toBeVisible();
 
     fireEvent.change(screen.getByLabelText("Case Details"), {
@@ -185,18 +190,18 @@ describe("new alert workflow", () => {
     expect(mockPush).toHaveBeenCalledWith("/alerts/alert-critical-1/review");
     await waitFor(() => {
       expect(screen.getByTestId("alert-probe-alert-critical-1")).toHaveTextContent(
-        "SIM-PAT-1001|Fictional ER - Simulation Bed 12|Fictional Emergency|critical|SIMULATION: fictional updated chest pain narrative.|clinician-marc",
+        "SIM-PAT-01578|Fictional ER - Simulation Bed 12|Fictional Emergency|critical|SIMULATION: fictional updated chest pain narrative.|clinician-marc,clinician-julie,clinician-david",
       );
     });
   });
 
-  it("leaves the review route visible with a recoverable placeholder", () => {
+  it("shows a not-found review state for a missing local alert", () => {
     window.history.pushState({}, "", "/alerts/alert-custom-1/review");
 
     renderPrototype(<AlertReviewPage />);
 
     expect(mockReplace).not.toHaveBeenCalled();
-    expect(screen.getByRole("status", { name: "Review step pending" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Back to Alert Doctor" })).toHaveAttribute("href", "/alerts/new");
+    expect(screen.getByRole("status", { name: "Fictional alert not found" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Create another alert" })).toHaveAttribute("href", "/alerts/new");
   });
 });
