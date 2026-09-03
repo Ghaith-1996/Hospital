@@ -41,28 +41,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hydrated, storageError, state } = usePrototype();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const initialHydratedRef = React.useRef(hydrated);
-  const [roleNavigationReady, setRoleNavigationReady] = React.useState(hydrated);
   const menuButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const currentUser = state.users.find((user) => user.id === state.selectedUserId) ?? state.users[0];
   const navigation = currentUser.role === "doctor" ? doctorNavigation : operatorNavigation;
   const navigationLabel = currentUser.role === "doctor" ? "Doctor navigation" : "Operator navigation";
   const activeHref = activeNavigationHref(pathname, navigation);
-
-  React.useEffect(() => {
-    if (!hydrated) {
-      setRoleNavigationReady(false);
-      return;
-    }
-
-    if (initialHydratedRef.current) {
-      setRoleNavigationReady(true);
-      return;
-    }
-
-    const handle = window.setTimeout(() => setRoleNavigationReady(true), 0);
-    return () => window.clearTimeout(handle);
-  }, [hydrated, currentUser.role]);
+  const roleNavigationReady = hydrated;
 
   React.useEffect(() => {
     document.body.classList.toggle("drawer-open", drawerOpen);

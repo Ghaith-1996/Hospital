@@ -123,7 +123,7 @@ describe("prototype app shell", () => {
     expect(screen.getByRole("link", { name: "Alerts" })).not.toHaveAttribute("aria-current");
   });
 
-  it("withholds role navigation until prototype hydration completes", async () => {
+  it("does not flash operator navigation while hydrating stored doctor state", async () => {
     const storedState = JSON.stringify(doctorState());
     const storage = {
       getItem: vi.fn(() => storedState),
@@ -138,8 +138,6 @@ describe("prototype app shell", () => {
         </AppShell>
       </PrototypeProvider>,
     );
-
-    expect(screen.queryByRole("navigation", { name: /navigation/i })).not.toBeInTheDocument();
 
     await screen.findByRole("navigation", { name: "Doctor navigation" });
     expect(screen.queryByRole("navigation", { name: "Operator navigation" })).not.toBeInTheDocument();

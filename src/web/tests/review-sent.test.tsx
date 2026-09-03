@@ -151,7 +151,8 @@ describe("review confirmation and sent state", () => {
 
     expect(screen.getByRole("heading", { name: "Alert Details" })).toBeVisible();
     expect(screen.getByText("SIM-PAT-01578")).toBeVisible();
-    expect(screen.getByText(/details view is a local transitional placeholder/i)).toBeVisible();
+    expect(screen.getByRole("region", { name: "Responses Summary" })).toBeVisible();
+    expect(screen.getByText(/delivery, acknowledgement, and responsibility acceptance remain separate/i)).toBeVisible();
   });
 
   it("renders a not-found state when the sent alert is missing", () => {

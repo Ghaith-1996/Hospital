@@ -263,6 +263,7 @@ type ProviderAction =
   | { type: "hydrate"; state: PrototypeState }
   | { type: "persist-succeeded" }
   | { type: "persist-failed" }
+  | { type: "prototype-replaced"; state: PrototypeState }
   | { type: "prototype"; action: PrototypeAction };
 
 function providerReducer(state: ProviderState, action: ProviderAction): ProviderState {
@@ -287,6 +288,13 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
     return {
       ...state,
       storageError: STORAGE_ERROR_MESSAGE,
+    };
+  }
+
+  if (action.type === "prototype-replaced") {
+    return {
+      ...state,
+      prototype: action.state,
     };
   }
 
@@ -328,30 +336,42 @@ export function PrototypeProvider({
     }
   }, [providerState.hydrated, providerState.prototype]);
 
+  const applyPrototypeAction = React.useCallback(
+    (action: PrototypeAction) => {
+      const nextState = prototypeReducer(providerState.prototype, action);
+      try {
+        savePrototypeState(nextState, storageRef.current ?? undefined);
+        dispatch({ type: "persist-succeeded" });
+      } catch {
+        dispatch({ type: "persist-failed" });
+      }
+      dispatch({ type: "prototype-replaced", state: nextState });
+      return nextState;
+    },
+    [providerState.prototype],
+  );
+
   const value = React.useMemo<PrototypeContextValue>(
     () => ({
       state: providerState.prototype,
       hydrated: providerState.hydrated,
       storageError: providerState.storageError,
       selectUser(userId: string) {
-        dispatch({ type: "prototype", action: { type: "user-selected", userId } });
+        applyPrototypeAction({ type: "user-selected", userId });
       },
       createAlert(input: NewAlertInput) {
         const id = `alert-custom-${providerState.prototype.alerts.length + 1}`;
-        dispatch({ type: "prototype", action: { type: "alert-created", alert: buildAlert(input, id) } });
+        applyPrototypeAction({ type: "alert-created", alert: buildAlert(input, id) });
         return id;
       },
       updateAlert(alertId: string, input: NewAlertInput) {
-        dispatch({ type: "prototype", action: { type: "alert-updated", alertId, input } });
+        applyPrototypeAction({ type: "alert-updated", alertId, input });
       },
       confirmAlert(alertId: string) {
-        dispatch({ type: "prototype", action: { type: "alert-confirmed", alertId, occurredAt: DEMO_NOW } });
+        applyPrototypeAction({ type: "alert-confirmed", alertId, occurredAt: DEMO_NOW });
       },
       respondToAlert(alertId: string, clinicianId: string, response: Exclude<DoctorResponse, "none">, note: string) {
-        dispatch({
-          type: "prototype",
-          action: { type: "doctor-responded", alertId, clinicianId, response, note, occurredAt: DEMO_NOW },
-        });
+        applyPrototypeAction({ type: "doctor-responded", alertId, clinicianId, response, note, occurredAt: DEMO_NOW });
       },
       resetDemo() {
         try {
@@ -359,10 +379,10 @@ export function PrototypeProvider({
         } catch {
           dispatch({ type: "persist-failed" });
         }
-        dispatch({ type: "prototype", action: { type: "demo-reset" } });
+        applyPrototypeAction({ type: "demo-reset" });
       },
     }),
-    [providerState],
+    [applyPrototypeAction, providerState],
   );
 
   return <PrototypeContext.Provider value={value}>{children}</PrototypeContext.Provider>;

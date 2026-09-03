@@ -20,10 +20,6 @@ export function Tabs<TValue extends string>({
   const refs = React.useRef<Array<HTMLButtonElement | null>>([]);
   const [focusedValue, setFocusedValue] = React.useState<TValue>(value);
 
-  React.useEffect(() => {
-    setFocusedValue(value);
-  }, [value]);
-
   function moveFocus(currentIndex: number, direction: 1 | -1) {
     const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
     setFocusedValue(tabs[nextIndex].value);

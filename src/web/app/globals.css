@@ -43,7 +43,8 @@ body {
   font-family: "Segoe UI", Arial, sans-serif;
 }
 
-body.drawer-open {
+body.drawer-open,
+body.dialog-open {
   overflow: hidden;
 }
 

@@ -192,20 +192,53 @@ On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution buil
 
 The approved frontend redesign is ready for review only when all of the following are true:
 
-- [ ] All nine visual states and eight routes are present and connected.
-- [ ] The supplied mockup's design system and page anatomy are faithfully reproduced.
-- [ ] The operator and doctor workflows update one persistent fictional state model.
-- [ ] The fictional-user switcher and reset action work.
-- [ ] Directory, Reports, and Settings are clearly disabled or show the approved Coming later state.
-- [ ] Mobile and tablet layouts remain usable.
-- [ ] Loading, empty, validation, error, and not-found states are implemented.
-- [ ] Each screen presents one obvious primary action and preserves the visible simulation treatment.
-- [ ] All navigation and controls are keyboard operable with visible, consistent focus indicators.
-- [ ] Fields, dialogs, tables, and mobile-card equivalents preserve semantic labels and accessible descriptions.
-- [ ] Status, urgency, and response meaning are conveyed textually in addition to color.
-- [ ] Practical interactive targets are approximately 44 pixels.
-- [ ] Doctor response controls, response summaries, and escalation rendering are explicitly marked `SIMULATION_ONLY_ASSUMPTION` in product documentation and remain local mock state only.
-- [ ] Real doctor response workflow authority, escalation policy values, escalation intervals, recipient-selection policy, privacy conclusions, and clinical recommendations remain `REQUIRES_HOSPITAL_DECISION`.
-- [ ] No backend, API, database, notification, response processor, or escalation engine change is included.
-- [ ] Frontend tests, typecheck, lint, build, browser verification, safety checks, and visual comparison pass.
-- [ ] Remaining intentional deviations from the supplied mockup are documented for human review.
+- [x] All nine visual states and eight routes are present and connected.
+- [x] The supplied mockup's design system and page anatomy are faithfully reproduced.
+- [x] The operator and doctor workflows update one persistent fictional state model.
+- [x] The fictional-user switcher and reset action work.
+- [x] Directory, Reports, and Settings are clearly disabled or show the approved Coming later state.
+- [x] Mobile and tablet layouts remain usable.
+- [x] Loading, empty, validation, error, and not-found states are implemented.
+- [x] Each screen presents one obvious primary action and preserves the visible simulation treatment.
+- [x] All navigation and controls are keyboard operable with visible, consistent focus indicators.
+- [x] Fields, dialogs, tables, and mobile-card equivalents preserve semantic labels and accessible descriptions.
+- [x] Status, urgency, and response meaning are conveyed textually in addition to color.
+- [x] Practical interactive targets are approximately 44 pixels.
+- [x] Doctor response controls, response summaries, and escalation rendering are explicitly marked `SIMULATION_ONLY_ASSUMPTION` in product documentation and remain local mock state only.
+- [x] Real doctor response workflow authority, escalation policy values, escalation intervals, recipient-selection policy, privacy conclusions, and clinical recommendations remain `REQUIRES_HOSPITAL_DECISION`.
+- [x] No backend, API, database, notification, response processor, or escalation engine change is included.
+- [x] Frontend tests, typecheck, lint, build, browser verification, safety checks, and visual comparison pass.
+- [x] Remaining intentional deviations from the supplied mockup are documented for human review.
+
+### Frontend Prototype Task 11 verification evidence
+
+On 2026-09-02, Task 11 verified the frontend-only redesign against `docs/design/frontend-prototype-nine-screen-mockup.png`. Browser/IAB was used first for visual capture, with Playwright-driven screenshots saved outside the repository under `C:\Users\ghait\AppData\Local\Temp\task-11-frontend-prototype-screenshots`. The accepted concept and generated desktop/mobile contact sheets were opened with `view_image` for comparison.
+
+Desktop screenshots were captured at 1440x900 for New Alert, Review & Confirm, Alert Sent, Alerts Overview, Alert Details, Doctor Inbox, Doctor Alert, Respond to Alert, and fixed Escalation Progress. Mobile screenshots were captured at 390x844 for New Alert, Alerts Overview, Doctor Alert, and Respond to Alert. The screenshot checks reported one `h1` per captured screen; page-level horizontal overflow was absent in the measured mobile states (`scrollWidth <= innerWidth`), including the recaptured Doctor Alert and Respond to Alert states.
+
+Fidelity ledger:
+
+1. Sidebar width, logo/user placement, selected navigation, and simulation treatment matched the accepted left-rail/topbar pattern; the persistent `SIMULATION` pill is intentionally retained.
+2. Page titles, progress labels, tabs, primary actions, and above-the-fold copy matched the implemented eight-route flow; Review & Confirm and Alert Sent preserve the deliberate fictional dispatch wording.
+3. Typography scale, weight, line height, and control typography were consistent across forms, tables, cards, details, and response screens.
+4. White background, gray borders, blue selection/action treatment, and semantic red/amber/green status colors were preserved with textual labels.
+5. Form, table, clinician row, summary, timeline, dialog, and response-control geometry matched the mockup anatomy; mobile tables convert to equivalent cards.
+6. Icon metaphor, stroke weight, optical size, and alignment were checked in the sidebar, mobile topbar, status markers, empty/not-found states, and escalation timeline.
+7. Desktop density preserves next-section visibility for primary flows at 1440x900, with detail pages using right-side summaries consistent with the concept.
+8. Responsive behavior was checked at 390x844: mobile drawer opens/closes, focus returns to Menu, form/detail grids stack, summaries move below primary content, response actions stay visible without covering content, and controls remain practical touch targets.
+9. Core state changes were verified end-to-end: operator create/review/confirm/send/open details; Dr. Marc acknowledge without responsibility acceptance; escalation content remains fixed at `DEMO elapsed time: 12 min`; mobile create/overview card state persists.
+
+Intentional deviations from the mockup are limited to repository safety requirements: persistent simulation labels, explicit fictional/local/no-real-notification copy, `SIMULATION_ONLY_ASSUMPTION` documentation for doctor responses and escalation rendering, and disabled/Coming later treatment for out-of-scope areas. No real dispatch, delivery, acknowledgement processor, escalation engine, provider integration, backend API, database, or infrastructure change is included.
+
+Verification commands:
+
+- `npm --prefix src/web test -- --run`: passed, 9 test files and 66 tests.
+- `npm --prefix src/web run typecheck`: passed.
+- `npm --prefix src/web run lint`: passed with zero warnings; frontend React hook lint failures in `app-shell.tsx` and `tabs.tsx` were resolved.
+- `npm --prefix src/web run build`: passed; Next generated 8 static pages plus dynamic app routes.
+- `npm run web:e2e`: passed, 4 Playwright workflows and 4 tests. Final run used an explicit local Next dev server on `127.0.0.1:3101` with the Playwright config pointing at `src/web`; Playwright-owned server teardown hangs on this Windows host, so `reuseExistingServer` is used and the explicit server PID is stopped after the run.
+- `powershell -ExecutionPolicy Bypass -File scripts/verify-no-sensitive-data.ps1`: passed.
+- `git diff --check`: passed; only CRLF conversion warnings were reported.
+- `rg -n "fetch\(|/api/|setInterval|setTimeout" src\web\app src\web\components src\web\features`: no matches, confirming no active frontend route/component/store fetch, API, or timer calls.
+
+`scripts/test-all.ps1` was not run on this host because `global.json` requires .NET SDK `10.0.100`, while the host only reports SDK `9.0.310`. Frontend-only gates above are the available local evidence.

@@ -26,9 +26,11 @@ export function ConfirmDialog({ open, recipientNames, onCancel, onConfirm }: Con
     if (!open) return;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.classList.add("dialog-open");
     cancelRef.current?.focus();
 
     return () => {
+      document.body.classList.remove("dialog-open");
       previousFocusRef.current?.focus();
     };
   }, [open]);
