@@ -18,9 +18,15 @@ export function Tabs<TValue extends string>({
   ariaLabel: string;
 }) {
   const refs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const [focusedValue, setFocusedValue] = React.useState<TValue>(value);
+
+  React.useEffect(() => {
+    setFocusedValue(value);
+  }, [value]);
 
   function moveFocus(currentIndex: number, direction: 1 | -1) {
     const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+    setFocusedValue(tabs[nextIndex].value);
     refs.current[nextIndex]?.focus();
   }
 
@@ -36,8 +42,12 @@ export function Tabs<TValue extends string>({
           type="button"
           role="tab"
           aria-selected={tab.value === value}
-          tabIndex={tab.value === value ? 0 : -1}
-          onClick={() => onChange(tab.value)}
+          tabIndex={tab.value === focusedValue ? 0 : -1}
+          onClick={() => {
+            setFocusedValue(tab.value);
+            onChange(tab.value);
+          }}
+          onFocus={() => setFocusedValue(tab.value)}
           onKeyDown={(event) => {
             if (event.key === "ArrowRight") {
               event.preventDefault();

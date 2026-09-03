@@ -15,19 +15,22 @@ export function ScreenState({
   label,
   description,
   action,
+  headingLevel = "h1",
 }: {
   kind: ScreenStateKind;
   label?: string;
   description?: string;
   action?: React.ReactNode;
+  headingLevel?: "h1" | "h2";
 }) {
   const resolvedLabel = label ?? defaultMessages[kind];
   const Icon = kind === "loading" ? ClockIcon : kind === "empty" ? SearchIcon : AlertIcon;
+  const Heading = headingLevel;
 
   return (
     <section className={`screen-state screen-state--${kind}`} role="status" aria-label={resolvedLabel}>
       <Icon className="screen-state__icon" />
-      <h1>{resolvedLabel}</h1>
+      <Heading>{resolvedLabel}</Heading>
       {description ? <p>{description}</p> : null}
       {action ? <div className="screen-state__action">{action}</div> : null}
     </section>

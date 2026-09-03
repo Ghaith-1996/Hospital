@@ -1,8 +1,12 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import NewAlertPage from "../app/alerts/new/page";
+import DirectoryPage from "../app/directory/page";
+import DirectoryImportPage from "../app/directory/import/page";
 import HomePage from "../app/page";
 import { AppShell } from "../components/layout/app-shell";
+import { Tabs } from "../components/ui/tabs";
 import { createSeedState } from "../features/alerts/seed";
 import { PrototypeProvider } from "../features/alerts/prototype-store";
 import type { PrototypeState } from "../features/alerts/types";
@@ -104,6 +108,14 @@ describe("prototype app shell", () => {
     expect(screen.getByRole("button", { name: "Close navigation" })).toBeVisible();
   });
 
+  it("marks only the exact alert creation route as current", () => {
+    mockPathname = "/alerts/new";
+    renderShell();
+
+    expect(screen.getByRole("link", { name: "Alert Doctor" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Alerts" })).not.toHaveAttribute("aria-current");
+  });
+
   it("withholds role navigation until prototype hydration completes", async () => {
     const storedState = JSON.stringify(doctorState());
     const storage = {
@@ -144,5 +156,58 @@ describe("prototype app shell", () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith("/my-alerts");
     });
+  });
+
+  it("keeps a created local draft visible instead of routing into a legacy compose placeholder", () => {
+    render(
+      <PrototypeProvider initialState={createSeedState()}>
+        <NewAlertPage />
+      </PrototypeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.getByRole("status", { name: "Draft created in local prototype state" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Create another draft" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review & Confirm — Coming later" })).toBeDisabled();
+  });
+
+  it("keeps one page h1 when screen states follow page headers", () => {
+    const { rerender } = render(<DirectoryPage />);
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Directory" })).toBeVisible();
+
+    rerender(<DirectoryImportPage />);
+
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Directory Import" })).toBeVisible();
+  });
+
+  it("moves the roving tab stop with arrow-key focus", () => {
+    render(
+      <Tabs
+        ariaLabel="Demo tabs"
+        value="all"
+        onChange={vi.fn()}
+        tabs={[
+          { value: "all", label: "All" },
+          { value: "draft", label: "Draft", count: 2 },
+          { value: "sent", label: "Sent" },
+        ]}
+      />,
+    );
+
+    const allTab = screen.getByRole("tab", { name: "All" });
+    const draftTab = screen.getByRole("tab", { name: "Draft 2" });
+
+    allTab.focus();
+    fireEvent.keyDown(allTab, { key: "ArrowRight" });
+
+    expect(draftTab).toHaveFocus();
+    expect(draftTab).toHaveAttribute("tabindex", "0");
+    expect(allTab).toHaveAttribute("tabindex", "-1");
+    expect(allTab).toHaveAttribute("aria-selected", "true");
   });
 });

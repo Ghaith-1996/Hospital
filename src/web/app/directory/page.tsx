@@ -12,6 +12,7 @@ export default function DirectoryPage() {
         kind="empty"
         label="Directory is coming later"
         description="Use Alert Doctor or Alerts in this frontend-only prototype shell."
+        headingLevel="h2"
       />
     </>
   );

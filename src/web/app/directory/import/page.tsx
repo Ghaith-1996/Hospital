@@ -12,6 +12,7 @@ export default function DirectoryImportPage() {
         kind="empty"
         label="Directory import is coming later"
         description="No file is uploaded, parsed, or sent to a backend from this prototype route."
+        headingLevel="h2"
       />
     </>
   );

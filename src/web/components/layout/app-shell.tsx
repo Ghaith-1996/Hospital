@@ -27,8 +27,14 @@ const comingLaterItems = [
   { label: "Settings", icon: SettingsIcon },
 ];
 
-function isActivePath(pathname: string, href: string) {
+function matchesPath(pathname: string, href: string) {
   return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+}
+
+function activeNavigationHref(pathname: string, navigation: NavigationItem[]) {
+  return [...navigation]
+    .sort((left, right) => right.href.length - left.href.length)
+    .find((item) => matchesPath(pathname, item.href))?.href;
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -41,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const currentUser = state.users.find((user) => user.id === state.selectedUserId) ?? state.users[0];
   const navigation = currentUser.role === "doctor" ? doctorNavigation : operatorNavigation;
   const navigationLabel = currentUser.role === "doctor" ? "Doctor navigation" : "Operator navigation";
+  const activeHref = activeNavigationHref(pathname, navigation);
 
   React.useEffect(() => {
     if (!hydrated) {
@@ -132,7 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="sidebar__nav" aria-label={navigationLabel}>
             {navigation.map((item) => {
               const Icon = item.icon;
-              const active = isActivePath(pathname, item.href);
+              const active = activeHref === item.href;
               return (
                 <Link
                   className={`nav-item ${active ? "nav-item--active" : ""}`}
