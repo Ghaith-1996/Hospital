@@ -158,19 +158,21 @@ describe("prototype app shell", () => {
     });
   });
 
-  it("keeps a created local draft visible instead of routing into a legacy compose placeholder", () => {
+  it("routes a complete local alert draft to review instead of legacy compose", () => {
     render(
       <PrototypeProvider initialState={createSeedState()}>
         <NewAlertPage />
       </PrototypeProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Create draft" }));
+    fireEvent.change(screen.getByLabelText("Patient Reference"), { target: { value: "SIM-PAT-2222" } });
+    fireEvent.change(screen.getByLabelText("Case Details"), {
+      target: { value: "SIMULATION: fictional shell route alert." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Dr. Marc Tremblay" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review & Confirm" }));
 
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(screen.getByRole("status", { name: "Draft created in local prototype state" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Create another draft" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Review & Confirm — Coming later" })).toBeDisabled();
+    expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/^\/alerts\/alert-[a-z0-9-]+\/review$/));
   });
 
   it("keeps one page h1 when screen states follow page headers", () => {
