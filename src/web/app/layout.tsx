@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Critical Alerts Platform",
-  description: "Phase 6 simulation shell for manual recipient selection and exact alert review.",
+  description: "Simulation-only critical alerts workflow with practitioner response and operator status views.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

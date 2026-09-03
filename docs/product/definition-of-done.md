@@ -182,8 +182,33 @@ Phase 7 is ready for project-owner review only when all of the following are tru
 - [x] Pinned .NET restore, Release build, focused domain/application/adapter tests, and compile-time API/worker regression coverage pass in the current worktree.
 - [x] PostgreSQL/Testcontainers worker, persistence, and API integration tests pass with a reachable Docker engine.
 - [x] Full `scripts/test-all.ps1`, frontend/browser checks, sensitive-data scan, scope scan, and fresh-clone migrate/seed verification pass.
-- [ ] The project owner reviews Phase 7 and separately authorizes any commit/tag/push action.
+- [x] The project owner reviews Phase 7 and separately authorizes the pushed implementation commit; tag creation remains a separate action.
 
 ### Phase 7 implementation evidence
 
-On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution build passed with zero warnings and errors. Focused domain, application, and simulation-adapter tests passed (6, 10, and 6 respectively). The complete backend solution passed 204 tests (9 architecture, 48 domain, 34 application, 42 infrastructure, and 71 API), including PostgreSQL/Testcontainers worker, persistence, authorization, organization isolation, lease recovery, retry, duplicate, and out-of-order coverage. The prescribed `scripts/test-all.ps1` passed its sensitive-data scan, Release build, backend tests, web 17-test suite, typecheck, lint, and Playwright 1-test browser smoke. A fresh clone of commit `15fa771` applied all migrations through `20260829234957_Phase7SimulatedDispatch` and seeded 3 fictional users and 12 fictional practitioners against an isolated PostgreSQL 18.4 container. The Phase 7 review gate remains open for project-owner review and any separately authorized tag/push; no push or tag has been made.
+On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution build passed with zero warnings and errors. Focused domain, application, and simulation-adapter tests passed (6, 10, and 6 respectively). The complete backend solution passed 204 tests (9 architecture, 48 domain, 34 application, 42 infrastructure, and 71 API), including PostgreSQL/Testcontainers worker, persistence, authorization, organization isolation, lease recovery, retry, duplicate, and out-of-order coverage. The prescribed `scripts/test-all.ps1` passed its sensitive-data scan, Release build, backend tests, web 17-test suite, typecheck, lint, and Playwright 1-test browser smoke. A fresh clone of the reviewed content applied all migrations through `20260829234957_Phase7SimulatedDispatch` and seeded 3 fictional users and 12 fictional practitioners against an isolated PostgreSQL 18.4 container. The implementation was finalized and pushed as commit `45f4024`; no `phase-7` tag is currently recorded.
+
+## Phase 8: simulation practitioner response and closed loop
+
+Phase 8 is ready for project-owner review only when all of the following are true:
+
+- [x] A user-to-practitioner link is explicit, organization-scoped, server-resolved, and never inferred from display name or simulation handle.
+- [x] A mapped Practitioner sees only confirmed Active alerts addressed to the linked practitioner; cross-organization and unaddressed alerts are non-disclosing.
+- [x] SecureMessage opened state, acknowledgement, terminal disposition, responsibility assignment, and alert lifecycle remain distinct.
+- [x] Acknowledgement never creates responsibility; acceptance creates one durable assignment but never resolves the alert.
+- [x] Declined and unavailable remain visible and do not trigger Phase 9 escalation.
+- [x] One acknowledgement and one terminal disposition per practitioner/alert/version are enforced under concurrent requests.
+- [x] Side-effecting commands require idempotency keys and atomically persist response state, optional responsibility, idempotency result, and sanitized audit metadata.
+- [x] Practitioner inbox/detail and Operator/Administrator live projections derive identity and organization from the authenticated server principal and expose no raw contact/provider/protected storage values.
+- [x] The web UI visibly distinguishes opened, acknowledged, accepted, declined, unavailable, delivery failure, and not-applicable states without color-only communication.
+- [x] Simulation response endpoints fail closed outside Development/Test; no real provider, callback, escalation, resolution/transfer, hospital integration, AI, or Phase 9 behavior is added.
+- [x] Full backend, PostgreSQL/Testcontainers, web, browser, safety, and fresh-clone migrate/seed verification pass before review.
+- [x] The project owner reviewed Phase 8 and separately authorized the implementation commit and push; no tag was requested.
+
+### Phase 8 implementation evidence
+
+On 2026-08-30, the exact .NET 10.0.100, Node.js 24.16.0, and npm 11.13.0 pins were used for fresh verification. The prescribed `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 237 backend tests (9 architecture, 57 domain, 39 application, 48 infrastructure, and 84 API), 22 web unit tests, typecheck, lint, and 2 Playwright browser flows. The pinned production web build also passed, and rendered desktop/mobile browser checks verified the simulation boundary, navigation, unavailable-API fallback, and responsive layout.
+
+A fresh detached worktree reproduced the complete Phase 8 working-tree patch over commit `45f4024`. An isolated PostgreSQL 18.4 container applied migrations through `20260830160849_Phase8PractitionerResponses`, then seeded 3 fictional users, 12 fictional practitioners, 1 explicit user-to-practitioner link, and 5 protected fictional contact endpoints. Focused fresh-tree tests passed for the Phase 8 domain (9), environment guard (5), PostgreSQL persistence (6), and response/live API behavior (13). `git diff --check` and the scope scan passed. No commit, push, or tag is claimed; those remain separate owner actions.
+
+The final diff review on 2026-09-02 corrected strict response/reason-code validation, idempotency-key normalization, SecureMessage-only opened observations, and `NotApplicable` web rendering, with regression coverage added. Fresh post-review checks passed for Domain (58), Application (39), and web unit tests (24), plus web typecheck, lint, production build, sensitive-data scan, and `git diff --check`. The complete solution rebuilt successfully, but its PostgreSQL/Testcontainers suites could not execute because Docker Desktop was unavailable in the current host; the pinned Playwright runner also did not complete after the previously recorded two-flow pass. No production provider, callback, hospital integration, escalation, resolution/transfer, or Phase 9 behavior was added.

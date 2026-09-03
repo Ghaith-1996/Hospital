@@ -132,6 +132,84 @@ export type ConfirmResult = {
   replayed: boolean;
 };
 
+export type MyAlertSummary = {
+  alertId: string;
+  confirmedVersion: number;
+  state: string;
+  location: string;
+  urgencyLabel: string;
+  confirmedAtUtc: string;
+  channels: string[];
+  openedState: string;
+  acknowledgedAtUtc: string | null;
+  terminalDisposition: string | null;
+  responsibilityAcceptedAtUtc: string | null;
+};
+
+export type MyAlertCriticalField = {
+  fieldId: string;
+  normalizedValue: string;
+  unit: string | null;
+};
+
+export type MyAlertDetail = MyAlertSummary & {
+  simulationPatientReference: string;
+  approvedMessage: string;
+  criticalFields: MyAlertCriticalField[];
+  secureMessageOpenedAtUtc: string | null;
+};
+
+export type OpenedRecipientAlertResult = {
+  alertId: string;
+  confirmedVersion: number;
+  secureMessageOpenedAtUtc: string | null;
+  replayed: boolean;
+};
+
+export type RecipientResponseResult = {
+  alertId: string;
+  confirmedVersion: number;
+  responseType: string;
+  acknowledgedAtUtc: string | null;
+  terminalDisposition: string | null;
+  responsibilityAcceptedAtUtc: string | null;
+  replayed: boolean;
+};
+
+export type AlertLiveAttempt = {
+  channel: string;
+  attemptNumber: number;
+  status: string;
+  openedState: string;
+  openedAtUtc: string | null;
+  requestedAtUtc: string;
+  submittedAtUtc: string | null;
+  deliveredAtUtc: string | null;
+  failedAtUtc: string | null;
+  failureCategory: string | null;
+};
+
+export type AlertLiveRecipient = {
+  practitionerId: string;
+  simulationCode: string;
+  displayName: string;
+  specialty: string;
+  onCallSnapshot: string | null;
+  acknowledgedAtUtc: string | null;
+  terminalDisposition: string | null;
+  responsibilityAcceptedAtUtc: string | null;
+  attempts: AlertLiveAttempt[];
+};
+
+export type AlertLive = {
+  alertId: string;
+  confirmedVersion: number;
+  alertState: string;
+  outboxState: string;
+  refreshedAtUtc: string;
+  recipients: AlertLiveRecipient[];
+};
+
 type ProblemDetails = {
   detail?: string;
   title?: string;
@@ -262,4 +340,41 @@ export function confirmAlertReview(alertId: string, expectedVersion: number, ide
     headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ expectedVersion }),
   });
+}
+
+export function getMyAlerts(): Promise<MyAlertSummary[]> {
+  return requestJson<MyAlertSummary[]>("/api/my-alerts");
+}
+
+export function getMyAlert(alertId: string): Promise<MyAlertDetail> {
+  return requestJson<MyAlertDetail>(`/api/my-alerts/${alertId}`);
+}
+
+export function markMyAlertOpened(
+  alertId: string,
+  expectedVersion: number,
+  idempotencyKey: string,
+): Promise<OpenedRecipientAlertResult> {
+  return requestJson<OpenedRecipientAlertResult>(`/api/my-alerts/${alertId}/opened`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ expectedVersion }),
+  });
+}
+
+export function recordMyAlertResponse(
+  alertId: string,
+  expectedVersion: number,
+  responseType: "Acknowledged" | "Accepted" | "Declined" | "Unavailable",
+  idempotencyKey: string,
+): Promise<RecipientResponseResult> {
+  return requestJson<RecipientResponseResult>(`/api/my-alerts/${alertId}/responses`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ expectedVersion, responseType }),
+  });
+}
+
+export function getAlertLive(alertId: string): Promise<AlertLive> {
+  return requestJson<AlertLive>(`/api/alerts/${alertId}/live`);
 }

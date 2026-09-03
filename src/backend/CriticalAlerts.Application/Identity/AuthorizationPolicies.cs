@@ -17,6 +17,8 @@ public static class AuthorizationPolicies
     public const string AlertDraftEditor = "AlertDraftEditor";
     public const string DispatchScenarioAdministrator = "DispatchScenarioAdministrator";
     public const string AlertDeliveryReader = "AlertDeliveryReader";
+    public const string PractitionerAlertResponder = "PractitionerAlertResponder";
+    public const string AlertLiveReader = "AlertLiveReader";
 }
 
 public static class AuthenticationClaimTypes

@@ -1,6 +1,6 @@
 # Security Threat Model
 
-Status: Phase 7 repository-scoped review model. The Phase 0 design baseline is extended by the implemented recipient-selection, exact-review, and simulation-only dispatch boundaries; this is not hospital approval or a production security conclusion.
+Status: Phase 8 repository-scoped review model. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch, practitioner response, and read-only operator status boundaries; this is not hospital approval or a production security conclusion.
 
 ## Overview
 
@@ -19,15 +19,21 @@ The highest-value security properties are:
 
 Relevant design anchors are [AGENTS.md](../../AGENTS.md), [workflow](../product/workflow.md), [containers](../architecture/containers.md), [data model](../architecture/data-model.md), [state machine](../architecture/alert-state-machine.md), [directory integration](../architecture/directory-integration.md), [recipient selection and review](../architecture/recipient-selection-and-review.md), [simulated dispatch](../architecture/simulated-dispatch.md), and [logging policy](logging-policy.md).
 
-### Current Phase 6 boundary
+### Historical Phase 6 boundary
 
 The current implementation permits only manual selection from the authenticated organization's fictional directory, exact-version compose/review, and authenticated idempotent confirmation. It creates an identifier-only outbox request atomically with the state transition, audit event, and idempotency record, but no worker processes the request and no provider or live dispatch surface exists. Production identity, directory, communications, retention, clinical, escalation, and policy decisions remain `REQUIRES_HOSPITAL_DECISION`.
 
-### Current Phase 7 boundary
+### Historical Phase 7 boundary
 
 The Phase 7 implementation consumes the Phase 6 outbox request only through a worker that is explicitly enabled in `Development` or `Test`. The worker claims pending or expired-lease rows with database locking, verifies the strict identifier-only payload against an organization-scoped alert and confirmed version, creates stable per-recipient/channel attempts, and uses typed in-process simulation adapters. It records normalized synthetic events with organization-scoped uniqueness, monotonic status application, bounded retries, visible terminal failure, and sanitized audit metadata. The delivery-status projection is organization-scoped and operationally safe.
 
 No real provider SDK, network call, external callback endpoint, doctor response, live monitoring screen, or escalation decision exists in this phase. Production enablement, provider authentication/signatures, callback replay windows, delivery SLAs, retry policy, escalation policy, and operational ownership remain `REQUIRES_HOSPITAL_DECISION`.
+
+### Current Phase 8 boundary
+
+Phase 8 adds Development/Test-only practitioner response and read-only operator status surfaces without changing the Phase 7 provider boundary. Practitioner identity comes only from the authenticated user plus an explicit organization-scoped user-to-practitioner link. Practitioner routes require the Practitioner role and return only confirmed Active alerts whose exact version addresses the linked practitioner. Operator live status requires Operator or Administrator and applies the authenticated organization scope; caller-supplied identity, role, organization, and practitioner values are never authoritative.
+
+Opened, acknowledged, terminal disposition, responsibility assignment, delivery, and lifecycle remain separate. Idempotency records, transactions, and database uniqueness constraints protect duplicate and concurrent commands. Accepted creates one exact-version assignment; declined and unavailable do not. All outcomes leave the alert Active. The live projection excludes protected message/source/SBAR content, decrypted contact values, and raw provider references. No external callback, real provider, escalation, resolution, cancellation, transfer, hospital integration, or production identity is introduced.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 
@@ -74,7 +80,7 @@ Operators control source text, human approvals, recipient selection, and respons
 
 ### Assumptions and exclusions
 
-- Phase 7 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
+- Phase 8 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
 - Simulation data and providers are fictional and local; no real hospital network or provider is trusted or connected.
 - Production identity, privacy, data residency, retention, directory, scheduling, communication, and clinical workflow decisions are `REQUIRES_HOSPITAL_DECISION`.
 - The system is not an EHR, clinical decision support tool, medical device integration, or replacement for a hospital's approved fallback.
@@ -90,6 +96,7 @@ The controls below are planned repository-wide controls, not current findings.
 | Recipient search and directory | Cross-organization access, name collision, stale data, unauthorized recipient injection | Scope every query; stable source IDs; display disambiguators; inactive/stale states; manual selection only; no hidden expansion; reconcile imports with conflict report. | A malicious row or background sync adds a look-alike practitioner to an approved alert. The system must not add recipients invisibly. |
 | Browser/UI | XSS, CSRF, click confusion, unsafe defaults, data leakage | Server remains authoritative; output encoding; CSRF protections where applicable; deliberate confirmation language; keyboard/accessibility checks; no sensitive payload in URLs; simulation banner. | A crafted source value changes the meaning of the review page or tricks an operator into confirming a different recipient set. |
 | Provider dispatch and callbacks | Webhook forgery, replay, duplicate delivery, out-of-order regression, SSRF/provider abuse | Signed/authenticated callbacks; timestamp/replay checks; inbox uniqueness; normalized allowlisted statuses; idempotency; provider abstraction; no provider-controlled clinical content. | An attacker replays a “delivered” callback or submits a forged failure to alter escalation. The system must authenticate, deduplicate, and preserve monotonic durable semantics. |
+| Practitioner response and operator status | Forged practitioner identity, IDOR, cross-organization access, replay, conflicting terminal responses, protected-value disclosure | Explicit server-resolved organization/user/practitioner link; exact addressed-version checks; role policies; idempotency; transactional uniqueness; non-disclosing not-found responses; allowlisted status DTOs. | A caller submits another practitioner's ID or organization and attempts to accept an alert. The server must ignore caller identity fields, resolve the authenticated link, and reject unaddressed or foreign alerts without disclosure. |
 | Worker/outbox/escalation | Duplicate sends, lost work, lease races, policy tampering, denial of service | Transactional outbox; lease ownership/expiry; stable per-attempt keys; bounded retries; dead-letter/visible failure; approved policy version; database time; concurrency tests. | Two workers lease the same outbox row and send twice. The database and provider idempotency key must prevent duplicate delivery. |
 | AI/transcription boundary | Prompt injection, unsupported inference, provenance loss, sensitive-data leakage | Preserve exact source; store suggestion separately; evidence spans/confidence; unresolved values remain unresolved; no direct mutation/dispatch; provider/retention approval; redaction. | A transcript contains instructions such as “send now to Dr. X.” The text remains source content; it cannot select a recipient or dispatch. |
 | Identity/session/admin | Account takeover, privilege escalation, unsafe dev auth, deprovisioning gap | Fixed seeded users only in Development/Test; startup failure for dev auth elsewhere; approved SSO/MFA; tenant and scope checks; short-lived sessions; lifecycle tests; no public signup. | A request header claims to be an admin or a deactivated user. The server must reject it outside the fixed simulation handler and honor real lifecycle controls in production. |

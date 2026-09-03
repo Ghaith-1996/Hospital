@@ -1,6 +1,6 @@
 # Conceptual Data Model
 
-Status: Phase 0 conceptual model. It is a design boundary for fictional simulation data, not a production schema approval.
+Status: Conceptual model through the Phase 8 simulation-response boundary. It is a design boundary for fictional simulation data, not a production schema approval.
 
 ## Design rules
 
@@ -26,6 +26,8 @@ Production organization hierarchy, data residency, time zone, and tenancy semant
 Concepts: `users`, `roles`, `user_roles`, and `external_identities`.
 
 Simulation identities are fixed fictional users. Production identity provider, tenant restriction, MFA, role mapping, break-glass process, and deprovisioning are `REQUIRES_HOSPITAL_DECISION`.
+
+Phase 8 adds `practitioner_user_links` as the sole user-to-practitioner authority for response routes. Each link carries `organization_id`, `user_id`, and `practitioner_id`; PostgreSQL enforces one linked practitioner per organization/user and one linked user per organization/practitioner. The server resolves the link from the authenticated principal and never infers it from a display name or development handle.
 
 ### 003 — practitioner directory
 
@@ -78,11 +80,15 @@ Every source edit creates a new draft version. The typed source and exact transc
 
 ### 006 — deliveries and responses
 
-Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `responsibility_assignments`, and `escalation_runs`.
+Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `responsibility_assignments`, and future `escalation_runs`.
 
 Delivery, provider submission, delivery, opening, acknowledgement, responsibility acceptance, decline, unavailable, and escalation are separate records or state dimensions. Each channel declares whether a state is supported; unsupported states are recorded as `NotApplicable`, while supported but unseen states remain pending/not observed. Provider event IDs are unique and callbacks are idempotent.
 
-The exact relationship between a response and a hospital responsibility transfer is `REQUIRES_HOSPITAL_DECISION`; the simulation keeps the events separate so no implied clinical responsibility is created.
+Phase 8 stores `opened_at_utc` on a SecureMessage delivery attempt. SMS and Voice opening remain `NotApplicable`; provider delivery never implies opening.
+
+Practitioner responses are keyed to the organization, alert, exact alert version, and practitioner. PostgreSQL permits at most one acknowledgement category and at most one terminal disposition category per practitioner/alert/version, even when the alert has multiple channels. A response stores an allowlisted reason code rather than free text. An accepted response may own exactly one `responsibility_assignment`, also scoped to the organization and exact alert version; acknowledgement, decline, and unavailable create none. Responses and assignments do not alter the alert lifecycle in Phase 8.
+
+The exact relationship between a response and a hospital responsibility transfer is `REQUIRES_HOSPITAL_DECISION`; the simulation keeps acknowledgement, disposition, assignment, and lifecycle separate so no production clinical responsibility rule is inferred.
 
 ### 007 — reliable work and audit
 
@@ -96,6 +102,8 @@ Outbox payloads contain identifiers only. Inbox uniqueness is `(external_message
 erDiagram
     ORGANIZATION ||--o{ USER : owns
     ORGANIZATION ||--o{ PRACTITIONER : contains
+    USER ||--o| PRACTITIONER_USER_LINK : maps
+    PRACTITIONER ||--o| PRACTITIONER_USER_LINK : maps
     ORGANIZATION ||--o{ ALERT : scopes
     ALERT ||--o{ ALERT_FIELD_CONFIRMATION : has
     ALERT ||--o{ ALERT_RECIPIENT_SELECTION : targets
@@ -103,6 +111,7 @@ erDiagram
     ALERT_RECIPIENT_SELECTION ||--o{ DELIVERY_ATTEMPT : creates
     DELIVERY_ATTEMPT ||--o{ DELIVERY_EVENT : receives
     ALERT_RECIPIENT_SELECTION ||--o{ RECIPIENT_RESPONSE : records
+    RECIPIENT_RESPONSE ||--o| RESPONSIBILITY_ASSIGNMENT : creates
     ALERT ||--o{ RESPONSIBILITY_ASSIGNMENT : records
     ALERT ||--o{ ESCALATION_RUN : evaluates
     ALERT ||--o{ OUTBOX_MESSAGE : emits

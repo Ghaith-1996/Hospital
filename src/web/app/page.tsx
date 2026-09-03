@@ -5,16 +5,16 @@ export default function HomePage() {
   return (
     <SimulationChrome
       title="Critical Alerts Platform"
-      lead="Phase 6 adds manual recipient selection, protected approved-message editing, exact human review, and simulation-only confirmation on top of the fictional directory boundary."
+      lead="Phase 8 adds a server-scoped practitioner inbox and safe operator status projection to the simulation-only alert workflow."
     >
       <p id="phase-boundary">
-        Confirmation creates an identifier-only outbox request for a future simulation phase; this phase does
-        not process it, call providers, create deliveries, retry, escalate, or expose a live dispatch screen.
-        CSV remains a fictional directory adapter, not a hospital directory connection, and all alert content
-        remains simulation-only.
+        Fictional adapters process identifier-only dispatch requests, and linked practitioners can record open,
+        acknowledgement, and one terminal simulation disposition. The refreshed operator view is not guaranteed
+        real-time monitoring. No real provider, callback, escalation, alert resolution, hospital integration, or AI
+        behavior is enabled.
       </p>
       <a className="focus-link" href="#phase-boundary">
-        Review the Phase 6 boundary
+        Review the Phase 8 boundary
       </a>
     </SimulationChrome>
   );

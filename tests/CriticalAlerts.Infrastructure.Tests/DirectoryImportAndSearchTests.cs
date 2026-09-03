@@ -69,6 +69,8 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
         await fixture.ResetAsync();
         try
         {
+            int? endpointCountAfterFirstImport = null;
+            int? directoryEndpointCountAfterFirstImport = null;
             foreach (var correlationId in new[] { "corr-repeat-one", "corr-repeat-two" })
             {
                 await using var db = fixture.CreateContext();
@@ -76,6 +78,11 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
                 var applied = await PreviewThenApplyAsync(service, correlationId, File.ReadAllText(FixturePath()));
 
                 applied.Applied.Should().BeTrue();
+                endpointCountAfterFirstImport ??= await db.ContactEndpoints.CountAsync(endpoint =>
+                    endpoint.OrganizationId == DemoDataSeeder.OrganizationId);
+                directoryEndpointCountAfterFirstImport ??= await db.ContactEndpoints.CountAsync(endpoint =>
+                    endpoint.OrganizationId == DemoDataSeeder.OrganizationId
+                    && endpoint.SourceSystem == "SIM-DIRECTORY");
             }
 
             await using var verify = fixture.CreateContext();
@@ -86,8 +93,11 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
                 run.OrganizationId == DemoDataSeeder.OrganizationId
                 && run.SourceSystem == DirectorySourceSystems.Csv
                 && run.Status == DirectorySyncRunStatus.Succeeded)).Should().Be(2);
-            (await verify.ContactEndpoints.CountAsync(endpoint => endpoint.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(15);
-            (await verify.ContactEndpoints.CountAsync(endpoint => endpoint.OrganizationId == DemoDataSeeder.OrganizationId && endpoint.SourceSystem == "SIM-DIRECTORY")).Should().Be(4);
+            (await verify.ContactEndpoints.CountAsync(endpoint =>
+                endpoint.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(endpointCountAfterFirstImport);
+            (await verify.ContactEndpoints.CountAsync(endpoint =>
+                endpoint.OrganizationId == DemoDataSeeder.OrganizationId
+                && endpoint.SourceSystem == "SIM-DIRECTORY")).Should().Be(directoryEndpointCountAfterFirstImport);
             (await verify.OnCallAssignments.CountAsync(assignment =>
                 assignment.OrganizationId == DemoDataSeeder.OrganizationId
                 && assignment.SourceSystem == DirectorySourceSystems.Csv)).Should().Be(2);

@@ -3,6 +3,7 @@ using CriticalAlerts.Api.Authentication;
 using CriticalAlerts.Api.Health;
 using CriticalAlerts.Api.Http;
 using CriticalAlerts.Application.Dispatch;
+using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Infrastructure.Dispatch;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -20,6 +21,8 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 var developmentAuthenticationEnabled = builder.Configuration.GetValue("DevelopmentAuthentication:Enabled", false);
+var simulationResponsesEnabled = builder.Configuration.GetValue("SimulationResponses:Enabled", false);
+SimulationResponseEnvironmentGuard.EnsureAllowed(builder.Environment.EnvironmentName, simulationResponsesEnabled);
 builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
 builder.Services.AddCriticalAlertsPersistence(
     builder.Configuration.GetConnectionString("CriticalAlerts"),
@@ -59,6 +62,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapDevelopmentAuthenticationEndpoints(developmentAuthenticationEnabled);
 app.MapSimulationDispatchEndpoints(builder.Environment.EnvironmentName);
 app.MapDeliveryStatusEndpoints();
+app.MapRecipientResponseEndpoints(builder.Environment.EnvironmentName, simulationResponsesEnabled);
+app.MapAlertLiveEndpoints(builder.Environment.EnvironmentName, simulationResponsesEnabled);
 app.MapDirectoryEndpoints();
 app.MapAlertDraftEndpoints();
 

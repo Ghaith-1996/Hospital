@@ -30,6 +30,11 @@ public readonly record struct ExternalIdentityId(Guid Value)
     public static ExternalIdentityId New() => new(Guid.NewGuid());
 }
 
+public readonly record struct PractitionerUserLinkId(Guid Value)
+{
+    public static PractitionerUserLinkId New() => new(Guid.NewGuid());
+}
+
 public readonly record struct PractitionerId(Guid Value)
 {
     public static PractitionerId New() => new(Guid.NewGuid());
