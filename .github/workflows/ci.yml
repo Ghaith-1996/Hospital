@@ -68,11 +68,22 @@ jobs:
       - name: Lint web
         run: npm --prefix src/web run lint
 
+      - name: Verify active workflow storage safety
+        shell: pwsh
+        run: ./scripts/verify-web-storage-safety.ps1
+
+      - name: Build production web
+        run: npm --prefix src/web run build
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: Run web smoke test
         run: npm run web:e2e
+
+      - name: Run connected system E2E
+        shell: pwsh
+        run: ./scripts/system-e2e.ps1 -SkipWebBuild
 
       - name: Build API container
         run: docker build --file src/backend/CriticalAlerts.Api/Dockerfile --tag critical-alerts-api:ci .

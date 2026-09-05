@@ -11,7 +11,8 @@
     "web:typecheck": "npm --prefix src/web run typecheck",
     "web:lint": "npm --prefix src/web run lint",
     "web:build": "npm --prefix src/web run build",
-    "web:e2e": "playwright test --config src/web/playwright.config.ts"
+    "web:e2e": "playwright test --config playwright.smoke.config.ts",
+    "web:e2e:system": "pwsh -NoProfile -File scripts/system-e2e.ps1"
   },
   "devDependencies": {
     "@playwright/test": "1.55.1"
