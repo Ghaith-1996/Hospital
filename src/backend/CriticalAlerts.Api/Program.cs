@@ -33,6 +33,13 @@ builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentNam
 builder.Services.AddOpenApi(options =>
 {
     options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1;
+    options.AddDocumentTransformer((document, _, _) =>
+    {
+        document.Info.Title = "Critical Alerts Simulation API";
+        document.Info.Description = "Simulation-only contract. It is not a hospital or clinical API.";
+        document.Servers?.Clear();
+        return Task.CompletedTask;
+    });
 });
 builder.Services.AddRateLimiter(options =>
 {
@@ -120,6 +127,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapOpenApi("/openapi/v1.json");
 
 app.MapDevelopmentAuthenticationEndpoints(developmentAuthenticationEnabled);
+app.MapDevelopmentLocationContextEndpoints(developmentAuthenticationEnabled);
 app.MapSimulationDispatchEndpoints(builder.Environment.EnvironmentName);
 app.MapDeliveryStatusEndpoints();
 app.MapRecipientResponseEndpoints(builder.Environment.EnvironmentName, simulationResponsesEnabled);

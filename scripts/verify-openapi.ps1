@@ -1,35 +1,98 @@
 param(
-    [string]$DocumentPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "docs\api\openapi.json")
+    [string]$DocumentPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "docs\api\openapi.json"),
+    [switch]$WriteDocument
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$apiProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj"
+$localDotnet = Join-Path $repositoryRoot ".dotnet10\dotnet.exe"
+$dotnet = if (Test-Path -LiteralPath $localDotnet) { $localDotnet } else { "dotnet" }
+$temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ("critical-alerts-openapi-" + [Guid]::NewGuid().ToString("N"))
+$runtimeDocumentPath = Join-Path $temporaryDirectory "openapi.json"
+$standardOutputPath = Join-Path $temporaryDirectory "api.stdout.log"
+$standardErrorPath = Join-Path $temporaryDirectory "api.stderr.log"
+$process = $null
 
-if (-not (Test-Path -LiteralPath $DocumentPath)) {
-    throw "OpenAPI contract was not found at $DocumentPath."
+function ConvertTo-CanonicalOpenApiValue {
+    param([AllowNull()]$Value, [AllowNull()][string]$PropertyName)
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [Management.Automation.PSCustomObject]) {
+        $ordered = [ordered]@{}
+        foreach ($property in @($Value.PSObject.Properties | Sort-Object Name)) {
+            $ordered[$property.Name] = ConvertTo-CanonicalOpenApiValue $property.Value $property.Name
+        }
+        return $ordered
+    }
+    if ($Value -is [Collections.IEnumerable] -and $Value -isnot [string]) {
+        [object[]]$items = @($Value | ForEach-Object { ConvertTo-CanonicalOpenApiValue $_ $PropertyName })
+        if ($PropertyName -in @("required", "enum", "type", "allOf", "anyOf", "oneOf", "tags")) {
+            $items = @($items | Sort-Object { ConvertTo-Json $_ -Depth 100 -Compress })
+        }
+        return ,$items
+    }
+    return $Value
 }
 
-$document = Get-Content -LiteralPath $DocumentPath -Raw | ConvertFrom-Json
-if ($document.openapi -notlike "3.1.*") {
-    throw "OpenAPI contract must declare an OpenAPI 3.1.x version."
+function ConvertTo-CanonicalOpenApiJson {
+    param([string]$Path)
+    $parsed = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    return ConvertTo-Json (ConvertTo-CanonicalOpenApiValue $parsed $null) -Depth 100
 }
 
-$paths = @($document.paths.PSObject.Properties.Name)
-$requiredPaths = @(
-    "/api/v1/alerts/{alertId}/resolve",
-    "/api/v1/alerts/{alertId}/cancel",
-    "/api/v1/my-alerts/{alertId}/responses",
-    "/api/v1/directory/imports/preview"
-)
-foreach ($requiredPath in $requiredPaths) {
-    if ($paths -notcontains $requiredPath) {
-        throw "OpenAPI contract is missing required path $requiredPath."
+try {
+    New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
+    & $dotnet build $apiProject --no-restore --verbosity quiet
+    if ($LASTEXITCODE -ne 0) { throw "The API build failed." }
+
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    $listener.Start()
+    $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port
+    $listener.Stop()
+    $url = "http://127.0.0.1:$port"
+    $environment = @{
+        "ASPNETCORE_ENVIRONMENT" = "Test"
+        "DevelopmentAuthentication__Enabled" = "true"
+        "SimulationResponses__Enabled" = "true"
+        "ConnectionStrings__CriticalAlerts" = "Host=127.0.0.1;Database=openapi_unused;Username=unused;Password=unused"
+        "DataProtection__Key" = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    }
+    $process = Start-Process -FilePath $dotnet -ArgumentList @(
+        "run", "--project", $apiProject, "--no-build", "--no-restore", "--urls", $url
+    ) -Environment $environment -RedirectStandardOutput $standardOutputPath -RedirectStandardError $standardErrorPath -WindowStyle Hidden -PassThru
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    do {
+        if ($process.HasExited) {
+            throw "The API exited before producing OpenAPI. $((Get-Content -LiteralPath $standardErrorPath -Raw -ErrorAction SilentlyContinue))"
+        }
+        try { Invoke-WebRequest -Uri "$url/openapi/v1.json" -OutFile $runtimeDocumentPath | Out-Null }
+        catch { Start-Sleep -Milliseconds 200 }
+    } until ((Test-Path -LiteralPath $runtimeDocumentPath) -or [DateTimeOffset]::UtcNow -ge $deadline)
+
+    if (-not (Test-Path -LiteralPath $runtimeDocumentPath)) { throw "Timed out waiting for the runtime OpenAPI document." }
+    $runtimeCanonical = ConvertTo-CanonicalOpenApiJson $runtimeDocumentPath
+    if ($WriteDocument) {
+        Set-Content -LiteralPath $DocumentPath -Value $runtimeCanonical -Encoding utf8
+        Write-Output "Generated deterministic OpenAPI 3.1 contract: $DocumentPath"
+        return
+    }
+    if (-not (Test-Path -LiteralPath $DocumentPath)) {
+        throw "OpenAPI contract was not found at $DocumentPath. Run this script with -WriteDocument."
+    }
+    $committedCanonical = ConvertTo-CanonicalOpenApiJson $DocumentPath
+    if ($runtimeCanonical -cne $committedCanonical) {
+        throw "OpenAPI contract drift detected. Run this script with -WriteDocument and review the complete semantic diff."
+    }
+    Write-Output "OpenAPI 3.1 contract matches the complete runtime contract: $DocumentPath"
+}
+finally {
+    if ($null -ne $process -and -not $process.HasExited) {
+        Stop-Process -Id $process.Id -Force
+        $process.WaitForExit()
+    }
+    if (Test-Path -LiteralPath $temporaryDirectory) {
+        Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force
     }
 }
-
-$unversioned = @($paths | Where-Object { $_ -like "/api/*" -and $_ -notlike "/api/v1/*" })
-if ($unversioned.Count -gt 0) {
-    throw "OpenAPI contract contains unversioned API paths: $($unversioned -join ', ')"
-}
-
-Write-Output "OpenAPI 3.1 contract verified: $DocumentPath"
