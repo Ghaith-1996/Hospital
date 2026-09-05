@@ -8,6 +8,8 @@ The implementation deliberately excludes real SMS, voice, secure-message, FHIR, 
 
 ## Processing flow
 
+Phase 8.5 connects `/alerts/[id]/live` to the safe API projection and polls every five seconds. Requested, submitted, delivered, failed, opened, acknowledged, and responsibility accepted remain distinct. The practitioner inbox/detail uses the backend identity mapping; explicit response and lifecycle commands re-read durable state. No clinical body is added to the live projection. The real local worker, rather than a browser timer or reducer, advances dispatch in the connected system tests.
+
 ```text
 Phase 6 exact confirmation
         |

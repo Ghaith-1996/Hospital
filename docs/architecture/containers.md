@@ -1,14 +1,14 @@
 # Containers and Module Boundaries
 
-Status: Phase 0 modular-monolith design. The containers described here are planned boundaries; Phase 0 creates no application projects.
+Status: Phase 8.5 active simulation topology, retaining the Phase 0 modular-monolith boundaries. Future integration ports below are not active providers. Saved workflow state is authoritative in PostgreSQL; the browser holds unsaved edits only.
 
 ## Deployable processes
 
 | Container/process | Responsibility | Must not do |
 |---|---|---|
 | `web` | Next.js App Router operator, practitioner, and admin experiences; display `SIMULATION MODE`; call versioned API. | Enforce authorization by itself, select recipients automatically, or hold encryption keys. |
-| `CriticalAlerts.Api` | Authentication boundary, authorization, commands/queries, review/confirmation endpoints, provider webhook endpoints, health endpoints, and problem details. | Call providers before durable confirmation or accept browser claims as authority. |
-| `CriticalAlerts.Worker` | Lease outbox messages, create delivery attempts, normalize provider events, retry within policy, evaluate versioned escalation work, and recover durable jobs. | Diagnose, assign urgency, choose final recipients, or stop escalation autonomously. |
+| `CriticalAlerts.Api` | Backend development session, authorization, organization-scoped commands/queries, exact review/confirmation, practitioner responses, lifecycle, health, and problem details. No external callbacks. | Call providers before durable confirmation or accept browser claims as authority. |
+| `CriticalAlerts.Worker` | Lease outbox messages, create delivery attempts, normalize local simulated events, perform bounded simulation retry, and recover durable jobs. | Diagnose, assign urgency, choose recipients, contact a real provider, or run Phase 9 escalation automation. |
 | `CriticalAlerts.Connector` | Future hospital-side directory/scheduling connector boundary. | Connect to a hospital system without approved specifications and contracts. |
 | PostgreSQL 18 | Durable state, organization boundaries, concurrency tokens, append-only timeline data, outbox/inbox/idempotency. | Serve as a public interface or receive unrestricted patient data. |
 | Simulated provider adapters | Deterministic Development/Test delivery and response scenarios. | Contact real endpoints or accept simulation configuration outside Development/Test. |
@@ -23,7 +23,7 @@ The modular monolith remains one deployable codebase with explicit internal boun
 4. Alert workflow and state transitions.
 5. Notification orchestration.
 6. Acknowledgement and responsibility.
-7. Escalation.
+7. Escalation policy references only; automated execution remains outside Phase 8.5.
 8. Audit and PHI-safe observability.
 9. Integrations and provider ports.
 
@@ -65,6 +65,12 @@ The provider contract must not pass full clinical content to SMS or voice adapte
 
 Configuration must distinguish `Development`, `Test`, `Staging`, and `Production`. Development authentication and simulated providers fail closed outside Development/Test. Any production endpoint, policy, identity, data, region, retention, or provider configuration not approved by the hospital is `REQUIRES_HOSPITAL_DECISION`.
 
-## Phase 1 boundary
+## Historical Phase 1 boundary
 
 Phase 1 may create empty project shells, health endpoints, local PostgreSQL composition, and test infrastructure. It must not implement alert commands, domain behavior, migrations, provider calls, business UI, or integration logic.
+
+## Connected browser boundary
+
+Next.js proxies `/api/v1` to the configured internal API address. This destination is compiled at web build time; the container default is `http://api:8080`. Development identity selection posts only a server-listed handle and reloads the server principal; it cannot grant a role from browser state. The authorized simulation location endpoint supplies site/department identifiers. Draft, directory, review, inbox, live-status, and lifecycle screens use existing Phase 4–8 APIs.
+
+The system harness starts isolated PostgreSQL 18, migrations/demo reset, API, worker, production web and Chromium, then tears down its resources. No real provider or hospital connection is needed. The repository remains public and all test content is fictional. Missing production decisions remain `REQUIRES_HOSPITAL_DECISION`.

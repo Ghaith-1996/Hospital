@@ -1,6 +1,8 @@
 ﻿# Simulation Alert Drafting
 
-Status: Phase 5 implementation complete and ready for project-owner review. This is a fictional workflow slice and is not approved for clinical use.
+Status: Phase 5 backend behavior retained and exercised by the Phase 8.5 redesigned frontend. Historical acceptance evidence is recorded in `../product/phase-approval-evidence.md`. This is a fictional workflow slice and is not approved for clinical use.
+
+The active `/alerts/new` route obtains authorized simulation sites/departments from `/api/v1/dev/location-context` and creates a persisted draft. `/alerts/[id]/compose` loads that draft, saves source/SBAR and approved message separately, and explicitly confirms critical values and units. A stale command keeps unsaved edits visible and blocks further writes until the operator explicitly discards them and loads the server version. Refresh recovers the last saved version; browser persistent storage is not a draft cache.
 
 ## Scope
 

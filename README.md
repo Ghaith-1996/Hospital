@@ -1,16 +1,16 @@
 ﻿# Critical Clinician Alert Platform
 
-Status: The approved frontend-only prototype redesign runs on local fictional state. The repository also retains the Phase 8 backend simulation and compliance corrections from main; the prototype is not connected to those APIs.
+Status: Phase 8.5 reconnects the redesigned frontend to the Phase 0–8 simulation backend. PostgreSQL owns saved drafts, recipients, dispatch, responses, and responsibility. Technical verification and human acceptance are separate gates. This repository remains public; this phase does not change GitHub settings.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
 Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Phase 8 adds simulation practitioner responses, call-unit requests, operator resolve/cancel actions, a safe manual-fallback placeholder, and a read-only operator status surface. Real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, external callbacks, escalation automation, and Phase 9 remain out of scope.
 
-## Frontend prototype
+## Connected simulation frontend
 
-Run `npm --prefix src/web run dev` and open the local Next.js URL. Operator alert creation, review, details, and the fictional doctor inbox use one local browser store with an explicit simulation user switcher and reset. No API, database, real identity, or notification service is required for these screens. Directory, Reports, and Settings are coming later. The former `/alerts/[id]/live` UI redirects to the prototype details route; the backend live-status API remains available independently.
+The server-controlled development identity switcher selects a seeded fictional identity. Create a draft at `/alerts/new`, save and confirm critical fields in compose, manually select directory recipients and channels, then review and confirm the exact server version. `/alerts/[id]/live` polls durable delivery and response state. `/my-alerts` uses the authenticated practitioner's backend mapping. Directory search and CSV preview/apply are connected; Reports and Settings remain unavailable. `/alerts` opens an existing alert by its server ID because the retained API has no operator-wide list endpoint.
 
-The [frontend design](docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md) defines the local scope. Backend workflow and historical verification descriptions below document the retained Phase 8 implementation, not an active connection from this frontend.
+The [Phase 8.5 design](docs/superpowers/specs/2026-09-05-phase-0-8-reintegration-design.md) supersedes the earlier prototype's local-state architecture while retaining its visual language. Unsaved edits remain in memory with navigation warnings. Refresh recovers only backend-saved content; no case details are written to persistent browser storage. The API and PostgreSQL must be available for workflow actions, and the worker must run to process the outbox.
 
 ## Source and decision precedence
 
@@ -44,7 +44,7 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. Phase 6 recipient selection and Phase 7 simulated dispatch are implemented; Phase 7 is pushed at `45f4024` without a Phase 7 tag. The current working tree contains the Phase 8 compliance-correction pass for verification against the simulation-only doctor-response design. Hospital directory connections, production recipient eligibility, response/transfer semantics, channel mappings, provider contracts, callback authentication, production role mapping, lifecycle authority, and manual fallback routing remain `REQUIRES_HOSPITAL_DECISION`.
+The [approval evidence register](docs/product/phase-approval-evidence.md) distinguishes implementation, review/authorization records, tags, and final acceptance. Tags exist for Phases 2–5; they do not establish blanket Phase 0–8 approval. Phase 0 approval remains unrecorded, Phase 6 has no final acceptance evidence, and Phase 8 records correction/publication authorization separately from final acceptance. Hospital directory connections, production recipient eligibility, response/transfer semantics, channel mappings, provider contracts, callback authentication, production role mapping, lifecycle authority, and manual fallback routing remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. Phase 6 preserves the original source separately from SBAR and approved content, replaces recipients as one exact versioned set, shows safe directory evidence, and confirms only the exact reviewed version. Phase 7 consumes only that durable identifier-only outbox row: the worker leases it, reloads organization-scoped durable data, invokes typed deterministic simulation adapters, records safe delivery attempts/events, and completes, retries, or visibly fails the work. Simulation dispatch is fail-closed outside Development/Test and has no network/provider side effects.
 
@@ -64,7 +64,7 @@ Copy-Item .env.example .env
 ./scripts/test-all.ps1
 ```
 
-The Playwright suite starts the standalone local prototype on `127.0.0.1:3101`. It does not require the API or database. The pinned .NET SDK for backend verification is `10.0.100`. Development/Test API routes remain independently available at `http://127.0.0.1:5080`; the active prototype does not use a development authentication panel. Demo database reset still requires the explicit confirmation switch and an approved loopback simulation database.
+`npm run web:e2e` checks the standalone shell and API-unavailable state. `npm run web:e2e:system` starts isolated PostgreSQL 18, applies all migrations, explicitly resets fictional data, starts the Test API, simulation worker and production Next.js server, runs the connected browser scenarios, then tears down its services. See `scripts/system-e2e.ps1` for the reproducible setup. The pinned .NET SDK is `10.0.100`. For interactive development, configure the API and worker with the documented Development/Test settings and start Next.js with `CRITICAL_ALERTS_API_URL` pointing to the local API before building or starting it. Demo reset requires the explicit confirmation switch and an approved loopback simulation database.
 
 ### Simulation container builds
 

@@ -2,6 +2,8 @@
 
 ## Phase 0: specification and repository rules
 
+Historical phase checklists record their original scope and verification dates, including the now-retired frontend prototype. They are not claims that those screens remain active. Current architecture is Phase 8.5; [phase approval evidence](phase-approval-evidence.md) distinguishes technical closure, continuation/publication authorization, tags, and final acceptance. No blanket Phase 0–8 approval is claimed.
+
 Phase 0 is done only when all of the following are true:
 
 - [x] README and AGENTS.md state scope, authority, phase gate, and safety invariants.
@@ -306,6 +308,19 @@ Verification commands:
 
 `scripts/test-all.ps1` was not run on this host because `global.json` requires .NET SDK `10.0.100`, while the host only reports SDK `9.0.310`. Frontend-only gates above are the available local evidence.
 
-## Integration with Phase 8 backend baseline
+## Historical prototype integration with Phase 8 backend baseline
 
-The frontend prototype replaces the old backend-connected screens and their UI tests. Backend implementation, migrations, API integration tests, data-protection checks, container support, and historical Phase 8 verification evidence are retained from main. The local prototype suite covers the replacement workflows; it does not claim browser-to-API integration. The legacy live-status route redirects to local alert details, and the API proxy retains the versioned `/api/v1` boundary.
+The earlier frontend prototype replaced connected screens with a local store. Phase 8.5 retires that store and its duplicate domain model, reconnects redesigned screens to `/api/v1`, and restores `/alerts/[id]/live` as the backend status surface. Historical prototype test counts above are superseded for the active UI by the Phase 8.5 verification record.
+
+## Phase 8.5: reintegration gate
+
+- [x] Active operator/practitioner/directory routes use the backend API and server principal.
+- [x] Persistent browser workflow state and its duplicate alert/response engine are removed.
+- [x] Source/SBAR, critical confirmation, exact recipients/channels/review, and durable response/lifecycle boundaries are preserved.
+- [x] Governance evidence is reconciled without filling unrecorded approvals.
+- [x] System harness and CI definitions exercise real PostgreSQL, migrations, API, outbox, worker, web and Chromium.
+- [ ] Final clean verification, generated contract, exact test counts, scans and container checks are recorded for the reviewed source.
+- [ ] GitHub CI passes for the reviewed source.
+- [ ] Project owner accepts the integrated Phase 0–8 simulation baseline.
+
+No Phase 9, real provider, hospital connection, production identity or real data is authorized. Missing hospital decisions remain `REQUIRES_HOSPITAL_DECISION`. Repository visibility/settings remain unchanged; the direct request requires a public repository.

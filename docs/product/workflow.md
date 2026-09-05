@@ -4,24 +4,13 @@ Status: Proposed simulation workflow through the local Phase 8 practitioner-resp
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
-## Frontend prototype surface
+## Connected frontend surface
 
-The active work is the approved frontend-only prototype redesign described in
-`docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`.
-It may implement the nine fictional operator/doctor UI states with local mock
-state only. The retained backend baseline includes Phase 8 simulation responses
-and compliance corrections from main; this frontend does not connect to it.
-No new backend behavior or escalation processing is authorized by the redesign.
+Phase 8.5 retains the visual redesign and connects operator, practitioner, directory, and live-status screens to the Phase 0–8 backend. PostgreSQL owns saved content and workflow state; server development authentication owns identity and access. The local prototype store and its independent response engine are retired.
 
-Within the frontend prototype only:
+The browser holds unsaved forms in memory with navigation warnings. It submits exact versions and manually selected recipients/channels, displays the server review, and confirms with an idempotency key. The local worker processes the durable outbox through simulated adapters. The live page reads the safe API projection, including distinct delivery/opening/acknowledgement/acceptance states and the unresolved manual-fallback placeholder. No browser timer fabricates dispatch or escalation.
 
-- Local doctor response controls and summaries are `SIMULATION_ONLY_ASSUMPTION`.
-- Local live-detail/status rendering is `SIMULATION_ONLY_ASSUMPTION`.
-- Local demo escalation steps and fixed progress states are `SIMULATION_ONLY_ASSUMPTION`.
-- No backend, API, database, migration, worker, provider, authentication, or infrastructure change is authorized for this prototype surface.
-- Real doctor response workflow authority, escalation triggers, delays, retry counts, stop conditions, backup hierarchy, override rules, and any hospital policy values remain `REQUIRES_HOSPITAL_DECISION`.
-
-The backend flow described below remains available through the Phase 8 API and its backend tests. It is not connected to the active local prototype UI. Legacy live-status URLs redirect to the local alert details route.
+The historical prototype design is superseded by `docs/superpowers/specs/2026-09-05-phase-0-8-reintegration-design.md`. Production policy remains `REQUIRES_HOSPITAL_DECISION`; no Phase 9 automation is included.
 
 ## Workflow identity
 
