@@ -7,6 +7,7 @@ import { PageHeader } from "../../../../components/ui/page-header";
 import { ScreenState } from "../../../../components/ui/screen-state";
 import { formatAlertDisplayTitle, selectAlertById, selectCurrentUser } from "../../../../features/alerts/selectors";
 import { usePrototype } from "../../../../features/alerts/prototype-store";
+import { canRespondToAlert } from "../../../../features/alerts/workflow";
 import type { AlertRecord, DoctorResponse } from "../../../../features/alerts/types";
 
 type ResponseChoice = Exclude<DoctorResponse, "none">;
@@ -50,7 +51,7 @@ export default function RespondToAlertPage() {
   );
   const [note, setNote] = React.useState("");
 
-  if (!alertId || !alert || currentUser.role !== "doctor" || !currentUser.clinicianId) {
+  if (!alertId || !alert || alert.status === "draft" || currentUser.role !== "doctor" || !currentUser.clinicianId) {
     return (
       <ScreenState
         kind="not-found"
@@ -80,6 +81,17 @@ export default function RespondToAlertPage() {
             Back to Inbox
           </Link>
         }
+      />
+    );
+  }
+
+  if (!canRespondToAlert(alert)) {
+    return (
+      <ScreenState
+        kind="empty"
+        label="Responses are closed"
+        description={`This fictional alert is ${alert.status}. Its existing details and responses are available for review.`}
+        action={<Link className="focus-link" href={`/my-alerts/${resolvedAlertId}`}>Back to Alert</Link>}
       />
     );
   }

@@ -20,7 +20,7 @@ export function selectAlerts(state: PrototypeState, filters: AlertFilters): Aler
 
 export function selectDoctorAlerts(state: PrototypeState, clinicianId: string, tab: DoctorInboxTab): AlertRecord[] {
   const assignedAlerts = state.alerts.filter((alert) =>
-    alert.recipients.some((recipient) => recipient.clinicianId === clinicianId),
+    alert.status !== "draft" && alert.recipients.some((recipient) => recipient.clinicianId === clinicianId),
   );
 
   if (tab === "all") return assignedAlerts;

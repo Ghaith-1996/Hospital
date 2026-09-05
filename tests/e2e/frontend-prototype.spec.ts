@@ -2,6 +2,66 @@ import { expect, type Page, test } from "@playwright/test";
 
 const storageKey = "critical-alerts.prototype.v1";
 
+test("drafts stay private until dispatch and confirmed alerts cannot be edited or dispatched twice", async ({ page }) => {
+  await openWithFreshDemo(page, "/alerts/new");
+  await page.getByLabel("Patient Reference").fill("SIM-PAT-BOUNDARY-001");
+  await page.getByLabel("Case Details").fill("SIMULATION: fictional boundary regression.");
+  await page.getByRole("button", { name: "Add Dr. Marc Tremblay", exact: true }).click();
+  await page.getByRole("button", { name: "Review & Confirm", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Review & Confirm Alert" })).toBeVisible();
+  const reviewUrl = page.url();
+  const editUrl = await page.getByRole("link", { name: "Back/Edit" }).getAttribute("href");
+  const alertId = reviewUrl.split("/").at(-2)!;
+
+  await switchToMarc(page);
+  await expect(page.getByText("SIM-PAT-BOUNDARY-001")).toHaveCount(0);
+  await page.goto(`/my-alerts/${alertId}`);
+  await expect(page.getByRole("heading", { name: "Fictional alert not found" })).toBeVisible();
+  await page.goto(`/my-alerts/${alertId}/respond`);
+  await expect(page.getByRole("heading", { name: "Fictional alert not found" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Submit Response" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Dr\. Marc Tremblay/ }).click();
+  await page.getByRole("menuitem", { name: /Sophie Bernard/ }).click();
+  await page.goto(reviewUrl);
+  await page.getByRole("button", { name: "Confirm & Dispatch" }).click();
+  await page.getByRole("button", { name: "Confirm fictional dispatch" }).click();
+  await expect(page.getByRole("heading", { name: "Alert Sent Successfully!" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "This alert is no longer a draft" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm & Dispatch" })).toHaveCount(0);
+  await page.goto(editUrl!);
+  await expect(page.getByRole("heading", { name: "This alert is no longer a draft" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Case Details" })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Alert Doctor", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Patient Reference" })).toHaveValue("");
+
+  await switchToMarc(page);
+  await expect(page.getByRole("row").filter({ hasText: "SIM-PAT-BOUNDARY-001" })).toContainText("Sent");
+  await page.getByRole("link", { name: "Open boundary regression", exact: true }).click();
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
+  await page.getByRole("button", { name: "Submit Response" }).click();
+  await expect(page.getByText("Your current response: Accepted")).toBeVisible();
+});
+
+test("resolved alerts remain readable but cannot receive responses or reopen", async ({ page }) => {
+  await selectStoredUser(page, "user-david", "/my-alerts");
+  await page.getByRole("link", { name: "Open Post-op hypotension", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Post-op hypotension", exact: true })).toBeVisible();
+  await expect(page.getByText("SIM-PAT-1004")).toBeVisible();
+  await expect(page.getByText(/responses are closed/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Accept", exact: true })).toHaveCount(0);
+  await page.goto("/my-alerts/alert-resolved-1/respond?response=accepted");
+  await expect(page.getByRole("heading", { name: "Responses are closed" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Submit Response" })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Responses are closed" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to Alert" }).click();
+  await page.getByRole("link", { name: "Back to Inbox" }).click();
+  await expect(page.getByRole("row").filter({ hasText: "SIM-PAT-1004" })).toContainText("Resolved");
+});
+
 async function openWithFreshDemo(page: Page, path: string) {
   await page.goto(path);
   await page.evaluate((key) => {

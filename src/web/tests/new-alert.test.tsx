@@ -14,6 +14,7 @@ export const mockReplace = vi.fn((href: string) => {
 });
 
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
   useRouter: () => ({
     push: mockPush,
     replace: mockReplace,
@@ -41,6 +42,12 @@ function AlertProbe({ id }: { id: string }) {
 function renderNewAlert(path = "/alerts/new") {
   window.history.pushState({}, "", path);
   return renderPrototype(<NewAlertPage />);
+}
+
+function createDraftEditState() {
+  const state = createSeedState();
+  state.alerts = state.alerts.map((alert) => alert.id === "alert-critical-1" ? { ...alert, status: "draft" } : alert);
+  return state;
 }
 
 describe("new alert workflow", () => {
@@ -151,7 +158,8 @@ describe("new alert workflow", () => {
   });
 
   it("clears edit mode and removes the edit query so the form stays empty", async () => {
-    renderNewAlert("/alerts/new?edit=alert-critical-1");
+    window.history.pushState({}, "", "/alerts/new?edit=alert-critical-1");
+    renderPrototype(<NewAlertPage />, { state: createDraftEditState() });
 
     expect(await screen.findByDisplayValue("SIM-PAT-01578")).toBeVisible();
 
@@ -172,7 +180,7 @@ describe("new alert workflow", () => {
         <NewAlertPage />
         <AlertProbe id="alert-critical-1" />
       </>,
-      { state: createSeedState() },
+      { state: createDraftEditState() },
     );
 
     expect(await screen.findByDisplayValue("SIM-PAT-01578")).toBeVisible();

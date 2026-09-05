@@ -1,10 +1,12 @@
 "use client";
 
 import React, { FormEvent, useEffect, useMemo, useReducer } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AlertSummary } from "../../../components/alerts/alert-summary";
 import { ClinicianSelector } from "../../../components/alerts/clinician-selector";
 import { PageHeader } from "../../../components/ui/page-header";
+import { ScreenState } from "../../../components/ui/screen-state";
 import { searchClinicians, selectAlertById } from "../../../features/alerts/selectors";
 import { usePrototype } from "../../../features/alerts/prototype-store";
 import type { AlertRecord, Clinician, NewAlertInput, Urgency } from "../../../features/alerts/types";
@@ -103,33 +105,43 @@ function formReducer(state: FormState, action: FormAction): FormState {
 }
 
 export default function NewAlertPage() {
+  return (
+    <React.Suspense fallback={<ScreenState kind="loading" />}>
+      <NewAlertRoute />
+    </React.Suspense>
+  );
+}
+
+function NewAlertRoute() {
+  const editId = useSearchParams().get("edit");
+  return <NewAlertForm key={editId ?? "new"} queryEditId={editId} />;
+}
+
+function NewAlertForm({ queryEditId }: { queryEditId: string | null }) {
   const router = useRouter();
   const { createAlert, hydrated, resetGeneration, state, updateAlert } = usePrototype();
   const [form, dispatch] = useReducer(formReducer, initialFormState);
   const previousResetGeneration = React.useRef(resetGeneration);
 
   useEffect(() => {
-    if (!hydrated || typeof window === "undefined") return;
-
-    const queryEditId = new URLSearchParams(window.location.search).get("edit");
+    if (!hydrated) return;
     if (!queryEditId || queryEditId === form.loadedEditId) return;
 
     const alert = selectAlertById(state, queryEditId);
     if (!alert) return;
 
     dispatch({ type: "edit-loaded", alert });
-  }, [form.loadedEditId, hydrated, state]);
+  }, [form.loadedEditId, hydrated, queryEditId, state]);
 
   useEffect(() => {
     if (previousResetGeneration.current === resetGeneration) return;
     previousResetGeneration.current = resetGeneration;
 
-    const queryEditId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("edit");
     dispatch({ type: "cleared", queryEditId });
     if (queryEditId) {
       router.replace("/alerts/new");
     }
-  }, [resetGeneration, router]);
+  }, [queryEditId, resetGeneration, router]);
 
   const errors = form.submitted
     ? buildValidationErrors(form.patientReference, form.urgency, form.caseDetails, form.selectedIds)
@@ -149,7 +161,6 @@ export default function NewAlertPage() {
   }
 
   function clearForm() {
-    const queryEditId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("edit");
     dispatch({ type: "cleared", queryEditId });
     if (queryEditId) {
       router.replace("/alerts/new");
@@ -179,10 +190,23 @@ export default function NewAlertPage() {
     const alertId = existingEditId ?? createAlert(input);
 
     if (existingEditId) {
+      if (selectAlertById(state, existingEditId)?.status !== "draft") return;
       updateAlert(existingEditId, input);
     }
 
     router.push(`/alerts/${alertId}/review`);
+  }
+
+  const editedAlert = queryEditId ? selectAlertById(state, queryEditId) : undefined;
+  if (editedAlert && editedAlert.status !== "draft") {
+    return (
+      <ScreenState
+        kind="empty"
+        label="This alert is no longer a draft"
+        description="Confirmed fictional alerts cannot be edited. Create another alert for new information."
+        action={<Link className="focus-link" href={`/alerts/${editedAlert.id}`}>View Alert Details</Link>}
+      />
+    );
   }
 
   return (

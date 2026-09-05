@@ -1,4 +1,5 @@
 import React from "react";
+import { canRespondToAlert } from "./workflow";
 import { createSeedState, DEMO_NOW, PROTOTYPE_SCHEMA_VERSION, STORAGE_KEY } from "./seed";
 import type {
   AlertActivity,
@@ -164,6 +165,7 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
   }
 
   if (action.type === "alert-updated") {
+    if (state.alerts.find((alert) => alert.id === action.alertId)?.status !== "draft") return state;
     return {
       ...state,
       alerts: state.alerts.map((alert) =>
@@ -185,6 +187,7 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
   }
 
   if (action.type === "alert-confirmed") {
+    if (state.alerts.find((alert) => alert.id === action.alertId)?.status !== "draft") return state;
     return {
       ...state,
       alerts: state.alerts.map((alert) =>
@@ -215,7 +218,7 @@ export function prototypeReducer(state: PrototypeState, action: PrototypeAction)
     const targetAlert = state.alerts.find((alert) => alert.id === action.alertId);
     const targetRecipient = targetAlert?.recipients.find((recipient) => recipient.clinicianId === action.clinicianId);
 
-    if (!targetAlert || !targetRecipient) {
+    if (!targetAlert || !targetRecipient || !canRespondToAlert(targetAlert)) {
       return state;
     }
 

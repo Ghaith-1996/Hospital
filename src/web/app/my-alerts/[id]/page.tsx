@@ -9,6 +9,7 @@ import { ScreenState } from "../../../components/ui/screen-state";
 import { StatusBadge } from "../../../components/ui/status-badge";
 import { formatAlertDisplayTitle, selectAlertById, selectCurrentUser } from "../../../features/alerts/selectors";
 import { usePrototype } from "../../../features/alerts/prototype-store";
+import { canRespondToAlert } from "../../../features/alerts/workflow";
 import type { AlertRecord, Clinician, DoctorResponse } from "../../../features/alerts/types";
 
 function readRouteId(value: string | string[] | undefined) {
@@ -60,7 +61,7 @@ export default function DoctorAlertPage() {
   const currentUser = selectCurrentUser(state);
   const alert = alertId ? selectAlertById(state, alertId) : undefined;
 
-  if (!alertId || !alert || currentUser.role !== "doctor" || !currentUser.clinicianId) {
+  if (!alertId || !alert || alert.status === "draft" || currentUser.role !== "doctor" || !currentUser.clinicianId) {
     return (
       <ScreenState
         kind="not-found"
@@ -153,11 +154,15 @@ export default function DoctorAlertPage() {
         <p>{currentResponseMessage(currentRecipient.response)}</p>
       </div>
 
-      <ResponsePanel
-        alertId={alert.id}
-        currentResponse={currentRecipient.response}
-        onChoose={(response) => router.push(`/my-alerts/${alert.id}/respond?response=${response}`)}
-      />
+      {canRespondToAlert(alert) ? (
+        <ResponsePanel
+          alertId={alert.id}
+          currentResponse={currentRecipient.response}
+          onChoose={(response) => router.push(`/my-alerts/${alert.id}/respond?response=${response}`)}
+        />
+      ) : (
+        <p role="status">This fictional alert is {alert.status}. Responses are closed.</p>
+      )}
     </section>
   );
 }

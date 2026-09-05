@@ -44,6 +44,17 @@ export default function AlertReviewPage() {
     );
   }
 
+  if (alert.status !== "draft") {
+    return (
+      <ScreenState
+        kind="empty"
+        label="This alert is no longer a draft"
+        description="Confirmed fictional alerts cannot be edited or dispatched again. Create another alert for new information."
+        action={<Link className="focus-link" href={`/alerts/${alert.id}`}>View Alert Details</Link>}
+      />
+    );
+  }
+
   const reviewedAlert = alert;
   const clinicians = selectedClinicians(
     state.clinicians,

@@ -87,7 +87,7 @@ describe("review confirmation and sent state", () => {
   });
 
   it("cancels with buttons and Escape, wraps focus, and returns focus to the trigger", () => {
-    renderPrototype(<AlertReviewPage />);
+    renderPrototype(<AlertReviewPage />, { state: createDraftReviewState() });
 
     const trigger = screen.getByRole("button", { name: "Confirm & Dispatch" });
     trigger.focus();
