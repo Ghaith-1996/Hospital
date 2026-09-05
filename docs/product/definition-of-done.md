@@ -250,3 +250,62 @@ Fresh `scripts/test-all.ps1` execution passed using .NET SDK 10.0.100, Node.js 2
 Regression evidence includes failures before each behavior fix, followed by passing persisted source-history tests, five deterministic PostgreSQL lifecycle/response races, caller-budget isolation tests, and the container proxy check. Stale source writes are now safe concurrency conflicts for both synchronous and asynchronous saves, with winning history retained and failed-writer audit data rolled back. Independent final code review found no remaining actionable blockers in the combined corrections.
 
 The reviewed change set covers the existing Phase 8 domain/persistence, application/API, web, tests, CI/container, and documentation corrections. Intended commit message: `feat: complete Phase 8 simulation compliance corrections`. No production deployment, external provider, hospital integration, Phase 9 behavior, or tag is included. Production and hospital approval gates remain `REQUIRES_HOSPITAL_DECISION`; repository ruleset administration remains a human action.
+
+## Frontend Prototype Phase: redesign review gate
+
+The approved frontend redesign is ready for review only when all of the following are true:
+
+- [x] All nine visual states and eight routes are present and connected.
+- [x] The supplied mockup's design system and page anatomy are faithfully reproduced.
+- [x] The operator and doctor workflows update one persistent fictional state model.
+- [x] The fictional-user switcher and reset action work.
+- [x] Directory, Reports, and Settings are clearly disabled or show the approved Coming later state.
+- [x] Mobile and tablet layouts remain usable.
+- [x] Loading, empty, validation, error, and not-found states are implemented.
+- [x] Each screen presents one obvious primary action and preserves the visible simulation treatment.
+- [x] All navigation and controls are keyboard operable with visible, consistent focus indicators.
+- [x] Fields, dialogs, tables, and mobile-card equivalents preserve semantic labels and accessible descriptions.
+- [x] Status, urgency, and response meaning are conveyed textually in addition to color.
+- [x] Practical interactive targets are approximately 44 pixels.
+- [x] Doctor response controls, response summaries, and escalation rendering are explicitly marked `SIMULATION_ONLY_ASSUMPTION` in product documentation and remain local mock state only.
+- [x] Real doctor response workflow authority, escalation policy values, escalation intervals, recipient-selection policy, privacy conclusions, and clinical recommendations remain `REQUIRES_HOSPITAL_DECISION`.
+- [x] No backend, API, database, notification, response processor, or escalation engine change is included.
+- [x] Frontend tests, typecheck, lint, build, browser verification, safety checks, and visual comparison pass.
+- [x] Remaining intentional deviations from the supplied mockup are documented for human review.
+
+### Frontend Prototype Task 11 verification evidence
+
+On 2026-09-03, Task 11 fix-round verification rechecked the frontend-only redesign against `docs/design/frontend-prototype-nine-screen-mockup.png`. The accepted mockup and regenerated desktop/mobile contact sheets were opened with `view_image`. Playwright-driven screenshots were captured from the actual local Next dev server and saved outside the repository under `C:\Users\ghait\AppData\Local\Temp\task-11-review-screenshots-20260903-002254`.
+
+Desktop screenshots were captured at 1440x900 for New Alert, Review & Confirm, Alert Sent, Alerts Overview, Alert Details, Doctor Inbox, Doctor Alert, Respond to Alert, and fixed Escalation Progress. Mobile screenshots were captured at 390x844 for New Alert, Alerts Overview, Doctor Alert, and Respond to Alert. The capture manifest asserted the expected URL and `h1`, exactly one `h1`, no not-found content, and no page-level horizontal overflow for all 13 screenshots. Dr. Marc localStorage state was seeded deterministically for Doctor Inbox, Doctor Alert, and Respond to Alert captures.
+
+Fidelity ledger:
+
+1. Sidebar/topbar: desktop sidebar remains visible and the useless desktop Close control is hidden; mobile uses a Menu button and modal drawer with hidden/inert closed state, focus containment while open, and focus return to Menu.
+2. Page titles, progress labels, tabs, primary actions, and above-the-fold copy were checked across the nine captured desktop states; the doctor inbox preserves the mockup-visible labels `Chest pain, hypotension`, `Respiratory distress`, and `Suspected sepsis`.
+3. Typography scale, weight, line height, and control typography remain consistent across forms, tables, cards, detail panels, and response screens.
+4. White background, gray borders, blue selection/action treatment, and semantic red/amber/green status colors are preserved with textual labels.
+5. Form, table, clinician row, summary, timeline, dialog, and response-control geometry match the approved structure; mobile table information converts to equivalent cards.
+6. Icon metaphor, stroke weight, optical size, and alignment were checked in the sidebar, mobile topbar, status markers, empty/not-found states, and escalation timeline.
+7. Desktop density remains scannable at 1440x900, with detail pages retaining side summaries and response summaries consistent with the concept.
+8. Responsive behavior was checked at 390x844 and 768px: the New Alert form/summary stack, detail grids stack, cards replace tables, long fictional references wrap, response actions remain visible without covering content, and page-level horizontal overflow is absent.
+9. Core state changes were verified end-to-end: operator create/review/confirm/send/open details; Dr. Marc acknowledgement remains distinct from acceptance; fixed escalation content remains `DEMO elapsed time: 12 min` with no automatic transition; rapid local actions preserve in-memory and localStorage state.
+
+Intentional deviations from the mockup remain limited to repository safety requirements: persistent `SIMULATION` badges, explicit fictional/local/no-real-notification copy, `SIMULATION_ONLY_ASSUMPTION` documentation for doctor responses and escalation rendering, and disabled/Coming later treatment for out-of-scope areas. No real dispatch, delivery, acknowledgement processor, escalation engine, provider integration, backend API, database, or infrastructure change is included.
+
+Verification commands:
+
+- `npm --prefix src/web test -- --run`: passed, 9 test files and 71 tests.
+- `npm --prefix src/web run typecheck`: passed.
+- `npm --prefix src/web run lint`: passed with zero warnings.
+- `npm --prefix src/web run build`: passed; Next compiled successfully and generated 8 static pages plus dynamic app routes.
+- `npm run web:e2e`: passed, 4 Playwright workflows and 4 tests in 6.7s. The final config refuses existing servers, starts the frontend from `src/web` on deterministic `http://127.0.0.1:3101`, and records `reuseExistingServer: false` in the E2E server metadata. The implementation uses shell-free Playwright global setup/teardown because Playwright's Windows `webServer` shell lifecycle hung after completed tests on this host.
+- `powershell -ExecutionPolicy Bypass -File scripts/verify-no-sensitive-data.ps1`: passed.
+- `git diff --check`: passed; only CRLF conversion warnings were reported.
+- `rg -n "fetch\(|/api/|setInterval|setTimeout|XMLHttpRequest|EventSource|WebSocket" src\web\app src\web\components src\web\features`: no matches, confirming no active frontend route/component/store fetch, API, or timer calls.
+
+`scripts/test-all.ps1` was not run on this host because `global.json` requires .NET SDK `10.0.100`, while the host only reports SDK `9.0.310`. Frontend-only gates above are the available local evidence.
+
+## Integration with Phase 8 backend baseline
+
+The frontend prototype replaces the old backend-connected screens and their UI tests. Backend implementation, migrations, API integration tests, data-protection checks, container support, and historical Phase 8 verification evidence are retained from main. The local prototype suite covers the replacement workflows; it does not claim browser-to-API integration. The legacy live-status route redirects to local alert details, and the API proxy retains the versioned `/api/v1` boundary.

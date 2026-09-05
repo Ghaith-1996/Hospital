@@ -1,10 +1,16 @@
 ﻿# Critical Clinician Alert Platform
 
-Status: Phase 8 simulation-only practitioner response and closed-loop compliance corrections are implemented in this working tree. The repository remains a simulation-only prototype and still requires the explicit human review gates documented below; no Phase 8 tag is recorded.
+Status: The approved frontend-only prototype redesign runs on local fictional state. The repository also retains the Phase 8 backend simulation and compliance corrections from main; the prototype is not connected to those APIs.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
 Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Phase 8 adds simulation practitioner responses, call-unit requests, operator resolve/cancel actions, a safe manual-fallback placeholder, and a read-only operator status surface. Real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, external callbacks, escalation automation, and Phase 9 remain out of scope.
+
+## Frontend prototype
+
+Run `npm --prefix src/web run dev` and open the local Next.js URL. Operator alert creation, review, details, and the fictional doctor inbox use one local browser store with an explicit simulation user switcher and reset. No API, database, real identity, or notification service is required for these screens. Directory, Reports, and Settings are coming later. The former `/alerts/[id]/live` UI redirects to the prototype details route; the backend live-status API remains available independently.
+
+The [frontend design](docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md) defines the local scope. Backend workflow and historical verification descriptions below document the retained Phase 8 implementation, not an active connection from this frontend.
 
 ## Source and decision precedence
 
@@ -58,7 +64,7 @@ Copy-Item .env.example .env
 ./scripts/test-all.ps1
 ```
 
-The Playwright smoke test starts the web shell on `127.0.0.1:3100` so it does not reuse another application on port 3000. The pinned .NET SDK is `10.0.100`. In the Development profile, the fictional Phase 8 response and lifecycle routes are enabled; the API still fails closed outside Development/Test. Demo reset requires the explicit confirmation switch and a loopback `critical_alerts_dev`, `critical_alerts_test`, or `critical_alerts_demo` database. To use the development identity switcher locally, start `CriticalAlerts.Api` on `http://127.0.0.1:5080` and set `CRITICAL_ALERTS_API_URL` for the Next.js rewrite.
+The Playwright suite starts the standalone local prototype on `127.0.0.1:3101`. It does not require the API or database. The pinned .NET SDK for backend verification is `10.0.100`. Development/Test API routes remain independently available at `http://127.0.0.1:5080`; the active prototype does not use a development authentication panel. Demo database reset still requires the explicit confirmation switch and an approved loopback simulation database.
 
 ### Simulation container builds
 

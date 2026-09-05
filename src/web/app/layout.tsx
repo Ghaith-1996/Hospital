@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Critical Alerts Platform",
-  description: "Simulation-only critical alerts workflow with practitioner response and operator status views.",
+  title: "Critical Alerts - Simulation Prototype",
+  description: "Frontend-only fictional critical-alert workflow prototype.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

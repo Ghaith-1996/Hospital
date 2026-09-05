@@ -111,6 +111,14 @@ The repository contract supports, at minimum:
 
 Actions update one canonical alert record so the operator and doctor surfaces remain consistent. Sent, delivered, opened, acknowledged, and responsibility accepted remain distinct values. No local transition is described as a real external event.
 
+### Local workflow boundaries (review correction)
+
+- Drafts remain operator-only until explicit confirmation; doctor inboxes and direct doctor detail/response routes exclude them.
+- Only drafts can be edited or confirmed. Returning to a confirmed alert's review or edit URL shows a read-only explanation and a link to its details. New information requires a new fictional alert; existing recipients, responses, and history are preserved.
+- Doctors can respond only to sent, in-progress, or escalating fictional alerts. Resolved and cancelled alerts remain readable, but response controls and direct response routes are closed. The store rejects invalid edits, repeated confirmations, and responses even if invoked from stale UI state.
+
+These are frontend-only simulation rules. Production amendment, reopening, response, and lifecycle policies remain `REQUIRES_HOSPITAL_DECISION`.
+
 ## Page behavior
 
 ### New Alert

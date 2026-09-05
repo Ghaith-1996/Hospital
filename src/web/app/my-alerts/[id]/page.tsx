@@ -1,252 +1,168 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { SimulationChrome } from "../../simulation-chrome";
-import {
-  createIdempotencyKey,
-  getMyAlert,
-  isAlertApiError,
-  markMyAlertOpened,
-  MyAlertDetail,
-  recordMyAlertResponse,
-  RecipientResponseReasonCode,
-  RecipientResponseType,
-} from "../../../lib/alerts";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ResponsePanel, responseLabel } from "../../../components/alerts/response-panel";
+import { PageHeader } from "../../../components/ui/page-header";
+import { ScreenState } from "../../../components/ui/screen-state";
+import { StatusBadge } from "../../../components/ui/status-badge";
+import { formatAlertDisplayTitle, selectAlertById, selectCurrentUser } from "../../../features/alerts/selectors";
+import { usePrototype } from "../../../features/alerts/prototype-store";
+import { canRespondToAlert } from "../../../features/alerts/workflow";
+import type { AlertRecord, Clinician, DoctorResponse } from "../../../features/alerts/types";
 
-const declineReasons: Array<{ code: RecipientResponseReasonCode; label: string }> = [
-  { code: "simulation-declined", label: "Decline for simulation" },
-  { code: "simulation-not-my-service", label: "Not my service" },
-  { code: "simulation-wrong-specialty", label: "Wrong specialty" },
-  { code: "simulation-not-available", label: "Not available" },
-];
-
-function routeAlertId(value: string | string[] | undefined): string {
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+function readRouteId(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-function safeUtc(value: string | null): string {
-  if (!value) return "not recorded";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf()) ? "not recorded" : parsed.toISOString();
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(value));
 }
 
-function openedLabel(alert: MyAlertDetail): string {
-  if (alert.openedState === "NotApplicable") return "not applicable";
-  if (alert.openedState === "Failed") return "failed";
-  if (alert.openedState === "Occurred") {
-    return alert.secureMessageOpenedAtUtc
-      ? `occurred at ${safeUtc(alert.secureMessageOpenedAtUtc)}`
-      : "occurred";
-  }
-  return "pending, not observed";
+function alertTitle(alert: AlertRecord) {
+  return formatAlertDisplayTitle(alert);
 }
 
-function detailError(error: unknown): string {
-  if (isAlertApiError(error) && error.status === 401) return "Sign in with the seeded Practitioner identity.";
-  if (isAlertApiError(error) && error.status === 403) return "This identity does not have a linked practitioner inbox.";
-  if (isAlertApiError(error) && error.status === 404) return "This active alert is not addressed to the authenticated practitioner.";
-  return "The addressed simulation alert could not be loaded. Reload and try again.";
+function findClinician(clinicians: Clinician[], clinicianId: string) {
+  return clinicians.find((clinician) => clinician.id === clinicianId);
 }
 
-export default function MyAlertDetailPage() {
-  const params = useParams<{ id: string | string[] }>();
-  const alertId = routeAlertId(params.id);
-  const [alert, setAlert] = useState<MyAlertDetail | null>(null);
-  const [loadedAlertId, setLoadedAlertId] = useState<string | null>(null);
-  const [status, setStatus] = useState("Loading the addressed simulation alert.");
-  const [submittingAction, setSubmittingAction] = useState<RecipientResponseType | null>(null);
-  const [declineReason, setDeclineReason] = useState<RecipientResponseReasonCode>("simulation-declined");
-  const submittingRef = useRef(false);
+function currentResponseMessage(response: DoctorResponse) {
+  if (response === "accepted") return "Responsibility accepted in this local simulation.";
+  if (response === "acknowledged") return "Acknowledgement recorded without accepting responsibility.";
+  if (response === "declined") return "Decline recorded for this fictional case.";
+  if (response === "unavailable") return "Unavailable response recorded for this fictional case.";
+  return "Choose a response without sending anything outside this local prototype.";
+}
 
-  useEffect(() => {
-    let active = true;
-    void getMyAlert(alertId)
-      .then(async (loaded) => {
-        if (!active) return;
-        setAlert(loaded);
-        setLoadedAlertId(alertId);
-        setStatus("Review the approved message and exact confirmed fields before recording a response.");
-        if (loaded.channels.includes("SecureMessage") && !loaded.secureMessageOpenedAtUtc) {
-          try {
-            const opened = await markMyAlertOpened(
-              alertId,
-              loaded.confirmedVersion,
-              createIdempotencyKey(),
-            );
-            if (active) {
-              setAlert((current) => current ? {
-                ...current,
-                openedState: opened.secureMessageOpenedAtUtc ? "Occurred" : current.openedState,
-                secureMessageOpenedAtUtc: opened.secureMessageOpenedAtUtc,
-              } : current);
-              setStatus(
-                opened.secureMessageOpenedAtUtc
-                  ? `SecureMessage opened at ${safeUtc(opened.secureMessageOpenedAtUtc)}.`
-                  : "This alert has no SecureMessage open observation.",
-              );
-            }
-          } catch {
-            if (active) setStatus("The alert loaded, but its SecureMessage open observation could not be recorded.");
-          }
-        }
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setLoadedAlertId(alertId);
-          setStatus(detailError(error));
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [alertId]);
-
-  async function respond(responseType: RecipientResponseType, reasonCode?: RecipientResponseReasonCode) {
-    if (!alert || submittingRef.current) return;
-    if (responseType === "Acknowledged" && alert.acknowledgedAtUtc) return;
-    if (responseType === "CallUnitRequested" && alert.callUnitRequestedAtUtc) return;
-    if (responseType !== "Acknowledged" && alert.terminalDisposition) return;
-
-    submittingRef.current = true;
-    setSubmittingAction(responseType);
-    try {
-      const result = await recordMyAlertResponse(
-        alertId,
-        alert.confirmedVersion,
-        responseType,
-        createIdempotencyKey(),
-        reasonCode,
-      );
-      setAlert((current) => current ? {
-        ...current,
-        acknowledgedAtUtc: result.acknowledgedAtUtc,
-        terminalDisposition: result.terminalDisposition,
-        responsibilityAcceptedAtUtc: result.responsibilityAcceptedAtUtc,
-        callUnitRequestedAtUtc: result.callUnitRequestedAtUtc,
-        lastResponseReasonCode: result.reasonCode,
-      } : current);
-      setStatus(
-        responseType === "Accepted"
-          ? "Responsibility accepted. The alert remains active."
-          : responseType === "Acknowledged"
-            ? "Acknowledgement recorded. Responsibility has not been accepted."
-            : responseType === "CallUnitRequested"
-              ? "Call-unit request recorded for this simulation alert."
-            : `${responseType} recorded. Phase 8 does not trigger escalation.`,
-      );
-    } catch (error: unknown) {
-      setStatus(
-        isAlertApiError(error) && error.status === 409
-          ? "The alert or response state changed. Reload before trying another response."
-          : "The response could not be recorded. Review the alert and retry.",
-      );
-    } finally {
-      submittingRef.current = false;
-      setSubmittingAction(null);
-    }
-  }
-
-  if (loadedAlertId !== alertId) {
-    return (
-      <SimulationChrome title="Addressed simulation alert" lead="Loading the server-scoped practitioner view.">
-        <p className="status-message" role="status" aria-live="polite">{status}</p>
-      </SimulationChrome>
-    );
-  }
-
-  if (!alert) {
-    return (
-      <SimulationChrome title="Addressed simulation alert" lead="The practitioner detail is unavailable.">
-        <p className="status-message" role="status" aria-live="polite">{status}</p>
-        <Link className="focus-link" href="/my-alerts">Return to my alerts</Link>
-      </SimulationChrome>
-    );
-  }
-
-  const terminalRecorded = Boolean(alert.terminalDisposition);
-  const responsePending = submittingAction !== null;
+function DetailItem({ label, children }: React.PropsWithChildren<{ label: string }>) {
   return (
-    <SimulationChrome
-      title="Addressed simulation alert"
-      lead={`Version ${alert.confirmedVersion} · ${alert.location} · ${alert.urgencyLabel}`}
-    >
-      <section className="alert-panel" aria-labelledby="recipient-approved-message">
-        <h2 id="recipient-approved-message">Approved message</h2>
-        <p className="protected-copy">{alert.approvedMessage}</p>
-        <p>Synthetic patient reference: {alert.simulationPatientReference}</p>
-      </section>
+    <div className="doctor-alert__item">
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
 
-      <section className="alert-panel" aria-labelledby="recipient-critical-fields">
-        <h2 id="recipient-critical-fields">Confirmed critical values</h2>
-        <div className="review-grid">
-          {alert.criticalFields.map((field) => (
-            <div className="review-item" key={field.fieldId}>
-              <strong>{field.fieldId}</strong>
-              <span>{field.normalizedValue} {field.unit ?? ""}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+export default function DoctorAlertPage() {
+  const params = useParams<{ id?: string | string[] }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const alertId = readRouteId(params.id);
+  const { state } = usePrototype();
+  const currentUser = selectCurrentUser(state);
+  const alert = alertId ? selectAlertById(state, alertId) : undefined;
 
-      <section className="confirmation-panel" aria-labelledby="recipient-response-actions">
-        <h2 id="recipient-response-actions">Simulation response actions</h2>
-        <p>Acknowledgement does not accept responsibility.</p>
-        <p>Acceptance records responsibility but does not resolve this alert.</p>
-        <div className="form-actions">
-          <button
-            type="button"
-            disabled={responsePending || Boolean(alert.acknowledgedAtUtc)}
-            onClick={() => void respond("Acknowledged")}
-          >
-            {submittingAction === "Acknowledged" ? "Recording acknowledgement…" : "Acknowledge"}
-          </button>
-          <button type="button" disabled={responsePending || terminalRecorded} onClick={() => void respond("Accepted")}>
-            {submittingAction === "Accepted" ? "Accepting responsibility…" : "Accept responsibility"}
-          </button>
-          <label className="inline-field" htmlFor="decline-reason">
-            Decline reason (simulation)
-            <select
-              id="decline-reason"
-              value={declineReason}
-              disabled={responsePending || terminalRecorded}
-              onChange={(event) => setDeclineReason(event.target.value as RecipientResponseReasonCode)}
-            >
-              {declineReasons.map((reason) => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={responsePending || terminalRecorded}
-            onClick={() => void respond("Declined", declineReason)}
-          >
-            Decline
-          </button>
-          <button type="button" disabled={responsePending || terminalRecorded} onClick={() => void respond("Unavailable")}>
-            Mark unavailable
-          </button>
-          <button
-            type="button"
-            disabled={responsePending || terminalRecorded || Boolean(alert.callUnitRequestedAtUtc)}
-            onClick={() => void respond("CallUnitRequested", "simulation-call-unit-requested")}
-          >
-            {submittingAction === "CallUnitRequested" ? "Requesting call unit…" : "Request call unit"}
-          </button>
-        </div>
-        <div className="response-state-list" aria-label="Current practitioner response states">
-          <span>Channels: {alert.channels.join(", ")}</span>
-          <span>Opened: {openedLabel(alert)}</span>
-          <span>Acknowledgement: {alert.acknowledgedAtUtc ? `recorded at ${safeUtc(alert.acknowledgedAtUtc)}` : "not recorded"}</span>
-          <span>Terminal disposition: {alert.terminalDisposition ?? "not recorded"}</span>
-          <span>Responsibility: {alert.responsibilityAcceptedAtUtc ? `accepted at ${safeUtc(alert.responsibilityAcceptedAtUtc)}` : "not accepted"}</span>
-          <span>Call unit: {alert.callUnitRequestedAtUtc ? `requested at ${safeUtc(alert.callUnitRequestedAtUtc)}` : "not requested"}</span>
-          <span>Last response reason: {alert.lastResponseReasonCode ?? "not recorded"}</span>
-        </div>
-      </section>
+  if (!alertId || !alert || alert.status === "draft" || currentUser.role !== "doctor" || !currentUser.clinicianId) {
+    return (
+      <ScreenState
+        kind="not-found"
+        label="Fictional alert not found"
+        description="This local prototype could not find that fictional doctor alert."
+        action={
+          <Link className="focus-link" href="/my-alerts">
+            Back to Inbox
+          </Link>
+        }
+      />
+    );
+  }
 
-      <p className="status-message" role="status" aria-live="polite">{status}</p>
-      <Link className="focus-link" href="/my-alerts">Return to my alerts</Link>
-    </SimulationChrome>
+  const clinicianId = currentUser.clinicianId;
+  const currentRecipient = alert.recipients.find((recipient) => recipient.clinicianId === clinicianId);
+
+  if (!currentRecipient) {
+    return (
+      <ScreenState
+        kind="not-found"
+        label="Fictional alert not found"
+        description="This fictional alert is not assigned to the selected doctor."
+        action={
+          <Link className="focus-link" href="/my-alerts">
+            Back to Inbox
+          </Link>
+        }
+      />
+    );
+  }
+
+  const otherRecipients = alert.recipients.filter((recipient) => recipient.clinicianId !== clinicianId);
+  const responded = searchParams.get("responded") === "1";
+
+  return (
+    <section className="doctor-alert">
+      <Link className="focus-link" href="/my-alerts">
+        Back to Inbox
+      </Link>
+      {responded ? (
+        <div className="doctor-alert__success" role="status" aria-label="Fictional response saved">
+          Fictional response saved. Your current response is {responseLabel(currentRecipient.response)}.
+        </div>
+      ) : null}
+      <PageHeader
+        title={alertTitle(alert)}
+        description={`Received: ${formatDateTime(alert.receivedAt ?? alert.updatedAt)}`}
+        actions={<StatusBadge urgency={alert.urgency} />}
+      />
+
+      <div className="doctor-alert__grid">
+        <section className="doctor-alert__card" aria-labelledby="doctor-alert-patient-heading">
+          <h2 id="doctor-alert-patient-heading">Patient Reference</h2>
+          <dl className="doctor-alert__facts">
+            <DetailItem label="Patient Reference">{alert.patientReference}</DetailItem>
+            <DetailItem label="Location">{alert.location}</DetailItem>
+            <DetailItem label="Department">{alert.department}</DetailItem>
+          </dl>
+        </section>
+
+        <section className="doctor-alert__card doctor-alert__card--case" aria-labelledby="doctor-alert-case-heading">
+          <h2 id="doctor-alert-case-heading">Case Details</h2>
+          <p>{alert.caseDetails}</p>
+        </section>
+
+        <section className="doctor-alert__card" role="region" aria-label="Other Recipients">
+          <h2>Other Recipients</h2>
+          <ul className="doctor-alert__recipients">
+            {otherRecipients.map((recipient) => {
+              const clinician = findClinician(state.clinicians, recipient.clinicianId);
+              return (
+                <li key={recipient.clinicianId}>
+                  <span className="clinician-avatar" aria-hidden="true">
+                    {clinician?.initials ?? "FC"}
+                  </span>
+                  <span>
+                    <strong>{clinician?.displayName ?? "Fictional clinician"}</strong>
+                    <span>{clinician?.specialty ?? "Simulation clinician"}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      </div>
+
+      <div className="doctor-alert__current">
+        <p>Your current response: {responseLabel(currentRecipient.response)}</p>
+        <p>{currentResponseMessage(currentRecipient.response)}</p>
+      </div>
+
+      {canRespondToAlert(alert) ? (
+        <ResponsePanel
+          alertId={alert.id}
+          currentResponse={currentRecipient.response}
+          onChoose={(response) => router.push(`/my-alerts/${alert.id}/respond?response=${response}`)}
+        />
+      ) : (
+        <p role="status">This fictional alert is {alert.status}. Responses are closed.</p>
+      )}
+    </section>
   );
 }

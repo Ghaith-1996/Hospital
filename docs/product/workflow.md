@@ -4,6 +4,25 @@ Status: Proposed simulation workflow through the local Phase 8 practitioner-resp
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
+## Frontend prototype surface
+
+The active work is the approved frontend-only prototype redesign described in
+`docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`.
+It may implement the nine fictional operator/doctor UI states with local mock
+state only. The retained backend baseline includes Phase 8 simulation responses
+and compliance corrections from main; this frontend does not connect to it.
+No new backend behavior or escalation processing is authorized by the redesign.
+
+Within the frontend prototype only:
+
+- Local doctor response controls and summaries are `SIMULATION_ONLY_ASSUMPTION`.
+- Local live-detail/status rendering is `SIMULATION_ONLY_ASSUMPTION`.
+- Local demo escalation steps and fixed progress states are `SIMULATION_ONLY_ASSUMPTION`.
+- No backend, API, database, migration, worker, provider, authentication, or infrastructure change is authorized for this prototype surface.
+- Real doctor response workflow authority, escalation triggers, delays, retry counts, stop conditions, backup hierarchy, override rules, and any hospital policy values remain `REQUIRES_HOSPITAL_DECISION`.
+
+The backend flow described below remains available through the Phase 8 API and its backend tests. It is not connected to the active local prototype UI. Legacy live-status URLs redirect to the local alert details route.
+
 ## Workflow identity
 
 - Identifier: `SIM-URGENT-CONSULT-001`.
