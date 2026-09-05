@@ -1,11 +1,24 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import * as api from "../lib/alerts";
 import { PractitionerAlert, PractitionerInbox } from "../features/connected/practitioner-alerts";
 import { LiveAlert } from "../features/connected/live-alert";
 vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlert: vi.fn(), getMyAlerts: vi.fn(), markMyAlertOpened: vi.fn(), recordMyAlertResponse: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn() }));
 afterEach(() => vi.clearAllMocks());
+test("live polling stops on unmount", async () => {
+  vi.useFakeTimers();
+  vi.mocked(api.getAlertLive).mockRejectedValue(new TypeError("offline"));
+  try {
+    const { unmount } = render(<LiveAlert alertId="sim" pollMs={5000} />);
+    await act(async () => {});
+    await act(() => vi.advanceTimersByTimeAsync(5000));
+    expect(api.getAlertLive).toHaveBeenCalledTimes(2);
+    unmount();
+    await act(() => vi.advanceTimersByTimeAsync(15000));
+    expect(api.getAlertLive).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); }
+});
 test("practitioner acknowledgement does not imply responsibility and explicit open is separate", async () => {
   const detail = { alertId: "sim", confirmedVersion: 9, state: "Active", simulationPatientReference: "SIM-PAT-1", location: "Fictional room", urgencyLabel: "DEMO Urgent", approvedMessage: "SIMULATION: approved", criticalFields: [{ fieldId: "pulse", value: "118", unit: "beats/min" }], channels: ["SecureMessage"], openedState: "NotObserved", secureMessageOpenedAtUtc: null, acknowledgedAtUtc: null, terminalDisposition: null, responsibilityAcceptedAtUtc: null, callUnitRequestedAtUtc: null } as unknown as api.MyAlertDetail;
   vi.mocked(api.getMyAlert).mockResolvedValueOnce(detail).mockResolvedValue({ ...detail, acknowledgedAtUtc: "2026-09-05T12:00:00Z" });

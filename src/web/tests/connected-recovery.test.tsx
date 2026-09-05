@@ -1,7 +1,19 @@
 import { act, renderHook } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { useIdempotentAction } from "../features/connected/use-idempotent-action";
-import { useServerQuery } from "../features/connected/common";
+import { errorGuidance, useServerQuery } from "../features/connected/common";
+import { AlertApiError } from "../lib/alerts";
+
+test.each([
+  [401, null, /Session unavailable/],
+  [403, null, /not authorized/],
+  [404, null, /inaccessible/],
+  [409, "stale-alert-version", /reloaded and reviewed/],
+  [409, "directory-revision-changed", /review recipients and channels/],
+  [429, null, /retry the same action/],
+] as const)("maps API %s %s to actionable recovery guidance", (status, code, expected) => {
+  expect(errorGuidance(new AlertApiError(status, code, "Safe server message"))).toMatch(expected);
+});
 
 test("a successful command with a failed refresh retries the read without repeating the command", async () => {
   const read = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
