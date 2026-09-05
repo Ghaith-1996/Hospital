@@ -27,29 +27,63 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
         services.AddAuthorization(options =>
         {
             options.AddPolicy(AuthorizationPolicies.Operator, policy => policy.RequireRole(AuthorizationRoles.Operator));
+            options.AddPolicy(AuthorizationPolicies.Physician, policy => policy.RequireRole(AuthorizationRoles.Physician));
+            options.AddPolicy(AuthorizationPolicies.ClinicalSupervisor, policy => policy.RequireRole(AuthorizationRoles.ClinicalSupervisor));
             options.AddPolicy(AuthorizationPolicies.Administrator, policy => policy.RequireRole(AuthorizationRoles.Administrator));
             options.AddPolicy(AuthorizationPolicies.Practitioner, policy => policy.RequireRole(AuthorizationRoles.Practitioner));
             options.AddPolicy(
                 AuthorizationPolicies.DirectoryReader,
-                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Operator,
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.DirectoryAdministrator,
+                    AuthorizationRoles.Auditor,
+                    AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(
                 AuthorizationPolicies.DirectoryAdministrator,
-                policy => policy.RequireRole(AuthorizationRoles.Administrator));
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.DirectoryAdministrator,
+                    AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(
                 AuthorizationPolicies.AlertDraftEditor,
-                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Operator,
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.ClinicalSupervisor,
+                    AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(
                 AuthorizationPolicies.DispatchScenarioAdministrator,
-                policy => policy.RequireRole(AuthorizationRoles.Administrator));
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.IntegrationAdministrator,
+                    AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(
                 AuthorizationPolicies.AlertDeliveryReader,
-                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Operator,
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.ClinicalSupervisor,
+                    AuthorizationRoles.Auditor,
+                    AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(
                 AuthorizationPolicies.PractitionerAlertResponder,
-                policy => policy.RequireRole(AuthorizationRoles.Practitioner));
+                policy => policy.RequireRole(AuthorizationRoles.Practitioner, AuthorizationRoles.Physician));
             options.AddPolicy(
                 AuthorizationPolicies.AlertLiveReader,
-                policy => policy.RequireRole(AuthorizationRoles.Operator, AuthorizationRoles.Administrator));
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Operator,
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.ClinicalSupervisor,
+                    AuthorizationRoles.Auditor,
+                    AuthorizationRoles.SystemAdministrator));
+            options.AddPolicy(
+                AuthorizationPolicies.AlertLifecycleOperator,
+                policy => policy.RequireRole(
+                    AuthorizationRoles.Operator,
+                    AuthorizationRoles.Administrator,
+                    AuthorizationRoles.ClinicalSupervisor,
+                    AuthorizationRoles.SystemAdministrator));
         });
 
         return services;

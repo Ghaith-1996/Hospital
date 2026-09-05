@@ -13,7 +13,9 @@ public sealed record MyAlertSummaryView(
     string OpenedState,
     DateTimeOffset? AcknowledgedAtUtc,
     string? TerminalDisposition,
-    DateTimeOffset? ResponsibilityAcceptedAtUtc);
+    DateTimeOffset? ResponsibilityAcceptedAtUtc,
+    DateTimeOffset? CallUnitRequestedAtUtc,
+    string? LastResponseReasonCode);
 
 public sealed record MyAlertCriticalFieldView(
     string FieldId,
@@ -34,7 +36,9 @@ public sealed record MyAlertDetailView(
     DateTimeOffset? SecureMessageOpenedAtUtc,
     DateTimeOffset? AcknowledgedAtUtc,
     string? TerminalDisposition,
-    DateTimeOffset? ResponsibilityAcceptedAtUtc);
+    DateTimeOffset? ResponsibilityAcceptedAtUtc,
+    DateTimeOffset? CallUnitRequestedAtUtc,
+    string? LastResponseReasonCode);
 
 public sealed record OpenRecipientAlertRequest(int ExpectedVersion);
 
@@ -44,7 +48,10 @@ public sealed record OpenedRecipientAlertResult(
     DateTimeOffset? SecureMessageOpenedAtUtc,
     bool Replayed);
 
-public sealed record RecordRecipientResponseRequest(int ExpectedVersion, string? ResponseType);
+public sealed record RecordRecipientResponseRequest(
+    int ExpectedVersion,
+    string? ResponseType,
+    string? ReasonCode = null);
 
 public sealed record RecipientResponseResult(
     Guid AlertId,
@@ -53,6 +60,8 @@ public sealed record RecipientResponseResult(
     DateTimeOffset? AcknowledgedAtUtc,
     string? TerminalDisposition,
     DateTimeOffset? ResponsibilityAcceptedAtUtc,
+    DateTimeOffset? CallUnitRequestedAtUtc,
+    string? ReasonCode,
     bool Replayed);
 
 public interface IRecipientInboxService

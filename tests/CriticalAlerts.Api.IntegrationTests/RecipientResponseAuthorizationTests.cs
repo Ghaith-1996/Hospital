@@ -24,11 +24,11 @@ public sealed class RecipientResponseAuthorizationTests(SeededPostgresApiFixture
     public async Task PractitionerInboxRoutesRequireAuthenticationAndPractitionerRole()
     {
         using var anonymous = fixture.CreateClient();
-        using var anonymousResponse = await anonymous.GetAsync("/api/my-alerts");
+        using var anonymousResponse = await anonymous.GetAsync("/api/v1/my-alerts");
         using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var operatorResponse = await operatorClient.GetAsync("/api/my-alerts");
+        using var operatorResponse = await operatorClient.GetAsync("/api/v1/my-alerts");
         using var administratorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
-        using var administratorResponse = await administratorClient.GetAsync("/api/my-alerts");
+        using var administratorResponse = await administratorClient.GetAsync("/api/v1/my-alerts");
 
         anonymousResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         operatorResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -42,15 +42,15 @@ public sealed class RecipientResponseAuthorizationTests(SeededPostgresApiFixture
         var other = await CreateActiveAlertAsync(DemoDataSeeder.MayaChenId, includeSms: false);
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
 
-        using var inboxResponse = await client.GetAsync("/api/my-alerts");
+        using var inboxResponse = await client.GetAsync("/api/v1/my-alerts");
         var inboxBody = await inboxResponse.Content.ReadAsStringAsync();
         inboxResponse.StatusCode.Should().Be(HttpStatusCode.OK, inboxBody);
         var inbox = System.Text.Json.JsonSerializer.Deserialize<InboxItemDto[]>(
             inboxBody,
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
-        using var detailResponse = await client.GetAsync($"/api/my-alerts/{addressed.AlertId:D}");
+        using var detailResponse = await client.GetAsync($"/api/v1/my-alerts/{addressed.AlertId:D}");
         var detail = await detailResponse.Content.ReadFromJsonAsync<InboxDetailDto>();
-        using var unaddressedResponse = await client.GetAsync($"/api/my-alerts/{other.AlertId:D}");
+        using var unaddressedResponse = await client.GetAsync($"/api/v1/my-alerts/{other.AlertId:D}");
 
         inbox.Should().ContainSingle(item => item.AlertId == addressed.AlertId)
             .Which.ConfirmedVersion.Should().Be(addressed.Version);
@@ -283,7 +283,7 @@ public sealed class RecipientResponseAuthorizationTests(SeededPostgresApiFixture
             builder.UseSetting("ConnectionStrings:CriticalAlerts", "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
         });
         using var disabledClient = disabledFactory.CreateClient();
-        using var disabled = await disabledClient.GetAsync("/api/my-alerts");
+        using var disabled = await disabledClient.GetAsync("/api/v1/my-alerts");
 
         var enabled = () =>
         {
@@ -323,6 +323,9 @@ public sealed class RecipientResponseAuthorizationTests(SeededPostgresApiFixture
             DemoDataSeeder.EmergencyDepartmentId,
             DemoDataSeeder.JordanUserId,
             "SIM-PAT-PHASE8",
+            protector.Protect(
+                "SIM-PAT-PHASE8",
+                new SensitiveDataContext(ProtectedValuePurposes.AlertPatientReference, DemoDataSeeder.OrganizationId.Value)),
             "North Wing Simulation Room 8",
             "DEMO-URGENT",
             AlertSourceType.Typed,
@@ -404,7 +407,7 @@ public sealed class RecipientResponseAuthorizationTests(SeededPostgresApiFixture
 
     private static async Task<HttpResponseMessage> SendOpenedAsync(HttpClient client, PreparedAlert prepared, string key)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/my-alerts/{prepared.AlertId:D}/opened")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/my-alerts/{prepared.AlertId:D}/opened")
         {
             Content = JsonContent.Create(new
             {
@@ -423,7 +426,7 @@ public sealed class RecipientResponseAuthorizationTests(SeededPostgresApiFixture
         string responseType,
         string key)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/my-alerts/{prepared.AlertId:D}/responses")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/my-alerts/{prepared.AlertId:D}/responses")
         {
             Content = JsonContent.Create(new
             {

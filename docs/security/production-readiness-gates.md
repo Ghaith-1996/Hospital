@@ -44,6 +44,9 @@ This checklist prevents a simulation baseline from being mistaken for production
 - [ ] Secrets come from an approved secret store/managed identity; no secrets are in Git or production `.env` files.
 - [ ] Encryption, key custody, rotation, backup protection, and recovery are tested.
 - [ ] Webhook signatures, replay prevention, rate limits, request limits, CSRF/XSS/SSRF controls, and dependency scanning are complete.
+- [ ] Patient references are encrypted at rest with managed key custody, and source corrections are retained as immutable protected revisions.
+- [ ] The simulation's separate Operator, Physician, ClinicalSupervisor, DirectoryAdministrator, IntegrationAdministrator, Auditor, and SystemAdministrator roles are mapped to approved production identities and separation-of-duty rules.
+- [ ] API versioning, OpenAPI 3.1 compatibility, CI container builds, and repository branch/ruleset enforcement are reviewed by the owning teams.
 - [ ] Penetration test and critical remediation are complete.
 - [ ] Vulnerability disclosure and incident-response contacts are assigned.
 

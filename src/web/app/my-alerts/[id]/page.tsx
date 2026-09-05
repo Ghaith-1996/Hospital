@@ -11,9 +11,16 @@ import {
   markMyAlertOpened,
   MyAlertDetail,
   recordMyAlertResponse,
+  RecipientResponseReasonCode,
+  RecipientResponseType,
 } from "../../../lib/alerts";
 
-type ResponseType = "Acknowledged" | "Accepted" | "Declined" | "Unavailable";
+const declineReasons: Array<{ code: RecipientResponseReasonCode; label: string }> = [
+  { code: "simulation-declined", label: "Decline for simulation" },
+  { code: "simulation-not-my-service", label: "Not my service" },
+  { code: "simulation-wrong-specialty", label: "Wrong specialty" },
+  { code: "simulation-not-available", label: "Not available" },
+];
 
 function routeAlertId(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -49,7 +56,8 @@ export default function MyAlertDetailPage() {
   const [alert, setAlert] = useState<MyAlertDetail | null>(null);
   const [loadedAlertId, setLoadedAlertId] = useState<string | null>(null);
   const [status, setStatus] = useState("Loading the addressed simulation alert.");
-  const [submittingAction, setSubmittingAction] = useState<ResponseType | null>(null);
+  const [submittingAction, setSubmittingAction] = useState<RecipientResponseType | null>(null);
+  const [declineReason, setDeclineReason] = useState<RecipientResponseReasonCode>("simulation-declined");
   const submittingRef = useRef(false);
 
   useEffect(() => {
@@ -95,9 +103,10 @@ export default function MyAlertDetailPage() {
     };
   }, [alertId]);
 
-  async function respond(responseType: ResponseType) {
+  async function respond(responseType: RecipientResponseType, reasonCode?: RecipientResponseReasonCode) {
     if (!alert || submittingRef.current) return;
     if (responseType === "Acknowledged" && alert.acknowledgedAtUtc) return;
+    if (responseType === "CallUnitRequested" && alert.callUnitRequestedAtUtc) return;
     if (responseType !== "Acknowledged" && alert.terminalDisposition) return;
 
     submittingRef.current = true;
@@ -108,18 +117,23 @@ export default function MyAlertDetailPage() {
         alert.confirmedVersion,
         responseType,
         createIdempotencyKey(),
+        reasonCode,
       );
       setAlert((current) => current ? {
         ...current,
         acknowledgedAtUtc: result.acknowledgedAtUtc,
         terminalDisposition: result.terminalDisposition,
         responsibilityAcceptedAtUtc: result.responsibilityAcceptedAtUtc,
+        callUnitRequestedAtUtc: result.callUnitRequestedAtUtc,
+        lastResponseReasonCode: result.reasonCode,
       } : current);
       setStatus(
         responseType === "Accepted"
           ? "Responsibility accepted. The alert remains active."
           : responseType === "Acknowledged"
             ? "Acknowledgement recorded. Responsibility has not been accepted."
+            : responseType === "CallUnitRequested"
+              ? "Call-unit request recorded for this simulation alert."
             : `${responseType} recorded. Phase 8 does not trigger escalation.`,
       );
     } catch (error: unknown) {
@@ -191,11 +205,33 @@ export default function MyAlertDetailPage() {
           <button type="button" disabled={responsePending || terminalRecorded} onClick={() => void respond("Accepted")}>
             {submittingAction === "Accepted" ? "Accepting responsibility…" : "Accept responsibility"}
           </button>
-          <button type="button" disabled={responsePending || terminalRecorded} onClick={() => void respond("Declined")}>
+          <label className="inline-field" htmlFor="decline-reason">
+            Decline reason (simulation)
+            <select
+              id="decline-reason"
+              value={declineReason}
+              disabled={responsePending || terminalRecorded}
+              onChange={(event) => setDeclineReason(event.target.value as RecipientResponseReasonCode)}
+            >
+              {declineReasons.map((reason) => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={responsePending || terminalRecorded}
+            onClick={() => void respond("Declined", declineReason)}
+          >
             Decline
           </button>
           <button type="button" disabled={responsePending || terminalRecorded} onClick={() => void respond("Unavailable")}>
             Mark unavailable
+          </button>
+          <button
+            type="button"
+            disabled={responsePending || terminalRecorded || Boolean(alert.callUnitRequestedAtUtc)}
+            onClick={() => void respond("CallUnitRequested", "simulation-call-unit-requested")}
+          >
+            {submittingAction === "CallUnitRequested" ? "Requesting call unit…" : "Request call unit"}
           </button>
         </div>
         <div className="response-state-list" aria-label="Current practitioner response states">
@@ -204,6 +240,8 @@ export default function MyAlertDetailPage() {
           <span>Acknowledgement: {alert.acknowledgedAtUtc ? `recorded at ${safeUtc(alert.acknowledgedAtUtc)}` : "not recorded"}</span>
           <span>Terminal disposition: {alert.terminalDisposition ?? "not recorded"}</span>
           <span>Responsibility: {alert.responsibilityAcceptedAtUtc ? `accepted at ${safeUtc(alert.responsibilityAcceptedAtUtc)}` : "not accepted"}</span>
+          <span>Call unit: {alert.callUnitRequestedAtUtc ? `requested at ${safeUtc(alert.callUnitRequestedAtUtc)}` : "not requested"}</span>
+          <span>Last response reason: {alert.lastResponseReasonCode ?? "not recorded"}</span>
         </div>
       </section>
 

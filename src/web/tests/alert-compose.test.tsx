@@ -53,10 +53,10 @@ describe("Phase 6 compose flow", () => {
     navigation.push.mockReset();
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const path = String(input);
-      if (path.endsWith("/api/dev/identities")) {
+      if (path.endsWith("/api/v1/dev/identities")) {
         return { ok: false, status: 404, json: async () => ({}) };
       }
-      if (path.endsWith("/api/alerts/drafts")) {
+      if (path.endsWith("/api/v1/alerts/drafts")) {
         return { ok: true, status: 201, json: async () => draft };
       }
       if (init?.method === "PATCH") {
@@ -89,7 +89,7 @@ describe("Phase 6 compose flow", () => {
       "fetch",
       vi.fn(async (input: RequestInfo, init?: RequestInit) => {
         const path = String(input);
-        if (path.endsWith("/api/dev/identities")) {
+        if (path.endsWith("/api/v1/dev/identities")) {
           return { ok: false, status: 404, json: async () => ({}) };
         }
         if (init?.method === "PUT" && path.endsWith("/approved-message")) {
@@ -132,7 +132,7 @@ describe("Phase 6 compose flow", () => {
       "fetch",
       vi.fn(async (input: RequestInfo) => {
         const path = String(input);
-        if (path.endsWith("/api/dev/identities")) {
+        if (path.endsWith("/api/v1/dev/identities")) {
           return { ok: false, status: 404, json: async () => ({}) };
         }
         if (path.endsWith("/field-confirmations")) {

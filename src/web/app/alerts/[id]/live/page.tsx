@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { SimulationChrome } from "../../../simulation-chrome";
-import { AlertLive, getAlertLive, isAlertApiError } from "../../../../lib/alerts";
+import {
+  AlertLive,
+  cancelAlert,
+  createIdempotencyKey,
+  getAlertLive,
+  isAlertApiError,
+  resolveAlert,
+} from "../../../../lib/alerts";
 
 const pollIntervalMilliseconds = 5_000;
 
@@ -30,6 +37,7 @@ export default function AlertLivePage() {
   const alertId = routeAlertId(params.id);
   const [live, setLive] = useState<AlertLive | null>(null);
   const [status, setStatus] = useState("Loading refreshed simulation status.");
+  const [pendingAction, setPendingAction] = useState<"resolve" | "cancel" | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -53,6 +61,29 @@ export default function AlertLivePage() {
     };
   }, [alertId]);
 
+  async function performLifecycleAction(action: "resolve" | "cancel") {
+    if (!live || pendingAction) return;
+    setPendingAction(action);
+    try {
+      const result = action === "resolve"
+        ? await resolveAlert(live.alertId, live.confirmedVersion, createIdempotencyKey())
+        : await cancelAlert(live.alertId, live.confirmedVersion, createIdempotencyKey());
+      setLive((current) => current ? {
+        ...current,
+        alertState: result.state,
+        canResolve: false,
+        canCancel: false,
+      } : current);
+      setStatus(action === "resolve" ? "Alert resolved by the operator." : "Alert cancelled by the operator.");
+    } catch (error: unknown) {
+      setStatus(isAlertApiError(error) && error.status === 409
+        ? "The alert state changed. Refresh the live status before trying again."
+        : "The operator action could not be completed.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   return (
     <SimulationChrome
       title="Simulation alert live status"
@@ -70,6 +101,25 @@ export default function AlertLivePage() {
               <div className="review-item"><strong>Alert state</strong><span>{live.alertState}</span></div>
               <div className="review-item"><strong>Dispatch outbox</strong><span>{live.outboxState}</span></div>
             </div>
+            {live.manualFallbackRequired ? (
+              <p className="review-notice" role="alert">
+                Manual fallback is required for this simulation failure. <code>REQUIRES_HOSPITAL_DECISION</code>: no production fallback route is configured.
+              </p>
+            ) : null}
+            {(live.canResolve || live.canCancel) ? (
+              <div className="form-actions" aria-label="Operator alert lifecycle actions">
+                {live.canResolve ? (
+                  <button type="button" disabled={pendingAction !== null} onClick={() => void performLifecycleAction("resolve")}>
+                    {pendingAction === "resolve" ? "Resolving…" : "Resolve alert"}
+                  </button>
+                ) : null}
+                {live.canCancel ? (
+                  <button type="button" disabled={pendingAction !== null} onClick={() => void performLifecycleAction("cancel")}>
+                    {pendingAction === "cancel" ? "Cancelling…" : "Cancel alert"}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </section>
           <div className="recipient-list" aria-label="Live recipient statuses">
             {live.recipients.map((recipient) => (
@@ -81,6 +131,8 @@ export default function AlertLivePage() {
                     <span>Acknowledgement: {recipient.acknowledgedAtUtc ? `recorded at ${safeUtc(recipient.acknowledgedAtUtc)}` : "not recorded"}</span>
                     <span>Terminal disposition: {recipient.terminalDisposition ?? "not recorded"}</span>
                     <span>Responsibility: {recipient.responsibilityAcceptedAtUtc ? `accepted at ${safeUtc(recipient.responsibilityAcceptedAtUtc)}` : "not accepted"}</span>
+                    <span>Call unit: {recipient.callUnitRequestedAtUtc ? `requested at ${safeUtc(recipient.callUnitRequestedAtUtc)}` : "not requested"}</span>
+                    <span>Last response reason: {recipient.lastResponseReasonCode ?? "not recorded"}</span>
                   </div>
                 </div>
                 <div className="attempt-list" aria-label={`Channel attempts for ${recipient.displayName}`}>

@@ -22,7 +22,6 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
         builder.Property(entity => entity.SiteId).GuidId(value => new SiteId(value), id => id.Value, "site_id");
         builder.Property(entity => entity.DepartmentId).GuidId(value => new DepartmentId(value), id => id.Value, "department_id");
         builder.Property(entity => entity.CreatedByUserId).GuidId(value => new UserId(value), id => id.Value, "created_by_user_id");
-        builder.Property(entity => entity.SimulationPatientReference).HasColumnName("simulation_patient_reference").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.Location).HasColumnName("location").HasMaxLength(200).IsRequired();
         builder.Property(entity => entity.UrgencyLabel).HasColumnName("urgency_label").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.SourceType).HasColumnName("source_type").HasConversion<string>().HasMaxLength(32).IsRequired();
@@ -45,7 +44,9 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
         builder.Property(entity => entity.UpdatedAtUtc).HasColumnName("updated_at_utc").IsRequired();
         builder.Ignore(entity => entity.PendingDispatchRequests);
         builder.Ignore(entity => entity.CurrentRecipients);
+        builder.Ignore(entity => entity.CurrentSourceRevision);
         builder.Ignore(entity => entity.HasReusableApprovalForCurrentVersion);
+        MapProtected(builder, entity => entity.SimulationPatientReference, "simulation_patient_reference", required: true);
         MapProtected(builder, entity => entity.OriginalSource, "original_source");
         MapProtected(builder, entity => entity.Transcription, "transcription");
         MapProtected(builder, entity => entity.StructuredSuggestion, "structured_suggestion");
@@ -53,9 +54,11 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
         builder.HasMany(entity => entity.FieldConfirmations).WithOne().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(entity => new { entity.Id, entity.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.HasMany(entity => entity.RecipientSelections).WithOne().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(entity => new { entity.Id, entity.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.HasMany(entity => entity.StateTransitions).WithOne().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(entity => new { entity.Id, entity.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(entity => entity.SourceRevisions).WithOne().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(entity => new { entity.Id, entity.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.Navigation(entity => entity.FieldConfirmations).HasField("fieldConfirmations").UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(entity => entity.RecipientSelections).HasField("recipientSelections").UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(entity => entity.StateTransitions).HasField("stateTransitions").UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Navigation(entity => entity.SourceRevisions).HasField("sourceRevisions").UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(entity => new { entity.OrganizationId, entity.State, entity.CreatedAtUtc });
         builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Site>().WithMany().HasForeignKey(entity => new { entity.SiteId, entity.OrganizationId }).HasPrincipalKey(site => new { site.Id, site.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
@@ -66,7 +69,8 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
     private static void MapProtected(
         EntityTypeBuilder<Alert> builder,
         System.Linq.Expressions.Expression<Func<Alert, ProtectedValue?>> navigation,
-        string prefix)
+        string prefix,
+        bool required = false)
     {
         builder.OwnsOne(navigation, owned =>
         {
@@ -74,7 +78,7 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
             owned.Property(value => value.KeyVersion).HasColumnName($"{prefix}_key_version").HasMaxLength(64);
             owned.Property(value => value.Purpose).HasColumnName($"{prefix}_purpose").HasMaxLength(64);
         });
-        builder.Navigation(navigation).IsRequired(false);
+        builder.Navigation(navigation).IsRequired(required);
     }
 }
 
@@ -122,13 +126,14 @@ internal sealed class AlertRecipientSelectionConfiguration : IEntityTypeConfigur
         builder.Property(entity => entity.DirectoryRevision).HasColumnName("directory_revision").HasMaxLength(128).IsRequired();
         builder.Property(entity => entity.DirectorySourceUpdatedAtUtc).HasColumnName("directory_source_updated_at_utc");
         builder.Property(entity => entity.OnCallSnapshot).HasColumnName("on_call_snapshot").HasMaxLength(80);
+        builder.Property(entity => entity.SelectionSource).HasColumnName("selection_source").HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.HasIndex(entity => new
-            {
-                entity.AlertId,
-                entity.AlertVersion,
-                entity.PractitionerId,
-                entity.Channel,
-            })
+        {
+            entity.AlertId,
+            entity.AlertVersion,
+            entity.PractitionerId,
+            entity.Channel,
+        })
             .IsUnique()
             .HasDatabaseName("UX_alert_recipient_selection_version_practitioner_channel");
         builder.HasOne<Practitioner>().WithMany().HasForeignKey(entity => new { entity.PractitionerId, entity.OrganizationId }).HasPrincipalKey(practitioner => new { practitioner.Id, practitioner.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
@@ -155,5 +160,39 @@ internal sealed class AlertStateTransitionConfiguration : IEntityTypeConfigurati
         builder.Property(entity => entity.PolicyVersion).HasColumnName("policy_version").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
         builder.HasIndex(entity => new { entity.AlertId, entity.OccurredAtUtc });
+    }
+}
+
+internal sealed class AlertSourceRevisionConfiguration : IEntityTypeConfiguration<AlertSourceRevision>
+{
+    public void Configure(EntityTypeBuilder<AlertSourceRevision> builder)
+    {
+        builder.ToTable("alert_source_revisions");
+        builder.HasKey(entity => entity.Id);
+        builder.Property(entity => entity.Id).GuidId(value => new AlertSourceRevisionId(value), id => id.Value, "id");
+        builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
+        builder.Property(entity => entity.AlertId).GuidId(value => new AlertId(value), id => id.Value, "alert_id");
+        builder.Property(entity => entity.AlertVersion).HasColumnName("alert_version").HasConversion(version => version.Value, value => new AlertDraftVersion(value)).IsRequired();
+        builder.Property(entity => entity.SourceType).HasColumnName("source_type").HasConversion<string>().HasMaxLength(32).IsRequired();
+        builder.Property(entity => entity.CreatedByUserId).GuidId(value => new UserId(value), id => id.Value, "created_by_user_id");
+        builder.Property(entity => entity.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
+        MapProtected(builder, entity => (ProtectedValue?)entity.Source, "source");
+        builder.HasIndex(entity => new { entity.AlertId, entity.AlertVersion }).IsUnique()
+            .HasDatabaseName("UX_alert_source_revisions_alert_id_alert_version");
+        builder.HasOne<UserAccount>().WithMany().HasForeignKey(entity => new { entity.CreatedByUserId, entity.OrganizationId }).HasPrincipalKey(entity => new { entity.Id, entity.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void MapProtected(
+        EntityTypeBuilder<AlertSourceRevision> builder,
+        System.Linq.Expressions.Expression<Func<AlertSourceRevision, ProtectedValue?>> navigation,
+        string prefix)
+    {
+        builder.OwnsOne(navigation, owned =>
+        {
+            owned.Property(value => value.Ciphertext).HasColumnName($"{prefix}_ciphertext");
+            owned.Property(value => value.KeyVersion).HasColumnName($"{prefix}_key_version").HasMaxLength(64);
+            owned.Property(value => value.Purpose).HasColumnName($"{prefix}_purpose").HasMaxLength(64);
+        });
+        builder.Navigation(navigation).IsRequired();
     }
 }

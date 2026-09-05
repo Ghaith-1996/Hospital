@@ -17,8 +17,9 @@ internal static class RecipientResponseEndpoints
             return;
         }
 
-        var group = app.MapGroup("/api/my-alerts")
-            .RequireAuthorization(AuthorizationPolicies.PractitionerAlertResponder);
+        var group = app.MapGroup($"{ApiRouteConstants.BasePath}/my-alerts")
+            .RequireAuthorization(AuthorizationPolicies.PractitionerAlertResponder)
+            .RequireRateLimiting("api");
         group.MapGet("/", List);
         group.MapGet("/{alertId:guid}", Get);
         group.MapPost("/{alertId:guid}/opened", MarkOpened);

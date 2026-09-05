@@ -415,6 +415,7 @@ public sealed class AlertStateMachineTests
             DepartmentId.New(),
             UserId.New(),
             "HOSP-PAT-0001",
+            ProtectPatient("HOSP-PAT-0001"),
             "North Wing / Sim Unit 2 / Room 204",
             "Urgent",
             AlertSourceType.Typed,
@@ -590,6 +591,7 @@ public sealed class AlertStateMachineTests
             DepartmentId.New(),
             UserId.New(),
             "SIM-PAT-0001",
+            ProtectPatient("SIM-PAT-0001"),
             "North Wing / Sim Unit 2 / Room 204",
             "Urgent",
             AlertSourceType.Typed,
@@ -629,4 +631,7 @@ public sealed class AlertStateMachineTests
 
     private static ProtectedValue Protect(string text)
         => new(System.Text.Encoding.UTF8.GetBytes(text), "test-v1", "alert-source");
+
+    private static ProtectedValue ProtectPatient(string text)
+        => new(System.Text.Encoding.UTF8.GetBytes(text), "test-v1", ProtectedValuePurposes.AlertPatientReference);
 }

@@ -28,6 +28,7 @@ public sealed class AlertReviewService(
             .AsNoTracking()
             .Include(candidate => candidate.FieldConfirmations)
             .Include(candidate => candidate.RecipientSelections)
+            .Include(candidate => candidate.SourceRevisions)
             .SingleOrDefaultAsync(
                 candidate => candidate.OrganizationId == organizationId && candidate.Id == alertId,
                 cancellationToken);
@@ -132,17 +133,20 @@ public sealed class AlertReviewService(
                 recipient.DirectorySourceUpdatedAtUtc,
                 recipient.OnCallSnapshot,
                 source?.IsStale ?? false,
-                recipient.DirectoryRevision);
+                recipient.DirectoryRevision,
+                recipient.SelectionSource.ToString());
         }).ToArray();
 
         return new AlertReviewView(
             alert.Id.Value,
             alert.DraftVersion.Value,
             alert.State.ToString(),
-            alert.SimulationPatientReference,
+            protector.Unprotect(
+                alert.SimulationPatientReference,
+                new SensitiveDataContext(ProtectedValuePurposes.AlertPatientReference, organizationId.Value)),
             alert.Location,
             alert.UrgencyLabel,
-            protector.Unprotect(alert.ApprovedMessage, new SensitiveDataContext("alert-approved-message", organizationId.Value)),
+            protector.Unprotect(alert.ApprovedMessage, new SensitiveDataContext(ProtectedValuePurposes.AlertApprovedMessage, organizationId.Value)),
             fields.Select(field => new AlertReviewCriticalField(
                     field.AlertVersion.Value,
                     field.FieldId,

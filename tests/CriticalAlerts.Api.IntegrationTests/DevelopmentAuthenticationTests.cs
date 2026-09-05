@@ -1,7 +1,8 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Threading.RateLimiting;
 using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
@@ -12,9 +13,13 @@ using CriticalAlerts.Infrastructure.Protection;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CriticalAlerts.Api.IntegrationTests;
@@ -27,7 +32,7 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = fixture.CreateClient();
 
-        using var response = await client.GetAsync("/api/me");
+        using var response = await client.GetAsync("/api/v1/me");
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -40,13 +45,13 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = fixture.CreateClient();
 
-        using var unknown = await client.PostAsJsonAsync("/api/dev/session", new { simulationHandle = fixture.JordanUserId.ToString("D") });
+        using var unknown = await client.PostAsJsonAsync("/api/v1/dev/session", new { simulationHandle = fixture.JordanUserId.ToString("D") });
         unknown.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        using var created = await client.PostAsJsonAsync("/api/dev/session", new { simulationHandle = DemoDataSeeder.JordanHandle });
+        using var created = await client.PostAsJsonAsync("/api/v1/dev/session", new { simulationHandle = DemoDataSeeder.JordanHandle });
         created.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        using var spoof = new HttpRequestMessage(HttpMethod.Get, "/api/me");
+        using var spoof = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me");
         spoof.Headers.Add("X-User-Id", DemoDataSeeder.MorganUserId.Value.ToString("D"));
         spoof.Headers.Add("X-Organization-Id", Guid.NewGuid().ToString("D"));
         using var me = await client.SendAsync(spoof);
@@ -65,7 +70,7 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = fixture.CreateClient();
 
-        using var created = await client.PostAsJsonAsync("/api/dev/session", new
+        using var created = await client.PostAsJsonAsync("/api/v1/dev/session", new
         {
             simulationHandle = DemoDataSeeder.JordanHandle,
             roles = new[] { "Administrator", "Practitioner" },
@@ -74,7 +79,7 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
         });
         created.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        using var me = await client.GetAsync("/api/me");
+        using var me = await client.GetAsync("/api/v1/me");
         var body = await me.Content.ReadFromJsonAsync<CurrentUserDto>();
 
         body!.Roles.Should().Equal("Operator");
@@ -87,7 +92,7 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = fixture.CreateClient();
 
-        using var response = await client.GetAsync("/api/authorization/operator");
+        using var response = await client.GetAsync("/api/v1/authorization/operator");
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -95,9 +100,9 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     }
 
     [Theory]
-    [InlineData(DemoDataSeeder.JordanHandle, "/api/authorization/operator", HttpStatusCode.NoContent)]
-    [InlineData(DemoDataSeeder.MorganHandle, "/api/authorization/administrator", HttpStatusCode.NoContent)]
-    [InlineData(DemoDataSeeder.RileyHandle, "/api/authorization/practitioner", HttpStatusCode.NoContent)]
+    [InlineData(DemoDataSeeder.JordanHandle, "/api/v1/authorization/operator", HttpStatusCode.NoContent)]
+    [InlineData(DemoDataSeeder.MorganHandle, "/api/v1/authorization/administrator", HttpStatusCode.NoContent)]
+    [InlineData(DemoDataSeeder.RileyHandle, "/api/v1/authorization/practitioner", HttpStatusCode.NoContent)]
     public async Task SeededRoleHasPositiveAuthorization(string handle, string path, HttpStatusCode expected)
     {
         using var client = await fixture.CreateSignedInClientAsync(handle);
@@ -105,12 +110,12 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     }
 
     [Theory]
-    [InlineData(DemoDataSeeder.JordanHandle, "/api/authorization/administrator")]
-    [InlineData(DemoDataSeeder.JordanHandle, "/api/authorization/practitioner")]
-    [InlineData(DemoDataSeeder.MorganHandle, "/api/authorization/operator")]
-    [InlineData(DemoDataSeeder.MorganHandle, "/api/authorization/practitioner")]
-    [InlineData(DemoDataSeeder.RileyHandle, "/api/authorization/operator")]
-    [InlineData(DemoDataSeeder.RileyHandle, "/api/authorization/administrator")]
+    [InlineData(DemoDataSeeder.JordanHandle, "/api/v1/authorization/administrator")]
+    [InlineData(DemoDataSeeder.JordanHandle, "/api/v1/authorization/practitioner")]
+    [InlineData(DemoDataSeeder.MorganHandle, "/api/v1/authorization/operator")]
+    [InlineData(DemoDataSeeder.MorganHandle, "/api/v1/authorization/practitioner")]
+    [InlineData(DemoDataSeeder.RileyHandle, "/api/v1/authorization/operator")]
+    [InlineData(DemoDataSeeder.RileyHandle, "/api/v1/authorization/administrator")]
     public async Task SeededRoleIsDeniedOtherAuthorization(string handle, string path)
     {
         using var client = await fixture.CreateSignedInClientAsync(handle);
@@ -122,8 +127,8 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
 
-        using var operatorProbe = await client.GetAsync("/api/authorization/operator");
-        using var administratorProbe = await client.GetAsync("/api/authorization/administrator");
+        using var operatorProbe = await client.GetAsync("/api/v1/authorization/operator");
+        using var administratorProbe = await client.GetAsync("/api/v1/authorization/administrator");
 
         operatorProbe.StatusCode.Should().Be(HttpStatusCode.NoContent);
         administratorProbe.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -135,10 +140,10 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
         using var administrator = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
 
-        (await administrator.GetAsync("/api/authorization/administrator")).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await administrator.GetAsync("/api/authorization/operator")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await practitioner.GetAsync("/api/authorization/practitioner")).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await practitioner.GetAsync("/api/authorization/administrator")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await administrator.GetAsync("/api/v1/authorization/administrator")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await administrator.GetAsync("/api/v1/authorization/operator")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await practitioner.GetAsync("/api/v1/authorization/practitioner")).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await practitioner.GetAsync("/api/v1/authorization/administrator")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -146,9 +151,9 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
 
-        (await client.GetAsync($"/api/authorization/organization-scope/{DemoDataSeeder.OrganizationId.Value:D}")).StatusCode
+        (await client.GetAsync($"/api/v1/authorization/organization-scope/{DemoDataSeeder.OrganizationId.Value:D}")).StatusCode
             .Should().Be(HttpStatusCode.NoContent);
-        (await client.GetAsync($"/api/authorization/organization-scope/{Guid.NewGuid():D}")).StatusCode
+        (await client.GetAsync($"/api/v1/authorization/organization-scope/{Guid.NewGuid():D}")).StatusCode
             .Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -157,7 +162,7 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     {
         using var client = fixture.CreateClient();
 
-        using var response = await client.GetAsync("/api/dev/identities");
+        using var response = await client.GetAsync("/api/v1/dev/identities");
         var identities = await response.Content.ReadFromJsonAsync<DevelopmentIdentityDto[]>();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -201,8 +206,8 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
         });
         using var client = factory.CreateClient();
 
-        (await client.GetAsync("/api/dev/identities")).StatusCode.Should().Be(HttpStatusCode.NotFound);
-        (await client.PostAsJsonAsync("/api/dev/session", new { simulationHandle = DemoDataSeeder.JordanHandle })).StatusCode
+        (await client.GetAsync("/api/v1/dev/identities")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await client.PostAsJsonAsync("/api/v1/dev/session", new { simulationHandle = DemoDataSeeder.JordanHandle })).StatusCode
             .Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -241,7 +246,7 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
     {
         await inner.InitializeAsync();
         dataProtectionKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        await DatabaseOperations.ResetDemoAsync(inner.ConnectionString, "Test", dataProtectionKey);
+        await DatabaseOperations.ResetDemoAsync(inner.ConnectionString, "Test", dataProtectionKey, confirmReset: true);
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Development");
@@ -249,6 +254,13 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
             builder.UseSetting("DevelopmentAuthentication:Enabled", "true");
             builder.UseSetting("SimulationResponses:Enabled", "true");
             builder.UseSetting("DataProtection:Key", dataProtectionKey);
+            builder.ConfigureTestServices(services =>
+            {
+                // This shared host exercises authorization and workflows across many tests.
+                // ApiHardeningTests verifies the real request budgets with isolated hosts.
+                services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
+                services.Configure<RateLimiterOptions>(options => options.AddPolicy("api", _ => RateLimitPartition.GetNoLimiter("test-workflows")));
+            });
         });
         factory.Server.Services.GetRequiredService<ILoggerFactory>().AddProvider(logProvider);
     }
@@ -259,7 +271,7 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
     public async Task<HttpClient> CreateSignedInClientAsync(string simulationHandle)
     {
         var client = CreateClient();
-        using var response = await client.PostAsJsonAsync("/api/dev/session", new { simulationHandle });
+        using var response = await client.PostAsJsonAsync("/api/v1/dev/session", new { simulationHandle });
         response.EnsureSuccessStatusCode();
         return client;
     }
@@ -316,6 +328,9 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
             departmentId,
             userId,
             "SIM-PAT-FOREIGN",
+            protector.Protect(
+                "SIM-PAT-FOREIGN",
+                new SensitiveDataContext(ProtectedValuePurposes.AlertPatientReference, organizationId.Value)),
             "Foreign Simulation Room",
             "Urgent",
             AlertSourceType.Typed,

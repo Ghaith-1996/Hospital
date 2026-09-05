@@ -78,6 +78,8 @@ public sealed class AlertLiveQueryService(
                 var recipientResponses = responses.Where(item => item.PractitionerId == group.Key).ToArray();
                 var acknowledgement = recipientResponses.SingleOrDefault(item => item.IsAcknowledgement);
                 var terminal = recipientResponses.SingleOrDefault(item => item.IsTerminalDisposition);
+                var callUnit = recipientResponses.SingleOrDefault(item => item.IsCallUnitRequest);
+                var lastResponse = recipientResponses.OrderByDescending(item => item.OccurredAtUtc).FirstOrDefault();
                 var assignment = assignments.SingleOrDefault(item => item.PractitionerId == group.Key);
                 var recipientAttempts = attempts
                     .Where(item => recipientSelectionIds.Contains(item.RecipientSelectionId))
@@ -109,6 +111,8 @@ public sealed class AlertLiveQueryService(
                     acknowledgement?.OccurredAtUtc,
                     terminal?.ResponseType.ToString(),
                     assignment?.AcceptedAtUtc,
+                    callUnit?.OccurredAtUtc,
+                    lastResponse?.SanitizedReasonCode,
                     recipientAttempts);
             })
             .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
@@ -121,12 +125,19 @@ public sealed class AlertLiveQueryService(
             throw new InvalidOperationException("The live projection clock must be UTC.");
         }
 
+        var manualFallbackRequired = alert.State == AlertState.Failed
+            || attempts.Any(attempt => attempt.Status == DeliveryAttemptStatus.Failed);
+        var hasActiveResponsibility = assignments.Any(assignment => assignment.ReleasedAtUtc is null);
+
         return new AlertLiveView(
             alert.Id.Value,
             version.Value,
             alert.State.ToString(),
             outbox?.ProcessingState.ToString() ?? "NotCreated",
             refreshedAtUtc,
+            alert.State == AlertState.Active && hasActiveResponsibility,
+            alert.State == AlertState.Active,
+            manualFallbackRequired,
             recipientViews);
     }
 

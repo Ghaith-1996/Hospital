@@ -1,8 +1,8 @@
 # Workflow Specification
 
-Status: Proposed simulation workflow through the local Phase 8 practitioner-response and operator-status boundary. It is not a hospital-approved clinical workflow, responsibility-transfer rule, or escalation policy.
+Status: Proposed simulation workflow through the local Phase 8 practitioner-response, lifecycle, and fallback-display boundary. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
 
-Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, and one terminal disposition for an addressed alert, and lets an Operator or Administrator view a read-only refreshed status projection. It does not call real providers, receive external callbacks, perform escalation, resolve alerts, or transfer clinical responsibility. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Workflow identity
 
@@ -47,8 +47,14 @@ flowchart TD
     J --> K[Simulated channels create separate delivery states]
     K --> L[Recipient may open and acknowledge]
     L --> M[Recipient may accept, decline, or be unavailable]
-    M --> N[Operator views refreshed read-only status]
-    N --> O[Alert remains Active; Phase 9 actions unavailable]
+    M --> N[Operator views refreshed status]
+    N --> O{Operator action?}
+    O -- No --> P[Remain Active]
+    O -- Cancel --> Q[Simulation alert Cancelled]
+    O -- Resolve after accepted responsibility --> R[Simulation alert Resolved]
+    K --> S{Delivery failure?}
+    S -- Yes --> T[Show manual fallback placeholder]
+    T --> N
 ```
 
 ## Step-by-step behavior
@@ -124,13 +130,15 @@ These are not a single linear clinical state. A supported state may be pending/n
 
 In Development/Test, the server resolves the authenticated fictional user's practitioner through an explicit organization-scoped link. A mapped Practitioner sees only confirmed Active alerts whose exact version addresses that practitioner. SecureMessage may record an opened timestamp; SMS and Voice report opening as `NotApplicable`.
 
-The practitioner may acknowledge independently and may record exactly one terminal disposition: accepted, declined, or unavailable. Acceptance creates one durable responsibility assignment tied to that exact alert version and response; acknowledgement alone does not. Declined and unavailable remain visible but trigger no automatic next step. Safe reason codes are allowlisted and no free-text reason is accepted.
+The practitioner may acknowledge independently, request that the simulation call unit be notified, and may record exactly one terminal disposition: accepted, declined, or unavailable. Acceptance creates one durable responsibility assignment tied to that exact alert version and response; acknowledgement or a call-unit request alone does not. Declined and unavailable remain visible but trigger no automatic next step. Safe reason codes are allowlisted and no free-text reason is accepted.
 
-An Operator or Administrator may view the organization-scoped live projection. The page refreshes on a five-second polling interval and labels the displayed refresh time; it is not a real-time callback or push surface. It exposes operational status only, never protected message content, contact values, or raw provider references.
+An Operator, Administrator, ClinicalSupervisor, Auditor, or SystemAdministrator may view the organization-scoped live projection according to the server policy. The page refreshes on a five-second polling interval and labels the displayed refresh time; it is not a real-time callback or push surface. It exposes operational status only, never protected message content, contact values, or raw provider references.
 
-### 10. Preserve the Phase 8 boundary
+### 10. Resolve, cancel, and show fallback
 
-Every Phase 8 response leaves the alert lifecycle `Active`. There is no automated or manual escalation, resolution, cancellation, transfer/release, call-unit action, or fallback mutation in this phase. The exact production meaning of acknowledgement, responsibility acceptance, responsibility transfer, escalation, resolution, and fallback remains `REQUIRES_HOSPITAL_DECISION`.
+The live simulation projection exposes `Resolve alert` only when the alert is `Active` and an unreleased responsibility assignment exists for the confirmed version. It exposes `Cancel alert` while the alert is `Active`. Both commands require the exact confirmed version, an authenticated lifecycle-operator role, and an idempotency key; they are organization-scoped and do not create provider side effects. A repeated identical command replays the stored result.
+
+If the alert or any delivery attempt has a durable failure, the live projection displays a manual-fallback placeholder. The placeholder does not name a telephone number, pager, switchboard, person, or escalation interval. The production fallback route, authority, and documentation are `REQUIRES_HOSPITAL_DECISION`.
 
 
 ## Exception paths
@@ -145,11 +153,13 @@ Every Phase 8 response leaves the alert lifecycle `Active`. There is no automate
 | Stale/inactive directory entry | Show freshness; block or permit selection only according to `REQUIRES_HOSPITAL_DECISION`; simulation may block it. |
 | Duplicate confirmation | Idempotency and optimistic concurrency prevent duplicate dispatch. |
 | Provider callback replay/out of order | Authenticate, validate, deduplicate, and normalize without regressing durable state. |
-| All channels fail | Show a durable operator-visible failure and the hospital-approved fallback placeholder; never silently disappear. |
-| Acknowledged but not accepted | Keep acknowledgement and responsibility separate; Phase 8 takes no automatic escalation or lifecycle action. |
+| All channels fail | Show a durable operator-visible failure and the simulation manual-fallback placeholder; never silently disappear. The hospital-approved fallback route is `REQUIRES_HOSPITAL_DECISION`. |
+| Acknowledged but not accepted | Keep acknowledgement and responsibility separate; no automatic escalation or lifecycle action is taken. |
 | Duplicate or concurrent response | Scope the idempotency key to the authenticated organization and operation; enforce one acknowledgement and one terminal disposition per practitioner/alert/version. |
-| Accepted response | Create one durable responsibility assignment for the exact practitioner and alert version; leave the alert `Active`. |
+| Accepted response | Create one durable responsibility assignment for the exact practitioner and alert version; the authorized operator may later resolve the active alert. |
 | Declined or unavailable response | Keep the terminal disposition visible; do not infer escalation, reassignment, resolution, or cancellation. |
+| Call-unit request | Record one non-terminal call-unit request with an allowlisted simulation reason; do not page or contact a real unit. |
+| Operator resolve/cancel | Require exact version, authenticated lifecycle role, and idempotency; resolve additionally requires an unreleased exact-version responsibility assignment. |
 | Channel cannot report opened | Record `NotApplicable`; do not infer opened, acknowledged, or responsibility accepted. |
 | Concurrent operator edit | Reject stale version updates and require the operator to refresh/review. |
 

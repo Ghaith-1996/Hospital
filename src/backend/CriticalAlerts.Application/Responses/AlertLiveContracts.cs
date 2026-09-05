@@ -8,6 +8,9 @@ public sealed record AlertLiveView(
     string AlertState,
     string OutboxState,
     DateTimeOffset RefreshedAtUtc,
+    bool CanResolve,
+    bool CanCancel,
+    bool ManualFallbackRequired,
     IReadOnlyList<AlertLiveRecipientView> Recipients);
 
 public sealed record AlertLiveRecipientView(
@@ -19,6 +22,8 @@ public sealed record AlertLiveRecipientView(
     DateTimeOffset? AcknowledgedAtUtc,
     string? TerminalDisposition,
     DateTimeOffset? ResponsibilityAcceptedAtUtc,
+    DateTimeOffset? CallUnitRequestedAtUtc,
+    string? LastResponseReasonCode,
     IReadOnlyList<AlertLiveAttemptView> Attempts);
 
 public sealed record AlertLiveAttemptView(

@@ -1,6 +1,6 @@
 # Security Threat Model
 
-Status: Phase 8 repository-scoped review model. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch, practitioner response, and read-only operator status boundaries; this is not hospital approval or a production security conclusion.
+Status: Phase 8 repository-scoped review model. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch, practitioner response, safe operator lifecycle actions, and manual-fallback display boundaries; this is not hospital approval or a production security conclusion.
 
 ## Overview
 
@@ -31,9 +31,9 @@ No real provider SDK, network call, external callback endpoint, doctor response,
 
 ### Current Phase 8 boundary
 
-Phase 8 adds Development/Test-only practitioner response and read-only operator status surfaces without changing the Phase 7 provider boundary. Practitioner identity comes only from the authenticated user plus an explicit organization-scoped user-to-practitioner link. Practitioner routes require the Practitioner role and return only confirmed Active alerts whose exact version addresses the linked practitioner. Operator live status requires Operator or Administrator and applies the authenticated organization scope; caller-supplied identity, role, organization, and practitioner values are never authoritative.
+Phase 8 adds Development/Test-only practitioner response and operator status/lifecycle surfaces without changing the Phase 7 provider boundary. Practitioner identity comes only from the authenticated user plus an explicit organization-scoped user-to-practitioner link. Practitioner routes require the Practitioner or Physician role and return only confirmed Active alerts whose exact version addresses the linked practitioner. Operator live status and lifecycle actions require their distinct server policies and apply the authenticated organization scope; caller-supplied identity, role, organization, and practitioner values are never authoritative.
 
-Opened, acknowledged, terminal disposition, responsibility assignment, delivery, and lifecycle remain separate. Idempotency records, transactions, and database uniqueness constraints protect duplicate and concurrent commands. Accepted creates one exact-version assignment; declined and unavailable do not. All outcomes leave the alert Active. The live projection excludes protected message/source/SBAR content, decrypted contact values, and raw provider references. No external callback, real provider, escalation, resolution, cancellation, transfer, hospital integration, or production identity is introduced.
+Opened, acknowledged, call-unit request, terminal disposition, responsibility assignment, delivery, and lifecycle remain separate. Idempotency records, transactions, and database uniqueness constraints protect duplicate and concurrent commands. Accepted creates one exact-version assignment; declined, unavailable, and call-unit request do not. Resolve requires an unreleased exact-version responsibility assignment; cancel requires an Active alert. The live projection excludes protected message/source/SBAR content, decrypted contact values, and raw provider references. Delivery failure remains visible and produces only a non-routing manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`. No external callback, real provider, automated escalation, transfer, hospital integration, or production identity is introduced.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 

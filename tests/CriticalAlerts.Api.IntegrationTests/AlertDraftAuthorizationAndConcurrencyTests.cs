@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Json;
 using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Directory;
@@ -16,7 +16,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     {
         using var client = fixture.CreateClient();
 
-        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var response = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -29,7 +29,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
 
-        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var response = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -41,7 +41,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     {
         using var client = await fixture.CreateSignedInClientAsync(simulationHandle);
 
-        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var response = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await response.Content.ReadFromJsonAsync<AlertDraftView>();
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -55,7 +55,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         responseText.Should().NotContain("Ciphertext");
         responseText.Should().NotContain("protectedValue");
 
-        using var read = await client.GetAsync($"/api/alerts/{draft.AlertId:D}");
+        using var read = await client.GetAsync($"/api/v1/alerts/{draft.AlertId:D}");
         read.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -63,11 +63,11 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     public async Task DraftRequiresCriticalFieldConfirmationBeforeSubmission()
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
         using var submit = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft!.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(draft.DraftVersion));
         var submitBody = await submit.Content.ReadAsStringAsync();
 
@@ -76,7 +76,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         submitBody.Should().NotContain("Ciphertext");
 
         using var confirm = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "heartRate", "118", "118", "beats/min"));
         var confirmed = await confirm.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -84,7 +84,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         confirmed!.CriticalFields.Should().ContainSingle(field => field.Status == "Confirmed");
 
         using var submitted = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(confirmed.DraftVersion));
         var submittedBody = await submitted.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -106,21 +106,21 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
             },
             CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "88/54", "mmHg")],
         };
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", request);
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
         using var changedValue = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft!.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "86/52", "86/52", "mmHg"));
         using var changedUnit = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "kPa"));
 
         changedValue.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         changedUnit.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         using var exact = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "mmHg"));
         var confirmed = await exact.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -132,7 +132,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
             && field.Unit == "mmHg"
             && field.Status == "Confirmed");
 
-        using var read = await client.GetAsync($"/api/alerts/{draft.AlertId:D}");
+        using var read = await client.GetAsync($"/api/v1/alerts/{draft.AlertId:D}");
         var reloaded = await read.Content.ReadFromJsonAsync<AlertDraftView>();
         reloaded!.SourceText.Should().Be(request.SourceText);
         reloaded.Sbar!.Situation.Should().Be(request.Sbar!.Situation);
@@ -146,10 +146,10 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         {
             CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "88/54", "mmHg")],
         };
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", request);
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
         using var confirm = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft!.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "mmHg"));
         confirm.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -162,7 +162,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
             },
             CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "86/52", "mmHg")],
         };
-        using var update = await client.PatchAsJsonAsync($"/api/alerts/{draft.AlertId:D}", updateRequest);
+        using var update = await client.PatchAsJsonAsync($"/api/v1/alerts/{draft.AlertId:D}", updateRequest);
         var edited = await update.Content.ReadFromJsonAsync<AlertDraftView>();
 
         update.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -175,13 +175,13 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
             && field.Status == "Unresolved");
 
         using var staleConfirmation = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "bloodPressure", "88/54", "88/54", "mmHg"));
         using var staleSubmission = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(draft.DraftVersion));
         using var unresolvedSubmission = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(edited.DraftVersion));
 
         staleConfirmation.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -189,12 +189,12 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         unresolvedSubmission.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         using var confirmEditedValue = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(edited.DraftVersion, "bloodPressure", "86/52", "86/52", "mmHg"));
         confirmEditedValue.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using var unitUpdate = await client.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             updateRequest with
             {
                 ExpectedVersion = edited.DraftVersion,
@@ -215,17 +215,17 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     public async Task DraftEditsRequireTheCurrentVersionAndRemainOrganizationScoped()
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
         using var stale = await client.PatchAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}",
+            $"/api/v1/alerts/{draft!.AlertId:D}",
             ValidUpdateRequest(expectedVersion: draft.DraftVersion - 1));
         stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await stale.Content.ReadAsStringAsync()).Should().Contain("draft-version-stale");
 
         using var update = await client.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             ValidUpdateRequest(expectedVersion: draft.DraftVersion));
         var updated = await update.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -234,7 +234,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         updated.Location.Should().Be("North Wing / Simulation Room 205");
 
         var foreignAlertId = await fixture.CreateForeignDraftAsync();
-        using var foreign = await client.GetAsync($"/api/alerts/{foreignAlertId:D}");
+        using var foreign = await client.GetAsync($"/api/v1/alerts/{foreignAlertId:D}");
         foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await foreign.Content.ReadAsStringAsync()).Should().NotContain("organization_id");
     }
@@ -243,19 +243,19 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     public async Task DraftAuthorizationRejectsAnonymousPractitionerAndForeignOrganizationAccess()
     {
         using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var create = await operatorClient.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var create = await operatorClient.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
         using var anonymous = fixture.CreateClient();
-        using var anonymousRead = await anonymous.GetAsync($"/api/alerts/{draft!.AlertId:D}");
+        using var anonymousRead = await anonymous.GetAsync($"/api/v1/alerts/{draft!.AlertId:D}");
         using var anonymousUpdate = await anonymous.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             ValidUpdateRequest(draft.DraftVersion));
         using var anonymousConfirm = await anonymous.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(draft.DraftVersion, "heartRate", "118", "118", "beats/min"));
         using var anonymousSubmit = await anonymous.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(draft.DraftVersion));
 
         anonymousRead.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -265,7 +265,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
 
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
         using var practitionerUpdate = await practitioner.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             new
             {
                 organizationId = DemoDataSeeder.OrganizationId.Value,
@@ -281,9 +281,9 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
 
         var foreignFixture = await fixture.CreateForeignOperatorDraftAsync();
         using var foreignClient = await fixture.CreateSignedInClientAsync(foreignFixture.SimulationHandle);
-        using var foreignRead = await foreignClient.GetAsync($"/api/alerts/{draft.AlertId:D}");
+        using var foreignRead = await foreignClient.GetAsync($"/api/v1/alerts/{draft.AlertId:D}");
         using var foreignUpdate = await foreignClient.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             new
             {
                 organizationId = DemoDataSeeder.OrganizationId.Value,
@@ -322,7 +322,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
                 assessmentSentinel,
                 recommendationSentinel),
         };
-        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        using var response = await client.PostAsJsonAsync("/api/v1/alerts/drafts", request);
         var responseBody = await response.Content.ReadAsStringAsync();
         var logs = fixture.LogEntries;
 
@@ -347,24 +347,24 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     public async Task PhaseFiveEndpointsCannotReachDispatchQueued()
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
         draft!.State.Should().Be("Draft");
 
         using var update = await client.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             ValidUpdateRequest(draft.DraftVersion));
         var edited = await update.Content.ReadFromJsonAsync<AlertDraftView>();
         edited!.State.Should().Be("Draft");
 
         using var confirm = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(edited.DraftVersion, "heartRate", "118", "118", "beats/min"));
         var confirmed = await confirm.Content.ReadFromJsonAsync<AlertDraftView>();
         confirmed!.State.Should().Be("Draft");
 
         using var submit = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(confirmed.DraftVersion));
         var submitted = await submit.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -382,7 +382,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
             Sbar = ValidCreateRequest().Sbar! with { Situation = "" },
         };
 
-        using var response = await client.PostAsJsonAsync("/api/alerts/drafts", incomplete);
+        using var response = await client.PostAsJsonAsync("/api/v1/alerts/drafts", incomplete);
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -396,7 +396,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
 
         var nonSimulation = ValidCreateRequest() with { SourceText = "a real note" };
-        using var sourceResponse = await client.PostAsJsonAsync("/api/alerts/drafts", nonSimulation);
+        using var sourceResponse = await client.PostAsJsonAsync("/api/v1/alerts/drafts", nonSimulation);
         var sourceBody = await sourceResponse.Content.ReadAsStringAsync();
 
         sourceResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -404,7 +404,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         sourceBody.Should().NotContain("a real note");
 
         var invalidLocation = ValidCreateRequest() with { SiteId = Guid.NewGuid() };
-        using var locationResponse = await client.PostAsJsonAsync("/api/alerts/drafts", invalidLocation);
+        using var locationResponse = await client.PostAsJsonAsync("/api/v1/alerts/drafts", invalidLocation);
 
         locationResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await locationResponse.Content.ReadAsStringAsync()).Should().Contain("invalid-location");
@@ -417,13 +417,13 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     {
         using var client = await fixture.CreateSignedInClientAsync(simulationHandle);
         using var create = await client.PostAsJsonAsync(
-            "/api/alerts/drafts",
+            "/api/v1/alerts/drafts",
             ValidCreateRequest() with { CriticalFields = [] });
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
         const string approvedMessage = "SIMULATION: operator-approved fictional message";
         using var approved = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft!.AlertId:D}/approved-message",
             new SetApprovedMessageRequest(draft.DraftVersion, approvedMessage));
         var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -438,7 +438,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
 
         var maya = await SearchMayaAsync(client);
         using var replace = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/recipients",
+            $"/api/v1/alerts/{draft.AlertId:D}/recipients",
             new ReplaceAlertRecipientsRequest(
                 approvedDraft.DraftVersion,
                 [new AlertRecipientInput(
@@ -456,7 +456,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
             && recipient.DirectoryRevision == maya.SelectionRevision);
 
         using var clear = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/recipients",
+            $"/api/v1/alerts/{draft.AlertId:D}/recipients",
             new ReplaceAlertRecipientsRequest(replaced.DraftVersion, []));
         var cleared = await clear.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -470,18 +470,18 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     {
         using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
         using var create = await operatorClient.PostAsJsonAsync(
-            "/api/alerts/drafts",
+            "/api/v1/alerts/drafts",
             ValidCreateRequest() with { CriticalFields = [] });
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
         var message = new SetApprovedMessageRequest(draft!.DraftVersion, "SIMULATION: authorization boundary message");
 
         using var anonymous = fixture.CreateClient();
         using var anonymousResponse = await anonymous.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft.AlertId:D}/approved-message",
             message);
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
         using var practitionerResponse = await practitioner.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft.AlertId:D}/approved-message",
             message);
 
         anonymousResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -490,12 +490,12 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         var foreignFixture = await fixture.CreateForeignOperatorDraftAsync();
         using var foreign = await fixture.CreateSignedInClientAsync(foreignFixture.SimulationHandle);
         using var foreignResponse = await foreign.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft.AlertId:D}/approved-message",
             new { expectedVersion = draft.DraftVersion, approvedMessage = "SIMULATION: foreign access" });
         foreignResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         using var ignoredOrganization = await operatorClient.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft.AlertId:D}/approved-message",
             new
             {
                 organizationId = Guid.NewGuid(),
@@ -505,7 +505,7 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
         ignoredOrganization.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using var stale = await operatorClient.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft.AlertId:D}/approved-message",
             message);
         var staleBody = await stale.Content.ReadAsStringAsync();
 
@@ -519,14 +519,14 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
         using var create = await client.PostAsJsonAsync(
-            "/api/alerts/drafts",
+            "/api/v1/alerts/drafts",
             ValidCreateRequest() with { CriticalFields = [] });
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
         var maya = await SearchMayaAsync(client);
         var taylor = await SearchTaylorAsync(client);
 
         using var approved = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft!.AlertId:D}/approved-message",
             new SetApprovedMessageRequest(draft.DraftVersion, "SIMULATION: recipient validation message"));
         var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
 
@@ -536,24 +536,24 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
                 new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", maya.SelectionRevision),
                 new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", maya.SelectionRevision),
             ]);
-        using var duplicateResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", duplicate);
+        using var duplicateResponse = await client.PutAsJsonAsync($"/api/v1/alerts/{draft.AlertId:D}/recipients", duplicate);
         var duplicateBody = await duplicateResponse.Content.ReadAsStringAsync();
 
         var inactive = new ReplaceAlertRecipientsRequest(
             approvedDraft.DraftVersion,
             [new AlertRecipientInput(taylor.PractitionerId, taylor.PractitionerRoleId, "SecureMessage", taylor.SelectionRevision)]);
-        using var inactiveResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", inactive);
+        using var inactiveResponse = await client.PutAsJsonAsync($"/api/v1/alerts/{draft.AlertId:D}/recipients", inactive);
 
         var unavailable = new ReplaceAlertRecipientsRequest(
             approvedDraft.DraftVersion,
             [new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "Voice", maya.SelectionRevision)]);
-        using var unavailableResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", unavailable);
+        using var unavailableResponse = await client.PutAsJsonAsync($"/api/v1/alerts/{draft.AlertId:D}/recipients", unavailable);
 
         const string unsafeRevision = "revision-with-sensitive-sentinel-SIM-PAT-RECIPIENT!";
         var unsafeRequest = new ReplaceAlertRecipientsRequest(
             approvedDraft.DraftVersion,
             [new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", unsafeRevision)]);
-        using var unsafeResponse = await client.PutAsJsonAsync($"/api/alerts/{draft.AlertId:D}/recipients", unsafeRequest);
+        using var unsafeResponse = await client.PutAsJsonAsync($"/api/v1/alerts/{draft.AlertId:D}/recipients", unsafeRequest);
         var unsafeBody = await unsafeResponse.Content.ReadAsStringAsync();
 
         duplicateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -567,14 +567,14 @@ public sealed class AlertDraftAuthorizationAndConcurrencyTests(SeededPostgresApi
     private static async Task<DirectoryPractitionerListItem> SearchMayaAsync(HttpClient client)
     {
         var results = await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
-            "/api/directory/practitioners?q=Maya&includeInactive=false");
+            "/api/v1/directory/practitioners?q=Maya&includeInactive=false");
         return results!.Single();
     }
 
     private static async Task<DirectoryPractitionerListItem> SearchTaylorAsync(HttpClient client)
     {
         var results = await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
-            "/api/directory/practitioners?q=Taylor&includeInactive=true");
+            "/api/v1/directory/practitioners?q=Taylor&includeInactive=true");
         return results!.Single();
     }
 

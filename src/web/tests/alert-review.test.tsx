@@ -50,6 +50,7 @@ const review = {
       onCallSnapshot: "Primary",
       isStale: false,
       directoryRevision: "SIM-REV-MAYA",
+      selectionSource: "Manual",
     },
   ],
   demoEscalationPolicyVersion: "DEMO",
@@ -61,7 +62,7 @@ describe("Phase 8 exact review", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo) =>
-        String(input).endsWith("/api/dev/identities")
+        String(input).endsWith("/api/v1/dev/identities")
           ? { ok: false, status: 404, json: async () => ({}) }
           : { ok: true, status: 200, json: async () => review },
       ),
@@ -94,7 +95,7 @@ describe("Phase 8 exact review", () => {
       resolveConfirmation = resolve;
     });
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
-      if (String(input).endsWith("/api/dev/identities")) {
+      if (String(input).endsWith("/api/v1/dev/identities")) {
         return { ok: false, status: 404, json: async () => ({}) };
       }
       if (init?.method === "POST") {

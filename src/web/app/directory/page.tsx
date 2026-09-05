@@ -28,7 +28,7 @@ export default function DirectoryPage() {
 
   async function search(event?: FormEvent) {
     event?.preventDefault();
-    const response = await fetch(`/api/directory/practitioners?q=${encodeURIComponent(query)}`, {
+    const response = await fetch(`/api/v1/directory/practitioners?q=${encodeURIComponent(query)}`, {
       credentials: "include",
     });
     if (response.status === 401) {
@@ -57,7 +57,7 @@ export default function DirectoryPage() {
   }
 
   useEffect(() => {
-    void fetch("/api/directory/practitioners", { credentials: "include" }).then(async (response) => {
+    void fetch("/api/v1/directory/practitioners", { credentials: "include" }).then(async (response) => {
       if (response.status === 401) {
         setResults([]);
         setStatus("Sign in with a seeded Operator or Administrator identity to search.");

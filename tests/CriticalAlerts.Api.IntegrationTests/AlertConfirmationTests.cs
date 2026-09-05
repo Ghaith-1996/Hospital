@@ -207,7 +207,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         int expectedVersion,
         string? key)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/alerts/{alertId:D}/confirm")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{alertId:D}/confirm")
         {
             Content = JsonContent.Create(new ConfirmAlertReviewRequest(expectedVersion)),
         };
@@ -226,7 +226,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         string approvedMessage = "SIMULATION: confirmation approved message")
     {
         using var create = await client.PostAsJsonAsync(
-            "/api/alerts/drafts",
+            "/api/v1/alerts/drafts",
             new CreateAlertDraftRequest(
                 DemoDataSeeder.NorthSiteId.Value,
                 DemoDataSeeder.EmergencyDepartmentId.Value,
@@ -240,33 +240,33 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
                     "SIMULATION: confirmation assessment",
                     "SIMULATION: confirmation recommendation"),
                 [new AlertCriticalFieldInput("heartRate", "118", "beats/min")]));
+        create.StatusCode.Should().Be(HttpStatusCode.Created, await create.Content.ReadAsStringAsync());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
-        create.StatusCode.Should().Be(HttpStatusCode.Created);
 
         using var approved = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft!.AlertId:D}/approved-message",
             new SetApprovedMessageRequest(draft.DraftVersion, approvedMessage));
+        approved.StatusCode.Should().Be(HttpStatusCode.OK, await approved.Content.ReadAsStringAsync());
         var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
-        approved.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var maya = (await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
-            "/api/directory/practitioners?q=Maya&includeInactive=false"))!.Single();
+            "/api/v1/directory/practitioners?q=Maya&includeInactive=false"))!.Single();
         using var recipients = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/recipients",
+            $"/api/v1/alerts/{draft.AlertId:D}/recipients",
             new ReplaceAlertRecipientsRequest(
                 approvedDraft!.DraftVersion,
                 [new AlertRecipientInput(maya.PractitionerId, maya.PractitionerRoleId, "SecureMessage", maya.SelectionRevision)]));
+        recipients.StatusCode.Should().Be(HttpStatusCode.OK, await recipients.Content.ReadAsStringAsync());
         var recipientDraft = await recipients.Content.ReadFromJsonAsync<AlertDraftView>();
-        recipients.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using var fieldConfirmation = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(recipientDraft!.DraftVersion, "heartRate", "118", "118", "beats/min"));
+        fieldConfirmation.StatusCode.Should().Be(HttpStatusCode.OK, await fieldConfirmation.Content.ReadAsStringAsync());
         var confirmedDraft = await fieldConfirmation.Content.ReadFromJsonAsync<AlertDraftView>();
-        fieldConfirmation.StatusCode.Should().Be(HttpStatusCode.OK);
 
         using var submit = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(confirmedDraft!.DraftVersion));
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
         (await submit.Content.ReadFromJsonAsync<AlertDraftView>())!.State.Should().Be("PendingConfirmation");

@@ -16,7 +16,7 @@ public sealed class PostgresApiFixture : IAsyncLifetime
     {
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         Container = new PostgreSqlBuilder(Image)
-            .WithDatabase("critical_alerts_api_test")
+            .WithDatabase("critical_alerts_test_api")
             .WithUsername("critical_alerts_api_test")
             .WithPassword(password)
             .Build();

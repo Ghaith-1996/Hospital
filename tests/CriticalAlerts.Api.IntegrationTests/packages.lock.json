@@ -522,6 +522,7 @@
         "dependencies": {
           "CriticalAlerts.Application": "[1.0.0, )",
           "CriticalAlerts.Infrastructure": "[1.0.0, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.10, )",
           "Npgsql": "[10.0.3, )"
         }
       },
@@ -541,6 +542,15 @@
           "CriticalAlerts.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.4, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "d4Atx9IHq7JgX0F/h7Db+m9zAUzC+cKdI9k+OWnnyQIOUQtfvjIEuhvbjPigVMkAmPUgCbJ8Yp6M9ghUqHtJSQ==",
+        "dependencies": {
+          "Microsoft.OpenApi": "2.0.0"
         }
       },
       "Microsoft.EntityFrameworkCore": {
@@ -584,6 +594,12 @@
           "Microsoft.Extensions.Logging.EventSource": "10.0.10",
           "Microsoft.Extensions.Options": "10.0.10"
         }
+      },
+      "Microsoft.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[2.7.5, )",
+        "resolved": "2.7.5",
+        "contentHash": "0FA67RSnRM4tcBKqiqVu/HPdZ9+QOKbmeRjxRUGTCjPU4C0bmUhd97Dso7Yild5P7nOV6GxJ2xrK0Kv/O9xp0w=="
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "CentralTransitive",

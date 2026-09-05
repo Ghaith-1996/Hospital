@@ -48,7 +48,7 @@ describe("Phase 8 practitioner inbox", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo) =>
-        String(input).endsWith("/api/dev/identities")
+        String(input).endsWith("/api/v1/dev/identities")
           ? identityResponse()
           : { ok: true, status: 200, json: async () => [summary] },
       ),
@@ -72,14 +72,14 @@ describe("Phase 8 practitioner inbox", () => {
       "href",
       `/my-alerts/${summary.alertId}`,
     );
-    expect(fetch).toHaveBeenCalledWith("/api/my-alerts", expect.objectContaining({ credentials: "include" }));
+    expect(fetch).toHaveBeenCalledWith("/api/v1/my-alerts", expect.objectContaining({ credentials: "include" }));
   });
 
   it("shows a safe role-specific error without exposing server details", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo) =>
-        String(input).endsWith("/api/dev/identities")
+        String(input).endsWith("/api/v1/dev/identities")
           ? identityResponse()
           : {
               ok: false,
@@ -100,7 +100,7 @@ describe("Phase 8 practitioner inbox", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo) =>
-        String(input).endsWith("/api/dev/identities")
+        String(input).endsWith("/api/v1/dev/identities")
           ? identityResponse()
           : { ok: true, status: 200, json: async () => [smsOnlySummary] },
       ),
@@ -120,7 +120,7 @@ describe("Phase 8 practitioner response detail", () => {
   it("records SecureMessage open on detail load and explains independent response semantics", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const path = String(input);
-      if (path.endsWith("/api/dev/identities")) return identityResponse();
+      if (path.endsWith("/api/v1/dev/identities")) return identityResponse();
       if (path.endsWith("/opened") && init?.method === "POST") {
         return {
           ok: true,
@@ -154,7 +154,7 @@ describe("Phase 8 practitioner response detail", () => {
   it("does not post an open observation for a non-SecureMessage alert", async () => {
     const smsOnlyDetail = { ...detail, channels: ["Sms"], openedState: "NotApplicable" };
     const fetchMock = vi.fn(async (input: RequestInfo) =>
-      String(input).endsWith("/api/dev/identities")
+      String(input).endsWith("/api/v1/dev/identities")
         ? identityResponse()
         : { ok: true, status: 200, json: async () => smsOnlyDetail },
     );
@@ -174,7 +174,7 @@ describe("Phase 8 practitioner response detail", () => {
     });
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const path = String(input);
-      if (path.endsWith("/api/dev/identities")) return identityResponse();
+      if (path.endsWith("/api/v1/dev/identities")) return identityResponse();
       if (path.endsWith("/opened")) {
         return {
           ok: true,

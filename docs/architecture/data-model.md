@@ -43,7 +43,7 @@ Templates, approved terminology, required fields, numeric confirmation fields, c
 
 ### 005 — alerts and provenance
 
-Concepts: `alerts`, `alert_field_confirmations`, `alert_recipient_selections`, and `alert_state_transitions`.
+Concepts: `alerts`, `alert_field_confirmations`, `alert_recipient_selections`, `alert_source_revisions`, and `alert_state_transitions`.
 
 An alert stores or references the following separate representations:
 
@@ -56,13 +56,17 @@ An alert stores or references the following separate representations:
 | Critical-field confirmation | Per-field approved value, unit, actor, time, and draft version. | Human confirmation required. |
 | Recipient selection | Practitioner, selected channel, selection source, actor, and directory timestamp shown. | Manual human selection. |
 
-The alert may carry a synthetic patient reference, location, operator-selected urgency, source type, protected source/approved content, structured payload reference, current draft version, workflow state, confirmation metadata, resolution metadata, and concurrency token. Full patient charts, real identifiers, and unapproved clinical payloads are out of scope.
+The alert may carry a synthetic patient reference, location, operator-selected urgency, source type, protected source/approved content, structured payload reference, current draft version, workflow state, confirmation metadata, resolution metadata, and concurrency token. The patient reference is persisted as purpose-bound ciphertext (`simulation_patient_reference_ciphertext`, key version, and purpose), never as a plaintext database column. Full patient charts, real identifiers, and unapproved clinical payloads are out of scope.
 
 The `SIM-` patient-reference prefix is a `SimulationEnvironmentPolicy` for Development/Test. It is not a `HealthcareDomainInvariant`. Production patient-reference formats are `REQUIRES_HOSPITAL_DECISION`.
 
 ### `user_roles` uniqueness
 
 A user may hold a role at most once in an organization. Persistence enforces `UNIQUE (organization_id, user_id, role_id)` as both the composite primary key and the named unique index `UX_user_roles_organization_id_user_id_role_id`. Duplicate assignments such as Operator/Operator/Operator for the same user are rejected by PostgreSQL.
+
+### Source revision history
+
+`alert_source_revisions` is append-only application history keyed by organization, alert, and draft version. Each row stores the protected source body, source type, creator, and UTC creation time. The first operator source and every later correction remain reconstructable; `OriginalSource` is not overwritten by an edit. A migration encrypts the retired plaintext patient-reference column with the configured data-protection key before dropping that column.
 
 ### Canonical critical-field confirmation
 
@@ -84,9 +88,9 @@ Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `respon
 
 Delivery, provider submission, delivery, opening, acknowledgement, responsibility acceptance, decline, unavailable, and escalation are separate records or state dimensions. Each channel declares whether a state is supported; unsupported states are recorded as `NotApplicable`, while supported but unseen states remain pending/not observed. Provider event IDs are unique and callbacks are idempotent.
 
-Phase 8 stores `opened_at_utc` on a SecureMessage delivery attempt. SMS and Voice opening remain `NotApplicable`; provider delivery never implies opening.
+Phase 8 stores `opened_at_utc` on a SecureMessage delivery attempt. SMS and Voice opening remain `NotApplicable`; provider delivery never implies opening. Recipient responses include an allowlisted reason code; a non-terminal `CallUnitRequested` event is distinct from acknowledgement and terminal disposition.
 
-Practitioner responses are keyed to the organization, alert, exact alert version, and practitioner. PostgreSQL permits at most one acknowledgement category and at most one terminal disposition category per practitioner/alert/version, even when the alert has multiple channels. A response stores an allowlisted reason code rather than free text. An accepted response may own exactly one `responsibility_assignment`, also scoped to the organization and exact alert version; acknowledgement, decline, and unavailable create none. Responses and assignments do not alter the alert lifecycle in Phase 8.
+Practitioner responses are keyed to the organization, alert, exact alert version, and practitioner. PostgreSQL permits at most one acknowledgement category, one call-unit request category, and one terminal disposition category per practitioner/alert/version, even when the alert has multiple channels. A response stores an allowlisted reason code rather than free text. An accepted response may own exactly one `responsibility_assignment`, also scoped to the organization and exact alert version; acknowledgement, call-unit request, decline, and unavailable create none. Responses do not automatically alter the alert lifecycle; separately authorized operator resolve/cancel commands do, subject to exact-version and responsibility preconditions.
 
 The exact relationship between a response and a hospital responsibility transfer is `REQUIRES_HOSPITAL_DECISION`; the simulation keeps acknowledgement, disposition, assignment, and lifecycle separate so no production clinical responsibility rule is inferred.
 
@@ -108,6 +112,7 @@ erDiagram
     ALERT ||--o{ ALERT_FIELD_CONFIRMATION : has
     ALERT ||--o{ ALERT_RECIPIENT_SELECTION : targets
     ALERT ||--o{ ALERT_STATE_TRANSITION : records
+    ALERT ||--o{ ALERT_SOURCE_REVISION : preserves
     ALERT_RECIPIENT_SELECTION ||--o{ DELIVERY_ATTEMPT : creates
     DELIVERY_ATTEMPT ||--o{ DELIVERY_EVENT : receives
     ALERT_RECIPIENT_SELECTION ||--o{ RECIPIENT_RESPONSE : records

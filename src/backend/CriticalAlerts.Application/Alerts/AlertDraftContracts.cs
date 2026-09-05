@@ -69,7 +69,8 @@ public sealed record AlertRecipientSelectionView(
     DateTimeOffset SelectedAtUtc,
     string DirectoryRevision,
     DateTimeOffset? DirectorySourceUpdatedAtUtc,
-    string? OnCallSnapshot);
+    string? OnCallSnapshot,
+    string SelectionSource);
 
 public sealed record AlertDraftView(
     Guid AlertId,

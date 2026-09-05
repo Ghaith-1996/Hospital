@@ -195,13 +195,15 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
         CriticalAlertsDbContext db,
         NotificationChannel channel)
     {
+        var patientReference = $"SIM-PAT-{Guid.NewGuid():N}"[..18];
         var alert = Alert.CreateDraft(
             AlertId.New(),
             DemoDataSeeder.OrganizationId,
             DemoDataSeeder.NorthSiteId,
             DemoDataSeeder.EmergencyDepartmentId,
             DemoDataSeeder.JordanUserId,
-            $"SIM-PAT-{Guid.NewGuid():N}"[..18],
+            patientReference,
+            ProtectPatient(patientReference),
             "North Wing / Simulation Room 204",
             "Urgent",
             AlertSourceType.Typed,
@@ -253,6 +255,9 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
 
     private static ProtectedValue Protect(string value)
         => new(Encoding.UTF8.GetBytes(value), "test-v1", "dispatch-test");
+
+    private static ProtectedValue ProtectPatient(string value)
+        => new(Encoding.UTF8.GetBytes(value), "test-v1", ProtectedValuePurposes.AlertPatientReference);
 
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
     {

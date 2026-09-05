@@ -1,6 +1,14 @@
+param(
+    [switch]$ConfirmDemoReset
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
+
+if (-not $ConfirmDemoReset) {
+    throw "Refusing demo reset without -ConfirmDemoReset; no database was changed."
+}
 
 $environment = if ([string]::IsNullOrWhiteSpace($env:ASPNETCORE_ENVIRONMENT)) {
     "Development"
@@ -33,4 +41,4 @@ if ([string]::IsNullOrWhiteSpace($env:CRITICAL_ALERTS_DATA_PROTECTION_KEY)) {
 
 $env:ASPNETCORE_ENVIRONMENT = $environment
 $apiProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj"
-dotnet run --project $apiProject --no-launch-profile -- database reset-demo
+dotnet run --project $apiProject --no-launch-profile -- database reset-demo --confirm-demo-reset

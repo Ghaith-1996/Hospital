@@ -11,9 +11,10 @@ internal static class DeliveryStatusEndpoints
     public static void MapDeliveryStatusEndpoints(this WebApplication app)
     {
         app.MapGet(
-                "/api/alerts/{alertId:guid}/delivery",
+                $"{ApiRouteConstants.BasePath}/alerts/{{alertId:guid}}/delivery",
                 Get)
-            .RequireAuthorization(AuthorizationPolicies.AlertDeliveryReader);
+            .RequireAuthorization(AuthorizationPolicies.AlertDeliveryReader)
+            .RequireRateLimiting("api");
     }
 
     private static async Task<IResult> Get(

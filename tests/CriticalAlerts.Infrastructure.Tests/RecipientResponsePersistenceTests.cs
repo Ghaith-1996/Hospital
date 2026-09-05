@@ -136,6 +136,7 @@ public sealed class RecipientResponsePersistenceTests(MigratedPostgresFixture fi
             DemoDataSeeder.EmergencyDepartmentId,
             DemoDataSeeder.JordanUserId,
             "SIM-PAT-PHASE8",
+            new ProtectedValue(System.Text.Encoding.UTF8.GetBytes("SIM-PAT-PHASE8"), "test-v1", ProtectedValuePurposes.AlertPatientReference),
             "North Wing Simulation Room 8",
             "DEMO-URGENT",
             AlertSourceType.Typed,

@@ -58,7 +58,7 @@ describe("Phase 8 operator live projection", () => {
 
   it("labels refreshed polling status and cleans up the polling interval", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo) =>
-      String(input).endsWith("/api/dev/identities")
+      String(input).endsWith("/api/v1/dev/identities")
         ? { ok: false, status: 404, json: async () => ({}) }
         : { ok: true, status: 200, json: async () => live },
     );

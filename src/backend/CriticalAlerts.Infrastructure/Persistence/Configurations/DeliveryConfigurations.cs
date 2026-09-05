@@ -75,13 +75,13 @@ internal sealed class RecipientResponseConfiguration : IEntityTypeConfiguration<
         builder.Property(entity => entity.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
         builder.Property(entity => entity.SanitizedReasonCode).HasColumnName("sanitized_reason_code").HasMaxLength(64).IsRequired();
         builder.HasIndex(entity => new
-            {
-                entity.OrganizationId,
-                entity.AlertId,
-                entity.AlertVersion,
-                entity.PractitionerId,
-                entity.Category,
-            })
+        {
+            entity.OrganizationId,
+            entity.AlertId,
+            entity.AlertVersion,
+            entity.PractitionerId,
+            entity.Category,
+        })
             .IsUnique()
             .HasDatabaseName("UX_recipient_responses_practitioner_category");
         builder.HasOne<Alert>().WithMany().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(alert => new { alert.Id, alert.OrganizationId }).OnDelete(DeleteBehavior.Restrict);

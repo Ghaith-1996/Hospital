@@ -1,6 +1,6 @@
 using CriticalAlerts.Domain;
-using CriticalAlerts.Domain.Identity;
 using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Identity;
 using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;

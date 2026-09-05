@@ -17,6 +17,13 @@ public sealed class DemoDataSeeder
     public static readonly DepartmentId EmergencyDepartmentId = new(Guid.Parse("11111111-1111-4111-8111-111111110301"));
     public static readonly RoleId OperatorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110401"));
     public static readonly RoleId PractitionerRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110402"));
+    public static readonly RoleId AdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110403"));
+    public static readonly RoleId PhysicianRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110404"));
+    public static readonly RoleId ClinicalSupervisorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110405"));
+    public static readonly RoleId DirectoryAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110406"));
+    public static readonly RoleId IntegrationAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110407"));
+    public static readonly RoleId AuditorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110408"));
+    public static readonly RoleId SystemAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110409"));
     public static readonly UserId JordanUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110501"));
     public static readonly UserId MorganUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110502"));
     public static readonly UserId RileyUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110503"));
@@ -59,7 +66,22 @@ public sealed class DemoDataSeeder
         var operatorRole = Role.Create(new RoleId(Id("401")), OrganizationId, "Operator");
         var practitionerRole = Role.Create(new RoleId(Id("402")), OrganizationId, "Practitioner");
         var administratorRole = Role.Create(new RoleId(Id("403")), OrganizationId, "Administrator");
-        db.Roles.AddRange(operatorRole, practitionerRole, administratorRole);
+        var physicianRole = Role.Create(PhysicianRoleId, OrganizationId, "Physician");
+        var clinicalSupervisorRole = Role.Create(ClinicalSupervisorRoleId, OrganizationId, "ClinicalSupervisor");
+        var directoryAdministratorRole = Role.Create(DirectoryAdministratorRoleId, OrganizationId, "DirectoryAdministrator");
+        var integrationAdministratorRole = Role.Create(IntegrationAdministratorRoleId, OrganizationId, "IntegrationAdministrator");
+        var auditorRole = Role.Create(AuditorRoleId, OrganizationId, "Auditor");
+        var systemAdministratorRole = Role.Create(SystemAdministratorRoleId, OrganizationId, "SystemAdministrator");
+        db.Roles.AddRange(
+            operatorRole,
+            practitionerRole,
+            administratorRole,
+            physicianRole,
+            clinicalSupervisorRole,
+            directoryAdministratorRole,
+            integrationAdministratorRole,
+            auditorRole,
+            systemAdministratorRole);
 
         var jordan = UserAccount.CreateSimulation(new UserId(Id("501")), OrganizationId, "Jordan Lee", JordanHandle, SeededAt);
         var morgan = UserAccount.CreateSimulation(new UserId(Id("502")), OrganizationId, "Morgan Ellis", MorganHandle, SeededAt);

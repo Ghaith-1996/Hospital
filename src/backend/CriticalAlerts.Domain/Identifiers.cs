@@ -92,6 +92,11 @@ public readonly record struct AlertStateTransitionId(Guid Value)
     public static AlertStateTransitionId New() => new(Guid.NewGuid());
 }
 
+public readonly record struct AlertSourceRevisionId(Guid Value)
+{
+    public static AlertSourceRevisionId New() => new(Guid.NewGuid());
+}
+
 public readonly record struct DeliveryAttemptId(Guid Value)
 {
     public static DeliveryAttemptId New() => new(Guid.NewGuid());

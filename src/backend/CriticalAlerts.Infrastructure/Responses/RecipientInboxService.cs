@@ -81,6 +81,8 @@ public sealed class RecipientInboxService(
                 .ToArray();
             var acknowledgement = alertResponses.SingleOrDefault(response => response.IsAcknowledgement);
             var terminal = alertResponses.SingleOrDefault(response => response.IsTerminalDisposition);
+            var callUnit = alertResponses.SingleOrDefault(response => response.IsCallUnitRequest);
+            var lastResponse = alertResponses.OrderByDescending(response => response.OccurredAtUtc).FirstOrDefault();
             var assignment = assignments.SingleOrDefault(item => item.AlertId == alert.Id && item.AlertVersion == version);
 
             return new MyAlertSummaryView(
@@ -94,7 +96,9 @@ public sealed class RecipientInboxService(
                 OpenedState(alertSelections, alertAttempts).ToString(),
                 acknowledgement?.OccurredAtUtc,
                 terminal?.ResponseType.ToString(),
-                assignment?.AcceptedAtUtc);
+                assignment?.AcceptedAtUtc,
+                callUnit?.OccurredAtUtc,
+                lastResponse?.SanitizedReasonCode);
         }).ToArray();
     }
 
@@ -155,17 +159,21 @@ public sealed class RecipientInboxService(
                 cancellationToken);
         var acknowledgement = responses.SingleOrDefault(response => response.IsAcknowledgement);
         var terminal = responses.SingleOrDefault(response => response.IsTerminalDisposition);
+        var callUnit = responses.SingleOrDefault(response => response.IsCallUnitRequest);
+        var lastResponse = responses.OrderByDescending(response => response.OccurredAtUtc).FirstOrDefault();
 
         return new MyAlertDetailView(
             alert.Id.Value,
             version.Value,
             alert.State.ToString(),
-            alert.SimulationPatientReference,
+            protector.Unprotect(
+                alert.SimulationPatientReference,
+                new SensitiveDataContext(ProtectedValuePurposes.AlertPatientReference, organizationId.Value)),
             alert.Location,
             alert.UrgencyLabel,
             protector.Unprotect(
                 alert.ApprovedMessage,
-                new SensitiveDataContext("alert-approved-message", organizationId.Value)),
+                new SensitiveDataContext(ProtectedValuePurposes.AlertApprovedMessage, organizationId.Value)),
             alert.FieldConfirmations
                 .Where(field => field.AlertVersion == version && field.Status == FieldConfirmationStatus.Confirmed)
                 .OrderBy(field => field.FieldId, StringComparer.Ordinal)
@@ -180,7 +188,9 @@ public sealed class RecipientInboxService(
                 .Min(),
             acknowledgement?.OccurredAtUtc,
             terminal?.ResponseType.ToString(),
-            assignment?.AcceptedAtUtc);
+            assignment?.AcceptedAtUtc,
+            callUnit?.OccurredAtUtc,
+            lastResponse?.SanitizedReasonCode);
     }
 
     private async Task<PractitionerId> RequirePractitionerAsync(

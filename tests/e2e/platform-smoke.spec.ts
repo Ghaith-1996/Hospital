@@ -36,18 +36,18 @@ test("navigates the Phase 8 practitioner response and operator status routes", a
     responsibilityAcceptedAtUtc: null,
   };
 
-  await page.route("**/api/**", async (route) => {
+  await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path === "/api/dev/identities" || path === "/api/me") {
+    if (path === "/api/v1/dev/identities" || path === "/api/v1/me") {
       await route.fulfill({ status: 404, contentType: "application/json", body: "{}" });
       return;
     }
-    if (path === "/api/my-alerts") {
+    if (path === "/api/v1/my-alerts") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([summary]) });
       return;
     }
-    if (path === `/api/my-alerts/${alertId}/opened`) {
+    if (path === `/api/v1/my-alerts/${alertId}/opened`) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -60,7 +60,7 @@ test("navigates the Phase 8 practitioner response and operator status routes", a
       });
       return;
     }
-    if (path === `/api/my-alerts/${alertId}/responses`) {
+    if (path === `/api/v1/my-alerts/${alertId}/responses`) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -76,7 +76,7 @@ test("navigates the Phase 8 practitioner response and operator status routes", a
       });
       return;
     }
-    if (path === `/api/my-alerts/${alertId}`) {
+    if (path === `/api/v1/my-alerts/${alertId}`) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -90,7 +90,7 @@ test("navigates the Phase 8 practitioner response and operator status routes", a
       });
       return;
     }
-    if (path === `/api/alerts/${alertId}/live`) {
+    if (path === `/api/v1/alerts/${alertId}/live`) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",

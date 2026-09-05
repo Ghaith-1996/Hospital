@@ -32,6 +32,7 @@ public sealed class RecipientResponseService(
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            await AlertMutationLock.AcquireAsync(db, organizationId, alertId, cancellationToken);
             var replay = await FindIdempotencyAsync(organizationId, "recipient-open", key, requestHash, cancellationToken);
             if (replay is not null)
             {
@@ -133,12 +134,14 @@ public sealed class RecipientResponseService(
         CancellationToken cancellationToken)
     {
         var responseType = ParseResponseType(request.ResponseType);
+        var reasonCode = ParseReasonCode(responseType, request.ReasonCode);
         var key = RequireIdempotencyKey(idempotencyKey);
-        var requestHash = Hash($"recipient-response|{organizationId.Value:D}|{userId.Value:D}|{alertId.Value:D}|{request.ExpectedVersion}|{responseType}");
+        var requestHash = Hash($"recipient-response|{organizationId.Value:D}|{userId.Value:D}|{alertId.Value:D}|{request.ExpectedVersion}|{responseType}|{reasonCode}");
         var now = RequireUtc(time.GetUtcNow());
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            await AlertMutationLock.AcquireAsync(db, organizationId, alertId, cancellationToken);
             var replayReference = await FindIdempotencyAsync(
                 organizationId,
                 "recipient-response",
@@ -153,6 +156,7 @@ public sealed class RecipientResponseService(
                     alertId,
                     request.ExpectedVersion,
                     responseType,
+                    reasonCode,
                     replayed: true,
                     cancellationToken);
             }
@@ -164,9 +168,7 @@ public sealed class RecipientResponseService(
             }
 
             RequireExactVersion(context.Alert, request.ExpectedVersion);
-            var category = responseType == RecipientResponseType.Acknowledged
-                ? RecipientResponseCategory.Acknowledgement
-                : RecipientResponseCategory.TerminalDisposition;
+            var category = RecipientResponse.CategoryFor(responseType);
             var existing = await db.RecipientResponses.SingleOrDefaultAsync(response =>
                     response.OrganizationId == organizationId
                     && response.AlertId == alertId
@@ -174,11 +176,15 @@ public sealed class RecipientResponseService(
                     && response.PractitionerId == context.PractitionerId
                     && response.Category == category,
                 cancellationToken);
-            if (existing is not null && existing.ResponseType != responseType)
+            if (existing is not null
+                && (existing.ResponseType != responseType
+                    || !string.Equals(existing.SanitizedReasonCode, reasonCode, StringComparison.Ordinal)))
             {
                 throw Conflict(
-                    "terminal-disposition-conflict",
-                    "A different terminal disposition is already recorded for this practitioner and alert version.");
+                    category == RecipientResponseCategory.TerminalDisposition
+                        ? "terminal-disposition-conflict"
+                        : "response-conflict",
+                    "A different response is already recorded for this practitioner and alert version.");
             }
 
             var idempotency = IdempotencyRecord.Start(
@@ -200,6 +206,7 @@ public sealed class RecipientResponseService(
                     alertId,
                     request.ExpectedVersion,
                     responseType,
+                    reasonCode,
                     replayed: true,
                     cancellationToken);
             }
@@ -213,7 +220,7 @@ public sealed class RecipientResponseService(
                 responseType,
                 userId,
                 now,
-                ReasonCode(responseType));
+                reasonCode);
             db.RecipientResponses.Add(response);
             var assignment = ResponsibilityAssignment.FromResponse(response);
             if (assignment is not null)
@@ -250,6 +257,7 @@ public sealed class RecipientResponseService(
                 alertId,
                 request.ExpectedVersion,
                 responseType,
+                reasonCode,
                 replayed: false,
                 cancellationToken);
         }
@@ -271,6 +279,7 @@ public sealed class RecipientResponseService(
                     alertId,
                     request.ExpectedVersion,
                     responseType,
+                    reasonCode,
                     replayed: true,
                     cancellationToken);
             }
@@ -286,11 +295,10 @@ public sealed class RecipientResponseService(
                     && response.AlertId == alertId
                     && response.AlertVersion == context.Alert.ConfirmedDraftVersion!.Value
                     && response.PractitionerId == context.PractitionerId
-                    && response.Category == (responseType == RecipientResponseType.Acknowledged
-                        ? RecipientResponseCategory.Acknowledgement
-                        : RecipientResponseCategory.TerminalDisposition),
+                    && response.Category == RecipientResponse.CategoryFor(responseType),
                 cancellationToken);
-            if (existing?.ResponseType == responseType)
+            if (existing?.ResponseType == responseType
+                && string.Equals(existing.SanitizedReasonCode, reasonCode, StringComparison.Ordinal))
             {
                 return await BuildResponseResultAsync(
                     organizationId,
@@ -298,12 +306,15 @@ public sealed class RecipientResponseService(
                     alertId,
                     request.ExpectedVersion,
                     responseType,
+                    reasonCode,
                     replayed: true,
                     cancellationToken);
             }
 
             throw Conflict(
-                existing is null ? "response-conflict" : "terminal-disposition-conflict",
+                existing is null || RecipientResponse.CategoryFor(responseType) != RecipientResponseCategory.TerminalDisposition
+                    ? "response-conflict"
+                    : "terminal-disposition-conflict",
                 "The practitioner response changed concurrently. Reload the alert.");
         }
     }
@@ -405,6 +416,7 @@ public sealed class RecipientResponseService(
         AlertId alertId,
         int version,
         RecipientResponseType responseType,
+        string reasonCode,
         bool replayed,
         CancellationToken cancellationToken)
     {
@@ -420,6 +432,8 @@ public sealed class RecipientResponseService(
             .ToArrayAsync(cancellationToken);
         var acknowledgement = responses.SingleOrDefault(response => response.IsAcknowledgement);
         var terminal = responses.SingleOrDefault(response => response.IsTerminalDisposition);
+        var callUnit = responses.SingleOrDefault(response => response.IsCallUnitRequest);
+        var lastResponse = responses.OrderByDescending(response => response.OccurredAtUtc).FirstOrDefault();
         var assignment = await db.ResponsibilityAssignments.AsNoTracking()
             .SingleOrDefaultAsync(item => item.OrganizationId == organizationId
                 && item.AlertId == alertId
@@ -433,6 +447,8 @@ public sealed class RecipientResponseService(
             acknowledgement?.OccurredAtUtc,
             terminal?.ResponseType.ToString(),
             assignment?.AcceptedAtUtc,
+            callUnit?.OccurredAtUtc,
+            lastResponse?.SanitizedReasonCode ?? reasonCode,
             replayed);
     }
 
@@ -451,20 +467,44 @@ public sealed class RecipientResponseService(
             nameof(RecipientResponseType.Accepted) => RecipientResponseType.Accepted,
             nameof(RecipientResponseType.Declined) => RecipientResponseType.Declined,
             nameof(RecipientResponseType.Unavailable) => RecipientResponseType.Unavailable,
+            nameof(RecipientResponseType.CallUnitRequested) => RecipientResponseType.CallUnitRequested,
             _ => throw new RecipientResponseValidationException(
                 "response-type-invalid",
-                "The Phase 8 simulation response must be Acknowledged, Accepted, Declined, or Unavailable."),
+                "The simulation response must be Acknowledged, Accepted, Declined, Unavailable, or CallUnitRequested."),
         };
 
-    private static string ReasonCode(RecipientResponseType responseType)
-        => responseType switch
+    private static string ParseReasonCode(RecipientResponseType responseType, string? value)
+    {
+        var reasonCode = string.IsNullOrWhiteSpace(value)
+            ? RecipientResponse.DefaultReasonCode(responseType)
+            : value.Trim();
+        if (reasonCode.Length > 64 || reasonCode.Any(character => character < 0x21 || character > 0x7E))
         {
-            RecipientResponseType.Acknowledged => "simulation-acknowledged",
-            RecipientResponseType.Accepted => "simulation-responsibility-accepted",
-            RecipientResponseType.Declined => "simulation-declined",
-            RecipientResponseType.Unavailable => "simulation-unavailable",
-            _ => throw new InvalidOperationException("The response type is not available in Phase 8."),
-        };
+            throw new RecipientResponseValidationException(
+                "response-reason-invalid",
+                "The response reason must be an allowlisted simulation code, not free text.");
+        }
+
+        try
+        {
+            RecipientResponse.Record(
+                RecipientResponseId.New(),
+                OrganizationId.New(),
+                AlertId.New(),
+                AlertDraftVersion.Initial,
+                PractitionerId.New(),
+                responseType,
+                UserId.New(),
+                DateTimeOffset.UnixEpoch,
+                reasonCode);
+        }
+        catch (DomainException exception)
+        {
+            throw new RecipientResponseValidationException("response-reason-invalid", exception.Message);
+        }
+
+        return reasonCode;
+    }
 
     private static string RequireIdempotencyKey(string? value)
     {

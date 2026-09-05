@@ -200,6 +200,7 @@ export default function AlertReviewPage() {
                 <span>Directory freshness: {recipient.isStale ? "stale" : "fresh"}</span>
                 <span>Directory source updated: {safeUtc(recipient.directorySourceUpdatedAtUtc)}</span>
                 <span>Directory revision: {recipient.directoryRevision}</span>
+                <span>Selection source: {recipient.selectionSource}</span>
               </div>
             </article>
           ))}

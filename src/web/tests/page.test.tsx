@@ -71,7 +71,7 @@ describe("Phase 8 web shell", () => {
       "fetch",
       vi.fn(async (input: RequestInfo) => {
         const url = String(input);
-        if (url.includes("/api/dev/identities")) {
+        if (url.includes("/api/v1/dev/identities")) {
           return {
             ok: true,
             json: async () => [
@@ -99,7 +99,7 @@ describe("Phase 8 web shell", () => {
       "fetch",
       vi.fn(async (input: RequestInfo) => {
         const url = String(input);
-        if (url.includes("/api/directory/practitioners")) {
+        if (url.includes("/api/v1/directory/practitioners")) {
           return { ok: false, status: 401, json: async () => ({}) };
         }
 
@@ -119,7 +119,7 @@ describe("Phase 8 web shell", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo) => {
-        if (String(input).includes("/api/directory/practitioners")) {
+        if (String(input).includes("/api/v1/directory/practitioners")) {
           return {
             ok: true,
             status: 200,
@@ -171,7 +171,7 @@ describe("Phase 8 web shell", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo) => {
-        if (String(input).endsWith("/api/directory/imports/preview")) {
+        if (String(input).endsWith("/api/v1/directory/imports/preview")) {
           return { ok: true, status: 200, json: async () => preview };
         }
 

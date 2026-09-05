@@ -89,7 +89,7 @@ Phase 7 worker audit metadata is limited to organization, alert/attempt identifi
 
 ## Phase 8 boundary
 
-Phase 8 response audit metadata is limited to opaque organization, actor, practitioner, alert, version, response, and optional assignment identifiers; response category; allowlisted reason code; outcome; UTC timestamp; and correlation ID. It must not include practitioner display names, approved/source/SBAR content, patient references, contact values, provider references, request bodies, or arbitrary reason text. The operator live projection exposes only allowlisted operational delivery/response fields and safe failure categories. Authorization and environment failures return non-disclosing problem details and do not reveal whether a foreign or unaddressed alert exists.
+Phase 8 response and lifecycle audit metadata is limited to opaque organization, actor, practitioner, alert, version, response, lifecycle action, and optional assignment identifiers; response category; allowlisted reason code; outcome; UTC timestamp; and correlation ID. It must not include practitioner display names, approved/source/SBAR content, patient references, contact values, provider references, request bodies, or arbitrary reason text. The operator live projection exposes only allowlisted operational delivery/response/lifecycle fields and safe failure categories. Manual-fallback display is a safe category only and never contains a route or contact value. Authorization and environment failures return non-disclosing problem details and do not reveal whether a foreign or unaddressed alert exists.
 
 ## Access, retention, and incident response
 

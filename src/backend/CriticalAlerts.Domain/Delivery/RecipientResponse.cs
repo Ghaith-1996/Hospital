@@ -2,6 +2,36 @@ namespace CriticalAlerts.Domain.Delivery;
 
 public sealed class RecipientResponse
 {
+    private static readonly IReadOnlyDictionary<RecipientResponseType, IReadOnlySet<string>> AllowedReasonCodes =
+        new Dictionary<RecipientResponseType, IReadOnlySet<string>>
+        {
+            [RecipientResponseType.Acknowledged] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "simulation-acknowledged",
+            },
+            [RecipientResponseType.Accepted] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "simulation-responsibility-accepted",
+            },
+            [RecipientResponseType.Declined] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "simulation-declined",
+                "simulation-not-my-service",
+                "simulation-wrong-specialty",
+                "simulation-not-available",
+            },
+            [RecipientResponseType.Unavailable] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "simulation-unavailable",
+                "simulation-no-coverage",
+                "simulation-not-on-call",
+            },
+            [RecipientResponseType.CallUnitRequested] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "simulation-call-unit-requested",
+            },
+        };
+
     private RecipientResponse()
     {
         SanitizedReasonCode = string.Empty;
@@ -62,27 +92,15 @@ public sealed class RecipientResponse
         DateTimeOffset occurredAtUtc,
         string sanitizedReasonCode)
     {
-        if (responseType == RecipientResponseType.CallUnitRequested)
-        {
-            throw new DomainException("Call-unit requests are not available in the Phase 8 simulation.");
-        }
-
         if (string.IsNullOrWhiteSpace(sanitizedReasonCode))
         {
             throw new DomainException("Recipient responses require an allowlisted simulation reason code.");
         }
 
         var reasonCode = sanitizedReasonCode.Trim();
-        var expectedReasonCode = responseType switch
-        {
-            RecipientResponseType.Acknowledged => "simulation-acknowledged",
-            RecipientResponseType.Accepted => "simulation-responsibility-accepted",
-            RecipientResponseType.Declined => "simulation-declined",
-            RecipientResponseType.Unavailable => "simulation-unavailable",
-            _ => throw new DomainException("Recipient responses require an available Phase 8 response type."),
-        };
         if (reasonCode.Length > 64
-            || !string.Equals(reasonCode, expectedReasonCode, StringComparison.Ordinal))
+            || !AllowedReasonCodes.TryGetValue(responseType, out var allowedReasonCodes)
+            || !allowedReasonCodes.Contains(reasonCode))
         {
             throw new DomainException("Recipient responses require an allowlisted simulation reason code.");
         }
@@ -94,9 +112,7 @@ public sealed class RecipientResponse
             alertVersion,
             practitionerId,
             responseType,
-            responseType == RecipientResponseType.Acknowledged
-                ? RecipientResponseCategory.Acknowledgement
-                : RecipientResponseCategory.TerminalDisposition,
+            CategoryFor(responseType),
             actorUserId,
             UtcInstant.Require(occurredAtUtc, nameof(occurredAtUtc)),
             reasonCode);
@@ -106,6 +122,29 @@ public sealed class RecipientResponse
 
     public bool IsAcknowledgement => ResponseType == RecipientResponseType.Acknowledged;
 
+    public bool IsCallUnitRequest => ResponseType == RecipientResponseType.CallUnitRequested;
+
     public bool IsTerminalDisposition => ResponseType is
         RecipientResponseType.Accepted or RecipientResponseType.Declined or RecipientResponseType.Unavailable;
+
+    public static RecipientResponseCategory CategoryFor(RecipientResponseType responseType)
+        => responseType switch
+        {
+            RecipientResponseType.Acknowledged => RecipientResponseCategory.Acknowledgement,
+            RecipientResponseType.CallUnitRequested => RecipientResponseCategory.CallUnitRequest,
+            RecipientResponseType.Accepted or RecipientResponseType.Declined or RecipientResponseType.Unavailable
+                => RecipientResponseCategory.TerminalDisposition,
+            _ => throw new DomainException("Recipient responses require an available simulation response type."),
+        };
+
+    public static string DefaultReasonCode(RecipientResponseType responseType)
+        => responseType switch
+        {
+            RecipientResponseType.Acknowledged => "simulation-acknowledged",
+            RecipientResponseType.Accepted => "simulation-responsibility-accepted",
+            RecipientResponseType.Declined => "simulation-declined",
+            RecipientResponseType.Unavailable => "simulation-unavailable",
+            RecipientResponseType.CallUnitRequested => "simulation-call-unit-requested",
+            _ => throw new DomainException("Recipient responses require an available simulation response type."),
+        };
 }

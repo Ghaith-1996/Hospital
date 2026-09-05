@@ -1,0 +1,117 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Critical Alerts Simulation API",
+    "version": "1.0.0",
+    "description": "Simulation-only contract. It is not a hospital or clinical API."
+  },
+  "paths": {
+    "/api/v1/me": {
+      "get": { "responses": { "200": { "description": "Authenticated simulation identity" }, "401": { "$ref": "#/components/responses/Unauthorized" } } }
+    },
+    "/api/v1/alerts/drafts": {
+      "post": { "responses": { "201": { "description": "Created draft" }, "400": { "$ref": "#/components/responses/BadRequest" } } }
+    },
+    "/api/v1/alerts/{alertId}": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "get": { "responses": { "200": { "description": "Draft" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "patch": { "responses": { "200": { "description": "Updated draft" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/review": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "get": { "responses": { "200": { "description": "Exact review" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/confirm": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Confirmed and queued" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/field-confirmations": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Confirmed critical field" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/submit-for-confirmation": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Submitted draft" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/approved-message": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "put": { "responses": { "200": { "description": "Updated approved message" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/recipients": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "put": { "responses": { "200": { "description": "Replaced manual recipient set" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/delivery": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "get": { "responses": { "200": { "description": "Operational delivery projection" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/api/v1/alerts/{alertId}/live": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "get": { "responses": { "200": { "description": "Operational live projection" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/api/v1/alerts/{alertId}/resolve": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Resolved by an authorized operator" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/alerts/{alertId}/cancel": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Cancelled by an authorized operator" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/directory/practitioners": {
+      "get": { "responses": { "200": { "description": "Organization-scoped directory results" } } }
+    },
+    "/api/v1/directory/imports/preview": {
+      "post": { "responses": { "200": { "description": "CSV preview" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" } } }
+    },
+    "/api/v1/directory/imports": {
+      "post": { "responses": { "200": { "description": "Applied CSV import" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" } } }
+    },
+    "/api/v1/my-alerts": {
+      "get": { "responses": { "200": { "description": "Practitioner inbox" } } }
+    },
+    "/api/v1/my-alerts/{alertId}": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "get": { "responses": { "200": { "description": "Addressed alert detail" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/api/v1/my-alerts/{alertId}/opened": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Opened observation" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/my-alerts/{alertId}/responses": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "post": { "responses": { "200": { "description": "Practitioner response" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/api/v1/dev/identities": {
+      "get": { "responses": { "200": { "description": "Development-only identities" } } }
+    },
+    "/api/v1/dev/session": {
+      "post": { "responses": { "204": { "description": "Development-only session created" } } }
+    },
+    "/api/v1/dev/session/clear": {
+      "post": { "responses": { "204": { "description": "Development-only session cleared" } } }
+    },
+    "/api/v1/dev/dispatch-scenarios/{channel}": {
+      "parameters": [{ "name": "channel", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": { "responses": { "200": { "description": "Development-only scenario" } } },
+      "put": { "responses": { "200": { "description": "Updated development-only scenario" } } },
+      "delete": { "responses": { "204": { "description": "Reset development-only scenario" } } }
+    }
+  },
+  "components": {
+    "parameters": {
+      "AlertId": {
+        "name": "alertId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid request" },
+      "Conflict": { "description": "Stale or conflicting request" },
+      "NotFound": { "description": "Resource not found in the authenticated organization" },
+      "PayloadTooLarge": { "description": "Request body exceeds the simulation limit" },
+      "Unauthorized": { "description": "Authentication required" }
+    }
+  }
+}

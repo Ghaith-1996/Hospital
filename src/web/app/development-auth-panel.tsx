@@ -24,7 +24,7 @@ export function DevelopmentAuthPanel() {
 
     async function load() {
       try {
-        const identitiesResponse = await fetch("/api/dev/identities");
+        const identitiesResponse = await fetch("/api/v1/dev/identities");
         if (!identitiesResponse.ok) {
           if (!cancelled) {
             setStatus("Seeded identities are unavailable until the local API is running.");
@@ -33,7 +33,7 @@ export function DevelopmentAuthPanel() {
         }
 
         const loaded = (await identitiesResponse.json()) as SeededIdentity[];
-        const meResponse = await fetch("/api/me");
+        const meResponse = await fetch("/api/v1/me");
         const me = meResponse.ok ? ((await meResponse.json()) as CurrentUser) : null;
         if (!cancelled) {
           setIdentities(loaded);
@@ -54,7 +54,7 @@ export function DevelopmentAuthPanel() {
   }, []);
 
   async function switchUser(simulationHandle: string) {
-    const response = await fetch("/api/dev/session", {
+    const response = await fetch("/api/v1/dev/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ simulationHandle }),
@@ -64,7 +64,7 @@ export function DevelopmentAuthPanel() {
       return;
     }
 
-    const meResponse = await fetch("/api/me");
+    const meResponse = await fetch("/api/v1/me");
     if (meResponse.ok) {
       setCurrentUser((await meResponse.json()) as CurrentUser);
       setStatus("Fictional seeded identities only. This is not hospital SSO.");

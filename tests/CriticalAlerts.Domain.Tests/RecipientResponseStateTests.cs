@@ -102,11 +102,14 @@ public sealed class RecipientResponseStateTests
     }
 
     [Fact]
-    public void CallUnitRequestIsNotAPhase8Response()
+    public void CallUnitRequestIsAnAcknowledgementWithoutResponsibilityAcceptance()
     {
-        var act = () => Record(RecipientResponseType.CallUnitRequested, "simulation-call-unit-requested");
+        var response = Record(RecipientResponseType.CallUnitRequested, "simulation-call-unit-requested");
 
-        act.Should().Throw<DomainException>();
+        response.IsCallUnitRequest.Should().BeTrue();
+        response.IsTerminalDisposition.Should().BeFalse();
+        response.Category.Should().Be(RecipientResponseCategory.CallUnitRequest);
+        ResponsibilityAssignment.FromResponse(response).Should().BeNull();
     }
 
     private static RecipientResponse Record(RecipientResponseType responseType, string reasonCode)

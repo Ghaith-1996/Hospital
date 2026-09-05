@@ -68,13 +68,13 @@ describe("Phase 6 recipient selection", () => {
   it("starts unchecked, filters the fictional directory, and saves one complete recipient set", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
       const path = String(input);
-      if (path.endsWith("/api/dev/identities")) {
+      if (path.endsWith("/api/v1/dev/identities")) {
         return { ok: false, status: 404, json: async () => ({}) };
       }
       if (init?.method === "PUT") {
         return { ok: true, status: 200, json: async () => ({ ...draft, draftVersion: 3 }) };
       }
-      if (path.includes("/api/alerts/")) {
+      if (path.includes("/api/v1/alerts/")) {
         return { ok: true, status: 200, json: async () => draft };
       }
       return { ok: true, status: 200, json: async () => [maya] };
@@ -121,13 +121,13 @@ describe("Phase 6 recipient selection", () => {
       "fetch",
       vi.fn(async (input: RequestInfo, init?: RequestInit) => {
         const path = String(input);
-        if (path.endsWith("/api/dev/identities")) {
+        if (path.endsWith("/api/v1/dev/identities")) {
           return { ok: false, status: 404, json: async () => ({}) };
         }
         if (init?.method === "PUT") {
           return { ok: false, status: 409, json: async () => ({ detail: "directory-revision-stale" }) };
         }
-        if (path.includes("/api/alerts/")) {
+        if (path.includes("/api/v1/alerts/")) {
           return { ok: true, status: 200, json: async () => draft };
         }
         return { ok: true, status: 200, json: async () => [maya] };

@@ -27,6 +27,10 @@ if (Test-Path -LiteralPath $envFile) {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($env:CRITICAL_ALERTS_DATA_PROTECTION_KEY)) {
+    throw "Set CRITICAL_ALERTS_DATA_PROTECTION_KEY in the ignored local .env file before applying protected-data migrations."
+}
+
 $env:ASPNETCORE_ENVIRONMENT = $environment
 $apiProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj"
 dotnet run --project $apiProject --no-launch-profile -- database migrate

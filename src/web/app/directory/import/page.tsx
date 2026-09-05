@@ -90,7 +90,7 @@ export default function DirectoryImportPage() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    void post("/api/directory/imports/preview");
+    void post("/api/v1/directory/imports/preview");
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -117,7 +117,7 @@ export default function DirectoryImportPage() {
         <button
           type="button"
           disabled={!preview || preview.errors.length > 0}
-          onClick={() => void post("/api/directory/imports")}
+          onClick={() => void post("/api/v1/directory/imports")}
         >
           Apply import
         </button>

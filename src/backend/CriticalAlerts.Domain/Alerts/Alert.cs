@@ -8,11 +8,12 @@ public sealed class Alert
     private readonly List<AlertFieldConfirmation> fieldConfirmations = [];
     private readonly List<AlertRecipientSelection> recipientSelections = [];
     private readonly List<AlertStateTransition> stateTransitions = [];
+    private readonly List<AlertSourceRevision> sourceRevisions = [];
     private readonly List<AlertDispatchRequested> pendingDispatchRequests = [];
 
     private Alert()
     {
-        SimulationPatientReference = string.Empty;
+        SimulationPatientReference = null!;
         Location = string.Empty;
         UrgencyLabel = string.Empty;
         DemoEscalationPolicyVersion = string.Empty;
@@ -26,6 +27,7 @@ public sealed class Alert
         DepartmentId departmentId,
         UserId createdByUserId,
         string simulationPatientReference,
+        ProtectedValue simulationPatientReferenceValue,
         string location,
         string urgencyLabel,
         AlertSourceType sourceType,
@@ -38,7 +40,9 @@ public sealed class Alert
         SiteId = siteId;
         DepartmentId = departmentId;
         CreatedByUserId = createdByUserId;
-        SimulationPatientReference = simulationPatientReference;
+        SimulationEnvironmentPolicy.RequireSyntheticPatientReference(simulationPatientReference);
+        ValidatePatientReference(simulationPatientReferenceValue);
+        SimulationPatientReference = simulationPatientReferenceValue;
         Location = location;
         UrgencyLabel = urgencyLabel;
         SourceType = sourceType;
@@ -48,6 +52,18 @@ public sealed class Alert
         DraftVersion = AlertDraftVersion.Initial;
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = createdAtUtc;
+        if (originalSource is not null)
+        {
+            sourceRevisions.Add(AlertSourceRevision.Create(
+                AlertSourceRevisionId.New(),
+                organizationId,
+                id,
+                DraftVersion,
+                sourceType,
+                originalSource,
+                createdByUserId,
+                createdAtUtc));
+        }
         DemoEscalationPolicyVersion = "DEMO";
         DemoNotificationPolicyVersion = "DEMO";
         RecordTransition(AlertState.Draft, AlertState.Draft, createdByUserId, "created", "alert-created", "DEMO", createdAtUtc);
@@ -63,7 +79,7 @@ public sealed class Alert
 
     public UserId CreatedByUserId { get; private set; }
 
-    public string SimulationPatientReference { get; private set; }
+    public ProtectedValue SimulationPatientReference { get; private set; }
 
     public string Location { get; private set; }
 
@@ -107,10 +123,23 @@ public sealed class Alert
 
     public IReadOnlyCollection<AlertStateTransition> StateTransitions => stateTransitions;
 
+    public IReadOnlyCollection<AlertSourceRevision> SourceRevisions => sourceRevisions;
+
     public IReadOnlyCollection<AlertDispatchRequested> PendingDispatchRequests => pendingDispatchRequests;
 
     public IReadOnlyCollection<AlertRecipientSelection> CurrentRecipients
         => recipientSelections.Where(recipient => recipient.AlertVersion == DraftVersion).ToArray();
+
+    public AlertSourceRevision? CurrentSourceRevision
+        => sourceRevisions
+            .Where(revision => revision.AlertVersion == DraftVersion)
+            .OrderByDescending(revision => revision.Id.Value)
+            .FirstOrDefault()
+            ?? sourceRevisions
+                .Where(revision => revision.AlertVersion.Value <= DraftVersion.Value)
+                .OrderByDescending(revision => revision.AlertVersion.Value)
+                .ThenByDescending(revision => revision.Id.Value)
+                .FirstOrDefault();
 
     public bool HasReusableApprovalForCurrentVersion
         => ConfirmedDraftVersion == DraftVersion && State is AlertState.DispatchQueued or AlertState.Active;
@@ -122,6 +151,7 @@ public sealed class Alert
         DepartmentId departmentId,
         UserId createdByUserId,
         string simulationPatientReference,
+        ProtectedValue simulationPatientReferenceValue,
         string location,
         string urgencyLabel,
         AlertSourceType sourceType,
@@ -136,6 +166,7 @@ public sealed class Alert
             departmentId,
             createdByUserId,
             SimulationEnvironmentPolicy.RequireSyntheticPatientReference(simulationPatientReference),
+            simulationPatientReferenceValue,
             location.Trim(),
             urgencyLabel.Trim(),
             sourceType,
@@ -144,12 +175,20 @@ public sealed class Alert
             UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)));
     }
 
-    public void UpdateSource(ProtectedValue originalSource, AlertDraftVersion expectedVersion, DateTimeOffset updatedAtUtc)
+    public void UpdateSource(
+        ProtectedValue originalSource,
+        AlertDraftVersion expectedVersion,
+        DateTimeOffset updatedAtUtc,
+        UserId? sourceEditedByUserId = null)
     {
         ArgumentNullException.ThrowIfNull(originalSource);
         EnsureEditable(expectedVersion);
-        OriginalSource = originalSource;
-        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "source-edited", carryRecipients: true);
+        InvalidateApprovalAndIncrementVersion(
+            updatedAtUtc,
+            "source-edited",
+            carryRecipients: true,
+            sourceOverride: originalSource,
+            sourceRevisionActor: sourceEditedByUserId);
     }
 
     public void UpdateTypedContent(
@@ -158,7 +197,8 @@ public sealed class Alert
         ProtectedValue originalSource,
         ProtectedValue structuredSuggestion,
         AlertDraftVersion expectedVersion,
-        DateTimeOffset updatedAtUtc)
+        DateTimeOffset updatedAtUtc,
+        UserId? sourceEditedByUserId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(location);
         ArgumentException.ThrowIfNullOrWhiteSpace(urgencyLabel);
@@ -167,9 +207,13 @@ public sealed class Alert
         EnsureEditable(expectedVersion);
         Location = location.Trim();
         UrgencyLabel = urgencyLabel.Trim();
-        OriginalSource = originalSource;
         StructuredSuggestion = structuredSuggestion;
-        InvalidateApprovalAndIncrementVersion(updatedAtUtc, "typed-content-edited", carryRecipients: true);
+        InvalidateApprovalAndIncrementVersion(
+            updatedAtUtc,
+            "typed-content-edited",
+            carryRecipients: true,
+            sourceOverride: originalSource,
+            sourceRevisionActor: sourceEditedByUserId);
     }
 
     public void SetStructuredSuggestion(
@@ -195,7 +239,7 @@ public sealed class Alert
     {
         EnsureExpectedVersion(expectedVersion);
         if (SourceType != AlertSourceType.Typed
-            || OriginalSource is null
+            || CurrentSourceRevision is null
             || StructuredSuggestion is null
             || string.IsNullOrWhiteSpace(Location)
             || string.IsNullOrWhiteSpace(UrgencyLabel))
@@ -318,7 +362,8 @@ public sealed class Alert
                 selectedAt,
                 recipient.DirectoryRevision,
                 recipient.DirectorySourceUpdatedAtUtc,
-                recipient.OnCallSnapshot));
+                recipient.OnCallSnapshot,
+                recipient.SelectionSource));
         }
     }
 
@@ -444,17 +489,36 @@ public sealed class Alert
         }
     }
 
-    private void InvalidateApprovalAndIncrementVersion(DateTimeOffset updatedAtUtc, string reasonCode, bool carryRecipients)
+    private void InvalidateApprovalAndIncrementVersion(
+        DateTimeOffset updatedAtUtc,
+        string reasonCode,
+        bool carryRecipients,
+        ProtectedValue? sourceOverride = null,
+        UserId? sourceRevisionActor = null)
     {
         var occurredAt = UtcInstant.Require(updatedAtUtc, nameof(updatedAtUtc));
         var previousRecipients = carryRecipients ? CurrentRecipients.ToArray() : [];
         var previousFields = CurrentFieldConfirmations.ToArray();
+        var previousSource = CurrentSourceRevision?.Source ?? OriginalSource;
         DraftVersion = DraftVersion.Next();
         ConfirmedDraftVersion = null;
         ConfirmedByUserId = null;
         ConfirmedAtUtc = null;
         pendingDispatchRequests.Clear();
         UpdatedAtUtc = occurredAt;
+        var sourceForVersion = sourceOverride ?? previousSource;
+        if (sourceForVersion is not null)
+        {
+            sourceRevisions.Add(AlertSourceRevision.Create(
+                AlertSourceRevisionId.New(),
+                OrganizationId,
+                Id,
+                DraftVersion,
+                SourceType,
+                sourceForVersion,
+                sourceRevisionActor ?? CreatedByUserId,
+                occurredAt));
+        }
         foreach (var field in previousFields)
         {
             fieldConfirmations.Add(new AlertFieldConfirmation(
@@ -485,12 +549,22 @@ public sealed class Alert
                 recipient.SelectedAtUtc,
                 recipient.DirectoryRevision,
                 recipient.DirectorySourceUpdatedAtUtc,
-                recipient.OnCallSnapshot));
+                recipient.OnCallSnapshot,
+                recipient.SelectionSource));
         }
 
         if (State == AlertState.PendingConfirmation)
         {
             TransitionTo(AlertState.Draft, CreatedByUserId, reasonCode, "DEMO", occurredAt);
+        }
+    }
+
+    private static void ValidatePatientReference(ProtectedValue value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (!string.Equals(value.Purpose, ProtectedValuePurposes.AlertPatientReference, StringComparison.Ordinal))
+        {
+            throw new DomainException("Alert patient references must use the alert-patient-reference protection purpose.");
         }
     }
 

@@ -1,5 +1,13 @@
 namespace CriticalAlerts.Domain;
 
+public static class ProtectedValuePurposes
+{
+    public const string AlertPatientReference = "alert-patient-reference";
+    public const string AlertTypedSource = "alert-typed-source";
+    public const string AlertSbar = "alert-sbar";
+    public const string AlertApprovedMessage = "alert-approved-message";
+}
+
 /// <summary>Ciphertext plus key version for a sensitive field. Plaintext never belongs in logs or outbox payloads.</summary>
 public sealed class ProtectedValue
 {

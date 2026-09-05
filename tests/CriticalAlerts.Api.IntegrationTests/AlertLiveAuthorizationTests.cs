@@ -24,13 +24,13 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
     {
         var prepared = await CreateLiveAlertAsync();
         using var anonymous = fixture.CreateClient();
-        using var anonymousResponse = await anonymous.GetAsync($"/api/alerts/{prepared.AlertId:D}/live");
+        using var anonymousResponse = await anonymous.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
-        using var practitionerResponse = await practitioner.GetAsync($"/api/alerts/{prepared.AlertId:D}/live");
+        using var practitionerResponse = await practitioner.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
         using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var operatorResponse = await operatorClient.GetAsync($"/api/alerts/{prepared.AlertId:D}/live");
+        using var operatorResponse = await operatorClient.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
         using var administrator = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
-        using var administratorResponse = await administrator.GetAsync($"/api/alerts/{prepared.AlertId:D}/live");
+        using var administratorResponse = await administrator.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
 
         anonymousResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         practitionerResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -44,7 +44,7 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
         var prepared = await CreateLiveAlertAsync();
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
 
-        using var response = await client.GetAsync($"/api/alerts/{prepared.AlertId:D}/live");
+        using var response = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
         var body = await response.Content.ReadAsStringAsync();
         var live = System.Text.Json.JsonSerializer.Deserialize<LiveAlertDto>(
             body,
@@ -100,7 +100,7 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
         var foreign = await fixture.CreateForeignOperatorDraftAsync();
         using var foreignClient = await fixture.CreateSignedInClientAsync(foreign.SimulationHandle);
 
-        using var response = await foreignClient.GetAsync($"/api/alerts/{prepared.AlertId:D}/live");
+        using var response = await foreignClient.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -119,6 +119,9 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
             DemoDataSeeder.EmergencyDepartmentId,
             DemoDataSeeder.JordanUserId,
             "SIM-PAT-LIVE-PROTECTED",
+            protector.Protect(
+                "SIM-PAT-LIVE-PROTECTED",
+                new SensitiveDataContext(ProtectedValuePurposes.AlertPatientReference, DemoDataSeeder.OrganizationId.Value)),
             "North Wing Simulation Live Room",
             "DEMO-URGENT",
             AlertSourceType.Typed,
