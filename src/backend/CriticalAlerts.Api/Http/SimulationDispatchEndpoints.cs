@@ -20,9 +20,9 @@ internal static class SimulationDispatchEndpoints
         var scenarios = app.MapGroup($"{ApiRouteConstants.BasePath}/dev/dispatch-scenarios")
             .RequireAuthorization(AuthorizationPolicies.DispatchScenarioAdministrator)
             .RequireRateLimiting("api");
-        scenarios.MapGet("/{channel}", Get);
-        scenarios.MapPut("/{channel}", Set);
-        scenarios.MapDelete("/{channel}", Reset);
+        scenarios.MapGet("/{channel}", Get).Produces<SimulationDispatchScenarioView>().WithApiErrors(400);
+        scenarios.MapPut("/{channel}", Set).Produces<SimulationDispatchScenarioView>().WithApiErrors(400).Produces(413);
+        scenarios.MapDelete("/{channel}", Reset).Produces(204).WithApiErrors(400);
     }
 
     private static async Task<IResult> Get(

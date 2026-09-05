@@ -54,14 +54,14 @@ internal static class DevelopmentLocationContextEndpoints
             .ToArrayAsync(cancellationToken);
 
         return Results.Ok(new SimulationLocationContextResponse(
-            organizationId.Value.ToString("D"),
+            organizationId.Value,
             sites.Select(site => new SimulationSiteResponse(
-                site.Id.Value.ToString("D"),
+                site.Id.Value,
                 site.Name,
                 departments
                     .Where(department => department.SiteId == site.Id)
                     .Select(department => new SimulationDepartmentResponse(
-                        department.Id.Value.ToString("D"),
+                        department.Id.Value,
                         department.Name))
                     .ToArray()))
                 .ToArray()));
@@ -69,12 +69,12 @@ internal static class DevelopmentLocationContextEndpoints
 }
 
 internal sealed record SimulationLocationContextResponse(
-    string OrganizationId,
+    Guid OrganizationId,
     IReadOnlyList<SimulationSiteResponse> Sites);
 
 internal sealed record SimulationSiteResponse(
-    string SiteId,
+    Guid SiteId,
     string Name,
     IReadOnlyList<SimulationDepartmentResponse> Departments);
 
-internal sealed record SimulationDepartmentResponse(string DepartmentId, string Name);
+internal sealed record SimulationDepartmentResponse(Guid DepartmentId, string Name);

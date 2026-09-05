@@ -11,13 +11,16 @@ internal static class DirectoryEndpoints
     {
         var directory = app.MapGroup($"{ApiRouteConstants.BasePath}/directory")
             .RequireRateLimiting("api");
-        directory.MapGet("/practitioners", Search).RequireAuthorization(AuthorizationPolicies.DirectoryReader);
-        directory.MapPost("/imports/preview", Preview)
+        directory.MapGet("/practitioners", Search).RequireAuthorization(AuthorizationPolicies.DirectoryReader)
+            .Produces<IReadOnlyList<DirectoryPractitionerListItem>>().WithApiErrors(400);
+        directory.MapPost("/imports/preview", Preview).WithDirectoryImportForm(apply: false)
             .RequireAuthorization(AuthorizationPolicies.DirectoryAdministrator)
-            .DisableAntiforgery();
-        directory.MapPost("/imports", Apply)
+            .DisableAntiforgery()
+            .Produces<DirectoryImportPreviewResult>().WithApiErrors(400).Produces(413);
+        directory.MapPost("/imports", Apply).WithDirectoryImportForm(apply: true)
             .RequireAuthorization(AuthorizationPolicies.DirectoryAdministrator)
-            .DisableAntiforgery();
+            .DisableAntiforgery()
+            .Produces<DirectoryImportApplyResult>().WithApiErrors(400).Produces<DirectoryImportApplyResult>(400).Produces(413);
     }
 
     private static async Task<IResult> Search(

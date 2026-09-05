@@ -29,6 +29,135 @@
         ],
         "type": "object"
       },
+      "AlertDraftView": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approvedMessage": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "criticalFields": {
+            "items": {
+              "$ref": "#/components/schemas/AlertFieldConfirmationView"
+            },
+            "type": "array"
+          },
+          "draftVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRecipientSelectionView"
+            },
+            "type": "array"
+          },
+          "sbar": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AlertSbarDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "simulationPatientReference": {
+            "type": "string"
+          },
+          "sourceText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "urgencyLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "approvedMessage",
+          "criticalFields",
+          "draftVersion",
+          "location",
+          "recipients",
+          "sbar",
+          "simulationPatientReference",
+          "sourceText",
+          "sourceType",
+          "state",
+          "urgencyLabel"
+        ],
+        "type": "object"
+      },
+      "AlertFieldConfirmationView": {
+        "properties": {
+          "alertVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "confirmedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "confirmedByUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "normalizedValue": {
+            "type": "string"
+          },
+          "originalValue": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "alertVersion",
+          "confirmedAtUtc",
+          "confirmedByUserId",
+          "fieldId",
+          "normalizedValue",
+          "originalValue",
+          "status",
+          "unit"
+        ],
+        "type": "object"
+      },
       "AlertLifecycleActionRequest": {
         "properties": {
           "expectedVersion": {
@@ -42,6 +171,236 @@
         },
         "required": [
           "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "AlertLifecycleResult": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "confirmedVersion",
+          "replayed",
+          "state"
+        ],
+        "type": "object"
+      },
+      "AlertLiveAttemptView": {
+        "properties": {
+          "attemptNumber": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "channel": {
+            "type": "string"
+          },
+          "deliveredAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "openedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "openedState": {
+            "type": "string"
+          },
+          "requestedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submittedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "attemptNumber",
+          "channel",
+          "deliveredAtUtc",
+          "failedAtUtc",
+          "failureCategory",
+          "openedAtUtc",
+          "openedState",
+          "requestedAtUtc",
+          "status",
+          "submittedAtUtc"
+        ],
+        "type": "object"
+      },
+      "AlertLiveRecipientView": {
+        "properties": {
+          "acknowledgedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertLiveAttemptView"
+            },
+            "type": "array"
+          },
+          "callUnitRequestedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lastResponseReasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onCallSnapshot": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "responsibilityAcceptedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "simulationCode": {
+            "type": "string"
+          },
+          "specialty": {
+            "type": "string"
+          },
+          "terminalDisposition": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "acknowledgedAtUtc",
+          "attempts",
+          "callUnitRequestedAtUtc",
+          "displayName",
+          "lastResponseReasonCode",
+          "onCallSnapshot",
+          "practitionerId",
+          "responsibilityAcceptedAtUtc",
+          "simulationCode",
+          "specialty",
+          "terminalDisposition"
+        ],
+        "type": "object"
+      },
+      "AlertLiveView": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "alertState": {
+            "type": "string"
+          },
+          "canCancel": {
+            "type": "boolean"
+          },
+          "canResolve": {
+            "type": "boolean"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "manualFallbackRequired": {
+            "type": "boolean"
+          },
+          "outboxState": {
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/AlertLiveRecipientView"
+            },
+            "type": "array"
+          },
+          "refreshedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "alertState",
+          "canCancel",
+          "canResolve",
+          "confirmedVersion",
+          "manualFallbackRequired",
+          "outboxState",
+          "recipients",
+          "refreshedAtUtc"
         ],
         "type": "object"
       },
@@ -76,6 +435,247 @@
           "directoryRevision",
           "practitionerId",
           "practitionerRoleId"
+        ],
+        "type": "object"
+      },
+      "AlertRecipientSelectionView": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "directoryRevision": {
+            "type": "string"
+          },
+          "directorySourceUpdatedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onCallSnapshot": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "selectedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectionSource": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "directoryRevision",
+          "directorySourceUpdatedAtUtc",
+          "onCallSnapshot",
+          "practitionerId",
+          "practitionerRoleId",
+          "selectedAtUtc",
+          "selectionSource"
+        ],
+        "type": "object"
+      },
+      "AlertReviewCriticalField": {
+        "properties": {
+          "alertVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "confirmedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "confirmedByUserId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "normalizedValue": {
+            "type": "string"
+          },
+          "originalValue": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "alertVersion",
+          "confirmedAtUtc",
+          "confirmedByUserId",
+          "fieldId",
+          "normalizedValue",
+          "originalValue",
+          "status",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "AlertReviewRecipient": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "department": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "directoryRevision": {
+            "type": "string"
+          },
+          "directorySourceUpdatedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "isStale": {
+            "type": "boolean"
+          },
+          "onCallSnapshot": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "roleTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "selectedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectionSource": {
+            "type": "string"
+          },
+          "site": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "specialty": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "department",
+          "directoryRevision",
+          "directorySourceUpdatedAtUtc",
+          "displayName",
+          "isStale",
+          "onCallSnapshot",
+          "practitionerId",
+          "roleTitle",
+          "selectedAtUtc",
+          "selectionSource",
+          "site",
+          "specialty"
+        ],
+        "type": "object"
+      },
+      "AlertReviewView": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approvedMessage": {
+            "type": "string"
+          },
+          "criticalFields": {
+            "items": {
+              "$ref": "#/components/schemas/AlertReviewCriticalField"
+            },
+            "type": "array"
+          },
+          "demoEscalationPolicyVersion": {
+            "type": "string"
+          },
+          "demoNotificationPolicyVersion": {
+            "type": "string"
+          },
+          "draftVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/AlertReviewRecipient"
+            },
+            "type": "array"
+          },
+          "simulationPatientReference": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "urgencyLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "approvedMessage",
+          "criticalFields",
+          "demoEscalationPolicyVersion",
+          "demoNotificationPolicyVersion",
+          "draftVersion",
+          "location",
+          "recipients",
+          "simulationPatientReference",
+          "state",
+          "urgencyLabel"
         ],
         "type": "object"
       },
@@ -174,6 +774,35 @@
         ],
         "type": "object"
       },
+      "ConfirmAlertReviewResult": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "confirmedVersion",
+          "replayed",
+          "state"
+        ],
+        "type": "object"
+      },
       "CreateAlertDraftRequest": {
         "properties": {
           "criticalFields": {
@@ -240,6 +869,175 @@
         ],
         "type": "object"
       },
+      "CurrentUserResponse": {
+        "properties": {
+          "developmentAuthentication": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "simulationHandle": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "developmentAuthentication",
+          "displayName",
+          "organizationId",
+          "roles",
+          "simulationHandle",
+          "userId"
+        ],
+        "type": "object"
+      },
+      "DeliveryAttemptView": {
+        "properties": {
+          "attemptNumber": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "channel": {
+            "type": "string"
+          },
+          "deliveredAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "failureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "openedState": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "recipientSelectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submittedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "attemptNumber",
+          "channel",
+          "deliveredAtUtc",
+          "failedAtUtc",
+          "failureCategory",
+          "openedState",
+          "provider",
+          "recipientSelectionId",
+          "requestedAtUtc",
+          "status",
+          "submittedAtUtc"
+        ],
+        "type": "object"
+      },
+      "DeliveryStatusView": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "alertState": {
+            "type": "string"
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryAttemptView"
+            },
+            "type": "array"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "outboxState": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "alertState",
+          "attempts",
+          "confirmedVersion",
+          "outboxState"
+        ],
+        "type": "object"
+      },
+      "DevelopmentIdentityResponse": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "simulationHandle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "organizationId",
+          "roles",
+          "simulationHandle"
+        ],
+        "type": "object"
+      },
       "DevelopmentSessionRequest": {
         "properties": {
           "simulationHandle": {
@@ -251,6 +1049,525 @@
         },
         "required": [
           "simulationHandle"
+        ],
+        "type": "object"
+      },
+      "DirectoryImportApplyResult": {
+        "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/DirectoryImportPreviewResult"
+          },
+          "syncRunId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "applied",
+          "preview",
+          "syncRunId"
+        ],
+        "type": "object"
+      },
+      "DirectoryImportChange": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "selectable": {
+            "type": "boolean"
+          },
+          "simulationCode": {
+            "type": "string"
+          },
+          "sourceRecordId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "displayName",
+          "selectable",
+          "simulationCode",
+          "sourceRecordId"
+        ],
+        "type": "object"
+      },
+      "DirectoryImportIssue": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "rowNumber": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          },
+          "sourceRecordId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "rowNumber",
+          "sourceRecordId"
+        ],
+        "type": "object"
+      },
+      "DirectoryImportPreviewResult": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/DirectoryImportChange"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/DirectoryImportIssue"
+            },
+            "type": "array"
+          },
+          "insertCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "parsedPractitionerCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "previewToken": {
+            "default": "",
+            "type": "string"
+          },
+          "rejectedCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "sourceSystem": {
+            "type": "string"
+          },
+          "updateCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/DirectoryImportIssue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes",
+          "errors",
+          "insertCount",
+          "parsedPractitionerCount",
+          "rejectedCount",
+          "sourceSystem",
+          "updateCount",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "DirectoryPractitionerListItem": {
+        "properties": {
+          "availableChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "department": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isStale": {
+            "type": "boolean"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "lastSynchronizedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onCallLastSynchronizedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onCallSourceSystem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "onCallTier": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roleTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "selectable": {
+            "type": "boolean"
+          },
+          "selectionRevision": {
+            "type": "string"
+          },
+          "simulationCode": {
+            "type": "string"
+          },
+          "site": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sourceSystem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "specialty": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "availableChannels",
+          "department",
+          "displayName",
+          "firstName",
+          "isActive",
+          "isStale",
+          "lastName",
+          "lastSynchronizedAtUtc",
+          "onCallLastSynchronizedAtUtc",
+          "onCallSourceSystem",
+          "onCallTier",
+          "practitionerId",
+          "practitionerRoleId",
+          "roleTitle",
+          "selectable",
+          "selectionRevision",
+          "simulationCode",
+          "site",
+          "sourceSystem",
+          "specialty"
+        ],
+        "type": "object"
+      },
+      "MyAlertCriticalFieldView": {
+        "properties": {
+          "fieldId": {
+            "type": "string"
+          },
+          "unit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldId",
+          "unit",
+          "value"
+        ],
+        "type": "object"
+      },
+      "MyAlertDetailView": {
+        "properties": {
+          "acknowledgedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approvedMessage": {
+            "type": "string"
+          },
+          "callUnitRequestedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "criticalFields": {
+            "items": {
+              "$ref": "#/components/schemas/MyAlertCriticalFieldView"
+            },
+            "type": "array"
+          },
+          "lastResponseReasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "openedState": {
+            "type": "string"
+          },
+          "responsibilityAcceptedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "secureMessageOpenedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "simulationPatientReference": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "terminalDisposition": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "urgencyLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "acknowledgedAtUtc",
+          "alertId",
+          "approvedMessage",
+          "callUnitRequestedAtUtc",
+          "channels",
+          "confirmedVersion",
+          "criticalFields",
+          "lastResponseReasonCode",
+          "location",
+          "openedState",
+          "responsibilityAcceptedAtUtc",
+          "secureMessageOpenedAtUtc",
+          "simulationPatientReference",
+          "state",
+          "terminalDisposition",
+          "urgencyLabel"
+        ],
+        "type": "object"
+      },
+      "MyAlertSummaryView": {
+        "properties": {
+          "acknowledgedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "callUnitRequestedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "confirmedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "lastResponseReasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "openedState": {
+            "type": "string"
+          },
+          "responsibilityAcceptedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "state": {
+            "type": "string"
+          },
+          "terminalDisposition": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "urgencyLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "acknowledgedAtUtc",
+          "alertId",
+          "callUnitRequestedAtUtc",
+          "channels",
+          "confirmedAtUtc",
+          "confirmedVersion",
+          "lastResponseReasonCode",
+          "location",
+          "openedState",
+          "responsibilityAcceptedAtUtc",
+          "state",
+          "terminalDisposition",
+          "urgencyLabel"
+        ],
+        "type": "object"
+      },
+      "OpenedRecipientAlertResult": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "secureMessageOpenedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "alertId",
+          "confirmedVersion",
+          "replayed",
+          "secureMessageOpenedAtUtc"
         ],
         "type": "object"
       },
@@ -306,6 +1623,73 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "RecipientResponseResult": {
+        "properties": {
+          "acknowledgedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "callUnitRequestedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "reasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "responseType": {
+            "type": "string"
+          },
+          "responsibilityAcceptedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "terminalDisposition": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "acknowledgedAtUtc",
+          "alertId",
+          "callUnitRequestedAtUtc",
+          "confirmedVersion",
+          "reasonCode",
+          "replayed",
+          "responseType",
+          "responsibilityAcceptedAtUtc",
+          "terminalDisposition"
+        ],
         "type": "object"
       },
       "RecordRecipientResponseRequest": {
@@ -389,6 +1773,7 @@
       "SimulationDepartmentResponse": {
         "properties": {
           "departmentId": {
+            "format": "uuid",
             "type": "string"
           },
           "name": {
@@ -415,9 +1800,25 @@
         ],
         "type": "object"
       },
+      "SimulationDispatchScenarioView": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "scenario"
+        ],
+        "type": "object"
+      },
       "SimulationLocationContextResponse": {
         "properties": {
           "organizationId": {
+            "format": "uuid",
             "type": "string"
           },
           "sites": {
@@ -445,6 +1846,7 @@
             "type": "string"
           },
           "siteId": {
+            "format": "uuid",
             "type": "string"
           }
         },
@@ -553,7 +1955,47 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -590,7 +2032,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -629,7 +2134,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -646,6 +2214,14 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
               "type": "string"
             }
           }
@@ -668,7 +2244,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertLifecycleResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -685,6 +2324,14 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
               "type": "string"
             }
           }
@@ -707,7 +2354,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmAlertReviewResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -730,7 +2440,40 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryStatusView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -769,7 +2512,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -792,7 +2598,47 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertLiveView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -831,7 +2677,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -848,6 +2757,14 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
               "type": "string"
             }
           }
@@ -870,7 +2787,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertLifecycleResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -893,7 +2873,67 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertReviewView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -932,7 +2972,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -959,8 +3062,61 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertDraftView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -971,8 +3127,31 @@
     "/api/v1/authorization/administrator": {
       "get": {
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -983,8 +3162,31 @@
     "/api/v1/authorization/operator": {
       "get": {
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1006,8 +3208,31 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1018,8 +3243,31 @@
     "/api/v1/authorization/practitioner": {
       "get": {
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1040,8 +3288,41 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1061,7 +3342,47 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationDispatchScenarioView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1097,7 +3418,50 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationDispatchScenarioView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1109,7 +3473,20 @@
       "get": {
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DevelopmentIdentityResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1175,8 +3552,24 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1187,8 +3580,11 @@
     "/api/v1/dev/session/clear": {
       "post": {
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1198,9 +3594,75 @@
     },
     "/api/v1/directory/imports": {
       "post": {
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "preview_token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file",
+                  "preview_token"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryImportApplyResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryImportApplyResult"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1210,9 +3672,71 @@
     },
     "/api/v1/directory/imports/preview": {
       "post": {
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryImportPreviewResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1262,7 +3786,50 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DirectoryPractitionerListItem"
+                  },
+                  "type": "array"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1274,7 +3841,37 @@
       "get": {
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1286,7 +3883,50 @@
       "get": {
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyAlertSummaryView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1309,7 +3949,57 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAlertDetailView"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1326,6 +4016,14 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
               "type": "string"
             }
           }
@@ -1348,7 +4046,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenedRecipientAlertResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [
@@ -1365,6 +4126,14 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
               "type": "string"
             }
           }
@@ -1387,7 +4156,70 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipientResponseResult"
+                }
+              }
+            },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "description": "Payload Too Large"
+          },
+          "429": {
+            "description": "Too Many Requests"
           }
         },
         "tags": [

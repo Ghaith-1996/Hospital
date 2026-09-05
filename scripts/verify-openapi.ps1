@@ -43,7 +43,7 @@ function ConvertTo-CanonicalOpenApiJson {
 
 try {
     New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
-    & $dotnet build $apiProject --no-restore --verbosity quiet
+    & $dotnet build $apiProject --configuration Release --no-restore --verbosity quiet
     if ($LASTEXITCODE -ne 0) { throw "The API build failed." }
 
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -58,9 +58,18 @@ try {
         "ConnectionStrings__CriticalAlerts" = "Host=127.0.0.1;Database=openapi_unused;Username=unused;Password=unused"
         "DataProtection__Key" = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
     }
-    $process = Start-Process -FilePath $dotnet -ArgumentList @(
-        "run", "--project", $apiProject, "--no-build", "--no-restore", "--urls", $url
-    ) -Environment $environment -RedirectStandardOutput $standardOutputPath -RedirectStandardError $standardErrorPath -WindowStyle Hidden -PassThru
+    $apiAssembly = Join-Path (Split-Path -Parent $apiProject) "bin\Release\net10.0\CriticalAlerts.Api.dll"
+    $startOptions = @{
+        FilePath = $dotnet
+        ArgumentList = @(('"' + $apiAssembly + '"'), "--urls", $url)
+        WorkingDirectory = Split-Path -Parent $apiProject
+        Environment = $environment
+        RedirectStandardOutput = $standardOutputPath
+        RedirectStandardError = $standardErrorPath
+        PassThru = $true
+    }
+    if ($IsWindows) { $startOptions.WindowStyle = "Hidden" }
+    $process = Start-Process @startOptions
 
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
     do {
@@ -93,6 +102,12 @@ finally {
         $process.WaitForExit()
     }
     if (Test-Path -LiteralPath $temporaryDirectory) {
+        $resolvedTemporaryDirectory = [IO.Path]::GetFullPath($temporaryDirectory)
+        $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar)
+        if ([IO.Path]::GetDirectoryName($resolvedTemporaryDirectory) -ne $temporaryRoot -or
+            [IO.Path]::GetFileName($resolvedTemporaryDirectory) -notmatch '^critical-alerts-openapi-[a-f0-9]{32}$') {
+            throw "Refusing to delete an unexpected temporary directory: $resolvedTemporaryDirectory"
+        }
         Remove-Item -LiteralPath $temporaryDirectory -Recurse -Force
     }
 }
