@@ -1,6 +1,6 @@
 # Alert State Machine
 
-Status: Phase 7 simulation dispatch implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical escalation or resolution policy.
+Status: Phase 8 simulation response/lifecycle implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical responsibility, escalation, cancellation, fallback, or resolution policy.
 
 ## Alert lifecycle states
 
@@ -26,7 +26,7 @@ stateDiagram-v2
     PendingConfirmation --> DispatchQueued: explicit human confirmation
     DispatchQueued --> Active: durable dispatch activity
     DispatchQueued --> Failed: no viable dispatch activity
-    Active --> Active: delivery/event/response/escalation update
+    Active --> Active: delivery/event/response update
     Active --> Failed: durable failure requiring attention
     Active --> Resolved: authorized human resolve
     Draft --> Cancelled: permitted human cancel
@@ -57,6 +57,12 @@ The Phase 5 API does not select recipients, confirm dispatch, create outbox work
 ## Phase 7 dispatch boundary
 
 Phase 6 confirmation is the only entry into `DispatchQueued`. Phase 7 may move a confirmed alert to `Active` only after a durable simulation delivery attempt is recorded. The worker does not create a recipient, alter the approved version, infer a role, or select a new channel. It records delivery attempts and normalized synthetic provider events separately from opened, acknowledged, and responsibility-accepted states. A completed simulation delivery does not resolve the alert, and an outage or invalid dispatch remains visible as `Failed` or queued retry activity.
+
+## Phase 8 response boundary
+
+Phase 8 response commands are available only in Development/Test to an authenticated Practitioner or Physician with an explicit organization-scoped user-to-practitioner link. The linked practitioner may act only on a confirmed `Active` alert version that explicitly addresses that practitioner. Display name, development handle, request body, route data, and caller-supplied organization values cannot establish practitioner identity or scope.
+
+SecureMessage opening, acknowledgement, call-unit request, terminal disposition, responsibility assignment, and alert lifecycle are independent dimensions. Acknowledgement or a call-unit request does not create responsibility. `Accepted` creates one durable responsibility assignment tied to the exact practitioner, alert, version, and accepted response. `Declined` and `Unavailable` create no assignment and trigger no escalation. Responses do not automatically change the alert lifecycle. An authorized simulation operator may cancel an `Active` alert, or resolve it only when an unreleased responsibility assignment exists for the exact confirmed version; both actions require an idempotency key and exact-version check. Delivery failures remain visible and may show a non-routing manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`.
 
 ## Dispatch confirmation invariant
 
@@ -102,6 +108,8 @@ Escalation evaluates the approved policy version captured at confirmation using 
 The trigger, delay, retry limit, stop condition, backup hierarchy, override, and manual fallback are `REQUIRES_HOSPITAL_DECISION`. Simulation timing must be labelled `DEMO` and driven by a deterministic fake clock.
 
 ## Illegal transitions and required tests
+
+Simulation opened/response commands and resolve/cancel commands acquire the same organization-scoped PostgreSQL alert row lock inside their transaction before reading idempotency or current state. A command that follows a committed terminal lifecycle transition cannot append a new response or responsibility assignment. A resolution that follows a committed acceptance sees its durable responsibility assignment. Successful idempotent replays remain available without creating new events.
 
 Implementation must reject and test:
 

@@ -17,8 +17,9 @@ internal static class SimulationDispatchEndpoints
             return;
         }
 
-        var scenarios = app.MapGroup("/api/dev/dispatch-scenarios")
-            .RequireAuthorization(AuthorizationPolicies.DispatchScenarioAdministrator);
+        var scenarios = app.MapGroup($"{ApiRouteConstants.BasePath}/dev/dispatch-scenarios")
+            .RequireAuthorization(AuthorizationPolicies.DispatchScenarioAdministrator)
+            .RequireRateLimiting("api");
         scenarios.MapGet("/{channel}", Get);
         scenarios.MapPut("/{channel}", Set);
         scenarios.MapDelete("/{channel}", Reset);

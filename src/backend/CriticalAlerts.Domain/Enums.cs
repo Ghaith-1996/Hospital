@@ -61,6 +61,20 @@ public enum RecipientResponseType
     CallUnitRequested = 4,
 }
 
+public enum RecipientResponseCategory
+{
+    Acknowledgement = 0,
+    TerminalDisposition = 1,
+    CallUnitRequest = 2,
+}
+
+public enum RecipientSelectionSource
+{
+    Manual = 0,
+    TeamExpansion = 1,
+    EscalationPolicy = 2,
+}
+
 public enum OnCallTier
 {
     Primary = 0,

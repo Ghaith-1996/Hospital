@@ -16,7 +16,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
     {
         using var client = fixture.CreateClient();
 
-        using var response = await client.GetAsync("/api/directory/practitioners");
+        using var response = await client.GetAsync("/api/v1/directory/practitioners");
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -29,7 +29,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = fixture.CreateClient();
         using var content = new MultipartFormDataContent();
 
-        using var response = await client.PostAsync("/api/directory/imports/preview", content);
+        using var response = await client.PostAsync("/api/v1/directory/imports/preview", content);
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -44,7 +44,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
     public async Task DirectorySearchAuthorizationMatchesSeededRoles(string handle, HttpStatusCode expected)
     {
         using var client = await fixture.CreateSignedInClientAsync(handle);
-        (await client.GetAsync("/api/directory/practitioners?q=Martin")).StatusCode.Should().Be(expected);
+        (await client.GetAsync("/api/v1/directory/practitioners?q=Martin")).StatusCode.Should().Be(expected);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
         client.DefaultRequestHeaders.Add("X-Organization-Id", Guid.NewGuid().ToString("D"));
 
-        using var response = await client.GetAsync("/api/directory/practitioners?q=Martin");
+        using var response = await client.GetAsync("/api/v1/directory/practitioners?q=Martin");
         var body = await response.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -67,7 +67,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
 
         using var response = await client.GetAsync(
-            "/api/directory/practitioners?department=Fictional%20Emergency%20Care&site=North%20Wing%20Simulation%20Site&includeInactive=false");
+            "/api/v1/directory/practitioners?department=Fictional%20Emergency%20Care&site=North%20Wing%20Simulation%20Site&includeInactive=false");
         var bodyText = await response.Content.ReadAsStringAsync();
         var body = await response.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
 
@@ -91,23 +91,23 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(handle);
         using var content = CsvContent(File.ReadAllText(FixturePath()));
 
-        (await client.PostAsync("/api/directory/imports/preview", content)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await client.PostAsync("/api/v1/directory/imports/preview", content)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
     public async Task AdministratorPreviewDoesNotPersistCsvAdapterRecords()
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
-        using var before = await client.GetAsync("/api/directory/practitioners");
+        using var before = await client.GetAsync("/api/v1/directory/practitioners");
         var beforeBody = await before.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
 
         using var content = CsvContent(File.ReadAllText(FixturePath()));
-        using var preview = await client.PostAsync("/api/directory/imports/preview", content);
+        using var preview = await client.PostAsync("/api/v1/directory/imports/preview", content);
         var previewBody = await preview.Content.ReadFromJsonAsync<DirectoryImportPreviewResult>();
 
-        using var after = await client.GetAsync("/api/directory/practitioners");
+        using var after = await client.GetAsync("/api/v1/directory/practitioners");
         var afterBody = await after.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
-        using var martins = await client.GetAsync("/api/directory/practitioners?q=Martin");
+        using var martins = await client.GetAsync("/api/v1/directory/practitioners?q=Martin");
         var martinBody = await martins.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
 
         preview.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -125,7 +125,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
         using var content = new MultipartFormDataContent();
 
-        using var response = await client.PostAsync("/api/directory/imports/preview", content);
+        using var response = await client.PostAsync("/api/v1/directory/imports/preview", content);
         var body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest, body);
@@ -143,7 +143,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
             StringComparison.Ordinal);
         using var content = CsvContent(csv);
 
-        using var response = await client.PostAsync("/api/directory/imports", content);
+        using var response = await client.PostAsync("/api/v1/directory/imports", content);
         var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -158,13 +158,13 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
         var csv = File.ReadAllText(FixturePath());
         using var previewContent = CsvContent(csv);
-        using var previewResponse = await client.PostAsync("/api/directory/imports/preview", previewContent);
+        using var previewResponse = await client.PostAsync("/api/v1/directory/imports/preview", previewContent);
         var preview = await previewResponse.Content.ReadFromJsonAsync<DirectoryImportPreviewResult>();
         using var content = CsvContent(csv, preview!.PreviewToken);
 
-        using var response = await client.PostAsync("/api/directory/imports", content);
+        using var response = await client.PostAsync("/api/v1/directory/imports", content);
         var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
-        using var search = await client.GetAsync("/api/directory/practitioners?q=Martin");
+        using var search = await client.GetAsync("/api/v1/directory/practitioners?q=Martin");
         var martins = await search.Content.ReadFromJsonAsync<DirectoryPractitionerListItem[]>();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -180,7 +180,7 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
         using var content = CsvContent(File.ReadAllText(FixturePath()));
 
-        using var response = await client.PostAsync("/api/directory/imports", content);
+        using var response = await client.PostAsync("/api/v1/directory/imports", content);
         var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -194,12 +194,12 @@ public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
         var csv = File.ReadAllText(FixturePath());
         using var previewContent = CsvContent(csv);
-        using var previewResponse = await client.PostAsync("/api/directory/imports/preview", previewContent);
+        using var previewResponse = await client.PostAsync("/api/v1/directory/imports/preview", previewContent);
         var preview = await previewResponse.Content.ReadFromJsonAsync<DirectoryImportPreviewResult>();
         var changedCsv = csv.Replace("2026-08-01T12:00:00Z", "2026-08-02T12:00:00Z", StringComparison.Ordinal);
         using var applyContent = CsvContent(changedCsv, preview!.PreviewToken);
 
-        using var response = await client.PostAsync("/api/directory/imports", applyContent);
+        using var response = await client.PostAsync("/api/v1/directory/imports", applyContent);
         var body = await response.Content.ReadFromJsonAsync<DirectoryImportApplyResult>();
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);

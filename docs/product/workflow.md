@@ -1,16 +1,17 @@
-﻿# Workflow Specification
+# Workflow Specification
 
-Status: Proposed simulation workflow with the Phase 7 dispatch-worker path implemented locally. It is not a hospital-approved clinical workflow or escalation policy.
+Status: Proposed simulation workflow through the local Phase 8 practitioner-response, lifecycle, and fallback-display boundary. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
 
-Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. It does not call real providers, receive external callbacks, collect doctor responses, expose a live screen, or perform escalation. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Frontend prototype surface
 
 The active work is the approved frontend-only prototype redesign described in
 `docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`.
 It may implement the nine fictional operator/doctor UI states with local mock
-state only. Phase 7 remains the backend baseline. No backend doctor responses,
-live delivery behavior, or escalation processing are authorized.
+state only. The retained backend baseline includes Phase 8 simulation responses
+and compliance corrections from main; this frontend does not connect to it.
+No new backend behavior or escalation processing is authorized by the redesign.
 
 Within the frontend prototype only:
 
@@ -19,6 +20,8 @@ Within the frontend prototype only:
 - Local demo escalation steps and fixed progress states are `SIMULATION_ONLY_ASSUMPTION`.
 - No backend, API, database, migration, worker, provider, authentication, or infrastructure change is authorized for this prototype surface.
 - Real doctor response workflow authority, escalation triggers, delays, retry counts, stop conditions, backup hierarchy, override rules, and any hospital policy values remain `REQUIRES_HOSPITAL_DECISION`.
+
+The backend flow described below remains available through the Phase 8 API and its backend tests. It is not connected to the active local prototype UI. Legacy live-status URLs redirect to the local alert details route.
 
 ## Workflow identity
 
@@ -63,8 +66,14 @@ flowchart TD
     J --> K[Simulated channels create separate delivery states]
     K --> L[Recipient may open and acknowledge]
     L --> M[Recipient may accept, decline, or be unavailable]
-    M --> N[Versioned DEMO policy evaluates next step]
-    N --> O[Human records resolution or approved fallback]
+    M --> N[Operator views refreshed status]
+    N --> O{Operator action?}
+    O -- No --> P[Remain Active]
+    O -- Cancel --> Q[Simulation alert Cancelled]
+    O -- Resolve after accepted responsibility --> R[Simulation alert Resolved]
+    K --> S{Delivery failure?}
+    S -- Yes --> T[Show manual fallback placeholder]
+    T --> N
 ```
 
 ## Step-by-step behavior
@@ -136,15 +145,20 @@ The simulation worker creates per-recipient, per-channel delivery attempts with 
 
 These are not a single linear clinical state. A supported state may be pending/not observed, occurred, failed, or not applicable according to the channel capability. A recipient can acknowledge without accepting responsibility. A provider failure cannot be hidden by a later success on another channel.
 
-### 9. Respond and escalate
+### 9. Respond and observe
 
-Fictional recipients may acknowledge, accept, decline, or mark unavailable. In the frontend-only prototype surface, these response values are `SIMULATION_ONLY_ASSUMPTION` local mock state only. The prototype may show actor, response type, and sanitized reason-code details as local mock state only. Any rendered escalation progress in the prototype is `SIMULATION_ONLY_ASSUMPTION` local mock state only and stays a fixed, clearly demo-labelled visual state with no timers, schedulers, retries, or automatic transitions.
+In Development/Test, the server resolves the authenticated fictional user's practitioner through an explicit organization-scoped link. A mapped Practitioner sees only confirmed Active alerts whose exact version addresses that practitioner. SecureMessage may record an opened timestamp; SMS and Voice report opening as `NotApplicable`.
 
-The exact production trigger, delay, retry count, stop condition, backup hierarchy, and override authority are `REQUIRES_HOSPITAL_DECISION`.
+The practitioner may acknowledge independently, request that the simulation call unit be notified, and may record exactly one terminal disposition: accepted, declined, or unavailable. Acceptance creates one durable responsibility assignment tied to that exact alert version and response; acknowledgement or a call-unit request alone does not. Declined and unavailable remain visible but trigger no automatic next step. Safe reason codes are allowlisted and no free-text reason is accepted.
 
-### 10. Resolve, cancel, or use fallback
+An Operator, Administrator, ClinicalSupervisor, Auditor, or SystemAdministrator may view the organization-scoped live projection according to the server policy. The page refreshes on a five-second polling interval and labels the displayed refresh time; it is not a real-time callback or push surface. It exposes operational status only, never protected message content, contact values, or raw provider references.
 
-The final action is an explicit human action. The exact roles and clinical criteria are `REQUIRES_HOSPITAL_DECISION`. The simulation can exercise resolve, cancel, and visible manual-fallback states without asserting that any of them is appropriate in a hospital.
+### 10. Resolve, cancel, and show fallback
+
+The live simulation projection exposes `Resolve alert` only when the alert is `Active` and an unreleased responsibility assignment exists for the confirmed version. It exposes `Cancel alert` while the alert is `Active`. Both commands require the exact confirmed version, an authenticated lifecycle-operator role, and an idempotency key; they are organization-scoped and do not create provider side effects. A repeated identical command replays the stored result.
+
+If the alert or any delivery attempt has a durable failure, the live projection displays a manual-fallback placeholder. The placeholder does not name a telephone number, pager, switchboard, person, or escalation interval. The production fallback route, authority, and documentation are `REQUIRES_HOSPITAL_DECISION`.
+
 
 ## Exception paths
 
@@ -158,8 +172,13 @@ The final action is an explicit human action. The exact roles and clinical crite
 | Stale/inactive directory entry | Show freshness; block or permit selection only according to `REQUIRES_HOSPITAL_DECISION`; simulation may block it. |
 | Duplicate confirmation | Idempotency and optimistic concurrency prevent duplicate dispatch. |
 | Provider callback replay/out of order | Authenticate, validate, deduplicate, and normalize without regressing durable state. |
-| All channels fail | Show a durable operator-visible failure and the hospital-approved fallback placeholder; never silently disappear. |
-| Acknowledged but not accepted | Keep acknowledgement and responsibility separate; escalation follows the approved policy rather than stopping automatically. |
+| All channels fail | Show a durable operator-visible failure and the simulation manual-fallback placeholder; never silently disappear. The hospital-approved fallback route is `REQUIRES_HOSPITAL_DECISION`. |
+| Acknowledged but not accepted | Keep acknowledgement and responsibility separate; no automatic escalation or lifecycle action is taken. |
+| Duplicate or concurrent response | Scope the idempotency key to the authenticated organization and operation; enforce one acknowledgement and one terminal disposition per practitioner/alert/version. |
+| Accepted response | Create one durable responsibility assignment for the exact practitioner and alert version; the authorized operator may later resolve the active alert. |
+| Declined or unavailable response | Keep the terminal disposition visible; do not infer escalation, reassignment, resolution, or cancellation. |
+| Call-unit request | Record one non-terminal call-unit request with an allowlisted simulation reason; do not page or contact a real unit. |
+| Operator resolve/cancel | Require exact version, authenticated lifecycle role, and idempotency; resolve additionally requires an unreleased exact-version responsibility assignment. |
 | Channel cannot report opened | Record `NotApplicable`; do not infer opened, acknowledged, or responsibility accepted. |
 | Concurrent operator edit | Reject stale version updates and require the operator to refresh/review. |
 

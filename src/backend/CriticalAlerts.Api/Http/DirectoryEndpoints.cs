@@ -9,7 +9,8 @@ internal static class DirectoryEndpoints
 {
     public static void MapDirectoryEndpoints(this WebApplication app)
     {
-        var directory = app.MapGroup("/api/directory");
+        var directory = app.MapGroup($"{ApiRouteConstants.BasePath}/directory")
+            .RequireRateLimiting("api");
         directory.MapGet("/practitioners", Search).RequireAuthorization(AuthorizationPolicies.DirectoryReader);
         directory.MapPost("/imports/preview", Preview)
             .RequireAuthorization(AuthorizationPolicies.DirectoryAdministrator)

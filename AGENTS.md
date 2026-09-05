@@ -4,12 +4,7 @@ This file governs all future work in this repository. Read it and the relevant `
 
 ## Current phase
 
-The active work is the approved frontend-only prototype redesign described in
-`docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`.
-It may implement the nine fictional operator/doctor UI states with local mock
-state only. Phase 7 remains the backend baseline. Do not add backend doctor
-responses, live delivery behavior, escalation processing, real providers,
-production identity, hospital integration, or real data.
+The active frontend is the approved local prototype redesign in `docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`. Its nine operator/doctor states use fictional local mock data only. The backend baseline includes the Phase 8 simulation-only practitioner-response and compliance corrections from main; preserve its API, migrations, identity, data-protection, lifecycle, and concurrency safeguards. The prototype does not call these APIs. Do not add real providers, external callbacks, escalation automation, production identity, hospital integration, AI, real data, or Phase 9 behavior. Production lifecycle, responsibility, escalation, and fallback policy remain `REQUIRES_HOSPITAL_DECISION`.
 
 The approved phase is the only phase in scope. At the end of every phase, report files changed, decisions made, commands run, test results, limitations, human actions, and a proposed commit message, then stop for review.
 

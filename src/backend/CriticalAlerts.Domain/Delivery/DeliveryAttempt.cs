@@ -60,6 +60,8 @@ public sealed class DeliveryAttempt
 
     public ObservationState OpenedState { get; private set; }
 
+    public DateTimeOffset? OpenedAtUtc { get; private set; }
+
     public DateTimeOffset RequestedAtUtc { get; private set; }
 
     public DateTimeOffset? SubmittedAtUtc { get; private set; }
@@ -158,5 +160,16 @@ public sealed class DeliveryAttempt
         Status = DeliveryAttemptStatus.Failed;
         FailureCategory = failureCategory.Trim();
         FailedAtUtc ??= UtcInstant.Require(failedAtUtc, nameof(failedAtUtc));
+    }
+
+    public void MarkOpened(DateTimeOffset openedAtUtc)
+    {
+        if (OpenedState == ObservationState.NotApplicable)
+        {
+            return;
+        }
+
+        OpenedState = ObservationState.Occurred;
+        OpenedAtUtc ??= UtcInstant.Require(openedAtUtc, nameof(openedAtUtc));
     }
 }

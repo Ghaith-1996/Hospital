@@ -30,11 +30,11 @@ The user's mandatory rules are binding. The attached master build plan supplies 
 | Event that triggers the workflow | `REQUIRES_HOSPITAL_DECISION` | A manually entered fictional urgent consultation scenario. The system does not infer urgency. |
 | Required fields | `REQUIRES_HOSPITAL_DECISION` | Source text, operator-selected urgency field, fictional patient reference, fictional location, approved message, at least one manually selected recipient, and confirmed critical numbers/units when present. |
 | Who may receive | `REQUIRES_HOSPITAL_DECISION` | Only manually selected active fictional practitioners in the seeded directory. |
-| Must all recipients respond? | `REQUIRES_HOSPITAL_DECISION` | The simulation displays every recipient separately and allows each to acknowledge, accept, decline, or be unavailable. It does not imply a production quorum. |
+| Must all recipients respond? | `REQUIRES_HOSPITAL_DECISION` | The simulation displays every recipient separately and allows each to acknowledge, request a call unit, accept, decline, or be unavailable. It does not imply a production quorum. |
 | Acknowledgement meaning | `REQUIRES_HOSPITAL_DECISION` | A fictional recipient records that the alert was opened/seen in the simulation. This does not accept responsibility. |
 | Responsibility acceptance meaning | `REQUIRES_HOSPITAL_DECISION` | A fictional practitioner deliberately records acceptance in the simulation. This is separate from acknowledgement. |
 | Resolution meaning | `REQUIRES_HOSPITAL_DECISION` | A fictional authorized operator performs an explicit resolve action after the test scenario's acceptance condition. The production condition is not defined. |
-| Who may cancel | `REQUIRES_HOSPITAL_DECISION` | The simulation exposes cancel only to seeded roles configured for the fixture; no production role is inferred. |
+| Who may cancel | `REQUIRES_HOSPITAL_DECISION` | The simulation exposes cancel only to the server-side lifecycle policy in Development/Test; no production role is inferred. |
 | No-response behavior | `REQUIRES_HOSPITAL_DECISION` | The simulation records a deterministic, versioned `DEMO` policy chosen for tests. It must not be reused in production. |
 | Manual fallback | `REQUIRES_HOSPITAL_DECISION` | The UI must show a placeholder instruction that a hospital-approved manual fallback is required; no real number or procedure is invented. |
 | Escalation policy source | `REQUIRES_HOSPITAL_DECISION` | A versioned simulation policy is referenced by identifier only. The worker must not create or infer production policy. |
@@ -117,15 +117,20 @@ The following is a `SIMULATION_ONLY_ASSUMPTION` contract for repeatable tests. I
 
 | Fictional simulation role | Allowed simulation actions |
 |---|---|
-| `SIMULATION_OPERATOR` | Create/edit drafts, confirm numbers and units, manually select recipients, confirm dispatch, monitor status, and invoke fixture-approved operator actions. |
-| `SIMULATION_PRACTITIONER` | View alerts addressed to that fictional practitioner and record acknowledgement, responsibility acceptance, decline, or unavailability. |
+| `SIMULATION_OPERATOR` | Create/edit drafts, confirm numbers and units, manually select recipients, confirm dispatch, monitor status, and invoke fixture-approved lifecycle actions. |
+| `SIMULATION_PHYSICIAN` | View alerts addressed to that fictional practitioner and record acknowledgement, call-unit request, responsibility acceptance, decline, or unavailability. |
+| `SIMULATION_CLINICAL_SUPERVISOR` | Review safe live simulation status and invoke fixture-approved lifecycle actions when the server policy permits. |
 | `SIMULATION_DIRECTORY_ADMIN` | Preview/import the fictional directory CSV and review freshness/conflict results. |
+| `SIMULATION_INTEGRATION_ADMIN` | Administer only fictional dispatch-scenario controls in Development/Test; no provider or integration is configured. |
 | `SIMULATION_AUDITOR` | Read sanitized simulation audit events without changing workflow state. |
+| `SIMULATION_SYSTEM_ADMIN` | Exercise explicitly permitted simulation administration and lifecycle policy checks; no production privilege is implied. |
+
+`Administrator` and `Practitioner` remain compatibility role names for the existing seeded demo users. The distinct role names above are seeded as separate simulation roles and have separate server policies; their production identity mapping and separation of duties are `REQUIRES_HOSPITAL_DECISION`.
 
 The simulation contract also fixes these non-clinical test mechanics:
 
 - Operator-selected urgency is represented only by a visibly `DEMO` label; AI never assigns it.
-- Cancellation is available only before `DispatchQueued` in simulation tests.
+- Cancellation is available only for an `Active` alert in simulation tests and requires the exact confirmed version plus an idempotency key.
 - Resolution is available only after the simulation records at least one responsibility-accepted response; this does not represent clinical resolution.
 - Acknowledgement and responsibility acceptance are separate actions and separate records.
 - A deterministic fake clock may drive a versioned `DEMO` policy. No production delay, retry count, stop condition, or backup rule is defined here.

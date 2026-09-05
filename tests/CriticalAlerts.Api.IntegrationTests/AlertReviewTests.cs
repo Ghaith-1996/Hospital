@@ -30,15 +30,15 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
             CriticalFields = [new AlertCriticalFieldInput("bloodPressure", "88/54", "mmHg")],
         };
 
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", request);
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", request);
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
         using var approved = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft!.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft!.AlertId:D}/approved-message",
             new SetApprovedMessageRequest(draft.DraftVersion, approvedMessage));
         var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
         var maya = await SearchMayaAsync(client);
         using var recipients = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/recipients",
+            $"/api/v1/alerts/{draft.AlertId:D}/recipients",
             new ReplaceAlertRecipientsRequest(
                 approvedDraft!.DraftVersion,
                 [new AlertRecipientInput(
@@ -48,7 +48,7 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
                     maya.SelectionRevision)]));
         var recipientDraft = await recipients.Content.ReadFromJsonAsync<AlertDraftView>();
         using var fieldConfirmation = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/field-confirmations",
+            $"/api/v1/alerts/{draft.AlertId:D}/field-confirmations",
             new ConfirmAlertCriticalFieldRequest(
                 recipientDraft!.DraftVersion,
                 "bloodPressure",
@@ -57,10 +57,10 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
                 "mmHg"));
         var confirmedDraft = await fieldConfirmation.Content.ReadFromJsonAsync<AlertDraftView>();
         using var submit = await client.PostAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/submit-for-confirmation",
+            $"/api/v1/alerts/{draft.AlertId:D}/submit-for-confirmation",
             new SubmitAlertDraftRequest(confirmedDraft!.DraftVersion));
 
-        using var reviewResponse = await client.GetAsync($"/api/alerts/{draft.AlertId:D}/review");
+        using var reviewResponse = await client.GetAsync($"/api/v1/alerts/{draft.AlertId:D}/review");
         var reviewBody = await reviewResponse.Content.ReadAsStringAsync();
         var review = await reviewResponse.Content.ReadFromJsonAsync<AlertReviewView>();
 
@@ -109,17 +109,17 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
     {
         const string approvedSentinel = "SIMULATION: review-not-ready approved sentinel";
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var create = await client.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var create = await client.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
-        using var draftReview = await client.GetAsync($"/api/alerts/{draft!.AlertId:D}/review");
+        using var draftReview = await client.GetAsync($"/api/v1/alerts/{draft!.AlertId:D}/review");
         var draftReviewBody = await draftReview.Content.ReadAsStringAsync();
 
         using var approved = await client.PutAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}/approved-message",
+            $"/api/v1/alerts/{draft.AlertId:D}/approved-message",
             new SetApprovedMessageRequest(draft.DraftVersion, approvedSentinel));
         var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
-        using var incompleteReview = await client.GetAsync($"/api/alerts/{draft.AlertId:D}/review");
+        using var incompleteReview = await client.GetAsync($"/api/v1/alerts/{draft.AlertId:D}/review");
         var incompleteBody = await incompleteReview.Content.ReadAsStringAsync();
 
         draftReview.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -130,12 +130,12 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
         incompleteBody.Should().NotContain(approvedSentinel);
 
         using var edited = await client.PatchAsJsonAsync(
-            $"/api/alerts/{draft.AlertId:D}",
+            $"/api/v1/alerts/{draft.AlertId:D}",
             ValidUpdateRequest(approvedDraft!.DraftVersion) with
             {
                 CriticalFields = [new AlertCriticalFieldInput("heartRate", "117", "beats/min")],
             });
-        using var changedVersionReview = await client.GetAsync($"/api/alerts/{draft.AlertId:D}/review");
+        using var changedVersionReview = await client.GetAsync($"/api/v1/alerts/{draft.AlertId:D}/review");
 
         edited.StatusCode.Should().Be(HttpStatusCode.OK);
         changedVersionReview.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -146,17 +146,17 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
     public async Task ReviewIsOrganizationScopedAndAuthorizationProtected()
     {
         using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var create = await operatorClient.PostAsJsonAsync("/api/alerts/drafts", ValidCreateRequest());
+        using var create = await operatorClient.PostAsJsonAsync("/api/v1/alerts/drafts", ValidCreateRequest());
         var draft = await create.Content.ReadFromJsonAsync<AlertDraftView>();
 
         using var anonymous = fixture.CreateClient();
-        using var anonymousResponse = await anonymous.GetAsync($"/api/alerts/{draft!.AlertId:D}/review");
+        using var anonymousResponse = await anonymous.GetAsync($"/api/v1/alerts/{draft!.AlertId:D}/review");
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
-        using var practitionerResponse = await practitioner.GetAsync($"/api/alerts/{draft.AlertId:D}/review");
+        using var practitionerResponse = await practitioner.GetAsync($"/api/v1/alerts/{draft.AlertId:D}/review");
 
         var foreignFixture = await fixture.CreateForeignOperatorDraftAsync();
         using var foreign = await fixture.CreateSignedInClientAsync(foreignFixture.SimulationHandle);
-        using var foreignResponse = await foreign.GetAsync($"/api/alerts/{draft.AlertId:D}/review");
+        using var foreignResponse = await foreign.GetAsync($"/api/v1/alerts/{draft.AlertId:D}/review");
 
         anonymousResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         practitionerResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -167,7 +167,7 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
     private static async Task<DirectoryPractitionerListItem> SearchMayaAsync(HttpClient client)
     {
         var results = await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
-            "/api/directory/practitioners?q=Maya&includeInactive=false");
+            "/api/v1/directory/practitioners?q=Maya&includeInactive=false");
         return results!.Single();
     }
 

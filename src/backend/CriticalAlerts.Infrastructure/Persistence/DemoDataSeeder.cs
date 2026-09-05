@@ -17,6 +17,13 @@ public sealed class DemoDataSeeder
     public static readonly DepartmentId EmergencyDepartmentId = new(Guid.Parse("11111111-1111-4111-8111-111111110301"));
     public static readonly RoleId OperatorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110401"));
     public static readonly RoleId PractitionerRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110402"));
+    public static readonly RoleId AdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110403"));
+    public static readonly RoleId PhysicianRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110404"));
+    public static readonly RoleId ClinicalSupervisorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110405"));
+    public static readonly RoleId DirectoryAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110406"));
+    public static readonly RoleId IntegrationAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110407"));
+    public static readonly RoleId AuditorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110408"));
+    public static readonly RoleId SystemAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110409"));
     public static readonly UserId JordanUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110501"));
     public static readonly UserId MorganUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110502"));
     public static readonly UserId RileyUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110503"));
@@ -24,6 +31,7 @@ public sealed class DemoDataSeeder
     public const string MorganHandle = "sim-administrator-morgan";
     public const string RileyHandle = "sim-practitioner-riley";
     public static readonly PractitionerId MayaChenId = new(Guid.Parse("11111111-1111-4111-8111-111111110101"));
+    public static readonly PractitionerId RileySatoId = new(Guid.Parse("11111111-1111-4111-8111-111111110108"));
     public static readonly PractitionerId TaylorKimId = new(Guid.Parse("11111111-1111-4111-8111-111111110111"));
 
     private readonly CriticalAlertsDbContext db;
@@ -40,6 +48,7 @@ public sealed class DemoDataSeeder
     {
         if (await db.Organizations.AnyAsync(organization => organization.Id == OrganizationId, cancellationToken))
         {
+            await EnsurePractitionerUserLinkAsync(cancellationToken);
             return;
         }
 
@@ -57,11 +66,26 @@ public sealed class DemoDataSeeder
         var operatorRole = Role.Create(new RoleId(Id("401")), OrganizationId, "Operator");
         var practitionerRole = Role.Create(new RoleId(Id("402")), OrganizationId, "Practitioner");
         var administratorRole = Role.Create(new RoleId(Id("403")), OrganizationId, "Administrator");
-        db.Roles.AddRange(operatorRole, practitionerRole, administratorRole);
+        var physicianRole = Role.Create(PhysicianRoleId, OrganizationId, "Physician");
+        var clinicalSupervisorRole = Role.Create(ClinicalSupervisorRoleId, OrganizationId, "ClinicalSupervisor");
+        var directoryAdministratorRole = Role.Create(DirectoryAdministratorRoleId, OrganizationId, "DirectoryAdministrator");
+        var integrationAdministratorRole = Role.Create(IntegrationAdministratorRoleId, OrganizationId, "IntegrationAdministrator");
+        var auditorRole = Role.Create(AuditorRoleId, OrganizationId, "Auditor");
+        var systemAdministratorRole = Role.Create(SystemAdministratorRoleId, OrganizationId, "SystemAdministrator");
+        db.Roles.AddRange(
+            operatorRole,
+            practitionerRole,
+            administratorRole,
+            physicianRole,
+            clinicalSupervisorRole,
+            directoryAdministratorRole,
+            integrationAdministratorRole,
+            auditorRole,
+            systemAdministratorRole);
 
         var jordan = UserAccount.CreateSimulation(new UserId(Id("501")), OrganizationId, "Jordan Lee", JordanHandle, SeededAt);
         var morgan = UserAccount.CreateSimulation(new UserId(Id("502")), OrganizationId, "Morgan Ellis", MorganHandle, SeededAt);
-        var riley = UserAccount.CreateSimulation(RileyUserId, OrganizationId, "Riley Cole", RileyHandle, SeededAt);
+        var riley = UserAccount.CreateSimulation(RileyUserId, OrganizationId, "Riley Sato", RileyHandle, SeededAt);
         db.Users.AddRange(jordan, morgan, riley);
         db.UserRoles.AddRange(
             UserRole.Create(OrganizationId, jordan.Id, operatorRole.Id),
@@ -76,6 +100,12 @@ public sealed class DemoDataSeeder
 
         var practitioners = CreatePractitioners();
         db.Practitioners.AddRange(practitioners.Select(item => item.Practitioner));
+        db.PractitionerUserLinks.Add(PractitionerUserLink.Create(
+            new PractitionerUserLinkId(Id("602")),
+            OrganizationId,
+            RileyUserId,
+            RileySatoId,
+            SeededAt));
         db.PractitionerRoles.AddRange(
             PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("701")), OrganizationId, practitioners[0].Practitioner.Id, emergency.Id, "Emergency physician", true, "SIM-DIRECTORY", "SIM-SRC-MAYA"),
             PractitionerRoleAssignment.Create(new PractitionerRoleId(Id("704")), OrganizationId, practitioners[1].Practitioner.Id, medicine.Id, "Medicine consultant", true, "SIM-DIRECTORY", "SIM-SRC-ROWAN"),
@@ -95,6 +125,7 @@ public sealed class DemoDataSeeder
         AddEndpoint(practitioners[0].Practitioner, "SIM-SRC-MAYA", ContactEndpointKind.SecureMessage, "sim-secure://maya.chen", "SIM-SECURE-0101", false);
         AddEndpoint(practitioners[1].Practitioner, "SIM-SRC-ROWAN", ContactEndpointKind.Voice, "+1 555 010 0102", "SIM-VOICE-0102", true);
         AddEndpoint(practitioners[2].Practitioner, "SIM-SRC-JULES", ContactEndpointKind.SecureMessage, "sim-secure://jules.martin", "SIM-SECURE-0103", true);
+        AddEndpoint(practitioners[7].Practitioner, "SIM-SRC-RILEY", ContactEndpointKind.SecureMessage, "sim-secure://riley.sato", "SIM-SECURE-0108", true);
 
         db.OnCallAssignments.AddRange(
             OnCallAssignment.Create(new OnCallAssignmentId(Id("801")), OrganizationId, practitioners[0].Practitioner.Id, NorthSiteId, emergency.Id, OnCallTier.Primary, SeededAt, SeededAt.AddDays(7), "SIM-DIRECTORY", "SIM-SRC-ONCALL-1", SeededAt),
@@ -126,6 +157,35 @@ public sealed class DemoDataSeeder
         db.EscalationPolicies.Add(escalation);
         db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a04")), OrganizationId, escalation.Id, 1));
 
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsurePractitionerUserLinkAsync(CancellationToken cancellationToken)
+    {
+        if (await db.PractitionerUserLinks.AnyAsync(
+                link => link.OrganizationId == OrganizationId && link.UserId == RileyUserId,
+                cancellationToken))
+        {
+            return;
+        }
+
+        var userExists = await db.Users.AnyAsync(
+            user => user.OrganizationId == OrganizationId && user.Id == RileyUserId,
+            cancellationToken);
+        var practitionerExists = await db.Practitioners.AnyAsync(
+            practitioner => practitioner.OrganizationId == OrganizationId && practitioner.Id == RileySatoId,
+            cancellationToken);
+        if (!userExists || !practitionerExists)
+        {
+            throw new InvalidOperationException("The Phase 8 simulation practitioner link requires the seeded Riley user and practitioner.");
+        }
+
+        db.PractitionerUserLinks.Add(PractitionerUserLink.Create(
+            new PractitionerUserLinkId(Id("602")),
+            OrganizationId,
+            RileyUserId,
+            RileySatoId,
+            SeededAt));
         await db.SaveChangesAsync(cancellationToken);
     }
 

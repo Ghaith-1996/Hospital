@@ -1,10 +1,16 @@
-# Critical Clinician Alert Platform
+﻿# Critical Clinician Alert Platform
 
-Status: The active work is the approved frontend-only prototype redesign described in `docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md`. It may implement the nine fictional operator/doctor UI states with local mock state only. Phase 7 remains the backend baseline. No backend doctor responses, live delivery behavior, escalation processing, real providers, production identity, hospital integration, or real data are authorized in this phase.
+Status: The approved frontend-only prototype redesign runs on local fictional state. The repository also retains the Phase 8 backend simulation and compliance corrections from main; the prototype is not connected to those APIs.
 
-This workspace defines a human-confirmed, closed-loop clinician alert simulation. The current frontend-only prototype phase is local and visibly simulated. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
+This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection as the backend baseline. The approved frontend-only prototype phase may add local mock UI for doctor response, live-detail, and demo-escalation states as `SIMULATION_ONLY_ASSUMPTION` behavior. No backend doctor responses, live delivery behavior, escalation processing, real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, or real data are authorized.
+Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Phase 8 adds simulation practitioner responses, call-unit requests, operator resolve/cancel actions, a safe manual-fallback placeholder, and a read-only operator status surface. Real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, external callbacks, escalation automation, and Phase 9 remain out of scope.
+
+## Frontend prototype
+
+Run `npm --prefix src/web run dev` and open the local Next.js URL. Operator alert creation, review, details, and the fictional doctor inbox use one local browser store with an explicit simulation user switcher and reset. No API, database, real identity, or notification service is required for these screens. Directory, Reports, and Settings are coming later. The former `/alerts/[id]/live` UI redirects to the prototype details route; the backend live-status API remains available independently.
+
+The [frontend design](docs/superpowers/specs/2026-08-30-frontend-prototype-redesign-design.md) defines the local scope. Backend workflow and historical verification descriptions below document the retained Phase 8 implementation, not an active connection from this frontend.
 
 ## Source and decision precedence
 
@@ -38,11 +44,13 @@ The complete operating rules are in [AGENTS.md](AGENTS.md).
 
 ## Current status and review gate
 
-Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. The Phase 6 recipient-selection boundary is the implemented predecessor, and the Phase 7 simulation-only worker plan remains the backend baseline. The active work is the approved frontend-only prototype redesign for local, visibly simulated UI only. Hospital directory connections, production recipient eligibility, freshness limits, channel mappings, provider contracts, callback authentication, confirmer role mapping, real doctor-response workflow authority, and real escalation policy remain `REQUIRES_HOSPITAL_DECISION`.
+Phase 0 through Phase 5 approval are recorded, and the reviewed baselines are tagged through `phase-5`. Phase 6 recipient selection and Phase 7 simulated dispatch are implemented; Phase 7 is pushed at `45f4024` without a Phase 7 tag. The current working tree contains the Phase 8 compliance-correction pass for verification against the simulation-only doctor-response design. Hospital directory connections, production recipient eligibility, response/transfer semantics, channel mappings, provider contracts, callback authentication, production role mapping, lifecycle authority, and manual fallback routing remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 4 added a fictional CSV adapter over the shared practitioner directory model, strict validation/preview, duplicate detection, source-owned reconciliation, freshness filtering, and a searchable directory UI. Phase 5 adds protected typed source/SBAR drafts, optimistic draft versions, critical-field confirmation, and a compose UI. Phase 6 preserves the original source separately from SBAR and approved content, replaces recipients as one exact versioned set, shows safe directory evidence, and confirms only the exact reviewed version. Phase 7 consumes only that durable identifier-only outbox row: the worker leases it, reloads organization-scoped durable data, invokes typed deterministic simulation adapters, records safe delivery attempts/events, and completes, retries, or visibly fails the work. Simulation dispatch is fail-closed outside Development/Test and has no network/provider side effects.
 
-The Phase 6 specification is [recipient selection and review](docs/architecture/recipient-selection-and-review.md), and the Phase 7 boundary is [simulated dispatch](docs/architecture/simulated-dispatch.md).
+Phase 8 explicitly links the fictional Riley user to one organization-scoped practitioner. Practitioner-only `/api/v1/my-alerts` routes expose the approved message for addressed Active alerts and record SecureMessage opening, acknowledgement, call-unit request, or one terminal accepted/declined/unavailable disposition with idempotent transactions. Acceptance creates a separate exact-version responsibility assignment. Operator/Administrator/ClinicalSupervisor-only `/api/v1/alerts/{id}/live` returns a safe refreshed projection without clinical content and exposes simulation-only resolve/cancel controls when their server-side preconditions hold. Delivery failures show a manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`; no production fallback route is configured. Both surfaces derive identity and organization from the server principal, fail closed outside Development/Test where applicable, and expose no encrypted storage values, contact endpoints, or raw provider data.
+
+The Phase 6 specification is [recipient selection and review](docs/architecture/recipient-selection-and-review.md), the Phase 7 boundary is [simulated dispatch](docs/architecture/simulated-dispatch.md), and the Phase 8 design plus compliance corrections is [doctor response and closed loop](docs/superpowers/specs/2026-08-30-phase-8-doctor-response-and-closed-loop-design.md).
 
 ### Local verification
 
@@ -52,11 +60,17 @@ Create an ignored `.env` from `.env.example` with fictional local-only values, t
 Copy-Item .env.example .env
 ./scripts/dev-up.ps1
 ./scripts/db-migrate.ps1
-./scripts/db-reset-demo.ps1
+./scripts/db-reset-demo.ps1 -ConfirmDemoReset
 ./scripts/test-all.ps1
 ```
 
-The Playwright smoke test starts the web shell on `127.0.0.1:3100` so it does not reuse another application on port 3000. The pinned .NET SDK is `10.0.100`. To use the development identity switcher locally, start `CriticalAlerts.Api` on `http://127.0.0.1:5080` and set `CRITICAL_ALERTS_API_URL` for the Next.js rewrite.
+The Playwright suite starts the standalone local prototype on `127.0.0.1:3101`. It does not require the API or database. The pinned .NET SDK for backend verification is `10.0.100`. Development/Test API routes remain independently available at `http://127.0.0.1:5080`; the active prototype does not use a development authentication panel. Demo database reset still requires the explicit confirmation switch and an approved loopback simulation database.
+
+### Simulation container builds
+
+The web Dockerfile installs both root and web build dependencies. Its API rewrite is compiled at build time, defaulting to `http://api:8080`. Run the API and web containers on the same Docker network with the API named or aliased `api`. For a different internal API address, rebuild with `docker build --file src/web/Dockerfile --build-arg CRITICAL_ALERTS_API_URL=http://simulation-api:8080 --tag critical-alerts-web:local .`. Changing this variable on an already-built running container does not change its proxy destination. The URL must contain only the internal service address, never credentials.
+
+`scripts/verify-web-container.ps1` checks the built image against a separate synthetic HTTP fixture on a temporary isolated Docker network. Both CI and `scripts/test-all.ps1` run this check and remove their temporary containers afterward. Database, identity, and response settings remain subject to the existing Development/Test-only simulation guards.
 
 ### Phase 1 local toolchain baseline
 

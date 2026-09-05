@@ -4,7 +4,7 @@
 
 Phase 7 is a local, simulation-only dispatch worker for the fictional alert workflow. It is not a hospital communications system and does not authorize clinical escalation, provider use, or production deployment. The worker is allowed only when `SimulationDispatch:Enabled` is true in `Development` or `Test`; startup fails closed in `Staging` and `Production`.
 
-The implementation deliberately excludes real SMS, voice, secure-message, FHIR, SCIM, Graph, Entra, hospital database, callback, doctor-response, live-screen, and escalation behavior. Any production choice about provider contracts, credentials, callback signatures, retry service levels, escalation, or operational ownership is `REQUIRES_HOSPITAL_DECISION`.
+The implementation deliberately excludes real SMS, voice, secure-message, FHIR, SCIM, Graph, Entra, hospital database, callback, and automated escalation behavior. Phase 8 response and live-status projections consume the resulting simulation records but do not change the dispatch boundary. Any production choice about provider contracts, credentials, callback signatures, retry service levels, escalation, lifecycle, fallback, or operational ownership is `REQUIRES_HOSPITAL_DECISION`.
 
 ## Processing flow
 
@@ -63,9 +63,9 @@ Delivery events are unique by `(organization_id, provider_event_id)`. Duplicate 
 
 ## Safe status projection
 
-`GET /api/alerts/{alertId}/delivery` is authorized by server-side identity and organization scope. It returns alert version/state, outbox processing state, and operational attempt fields: recipient-selection identifier, channel, attempt number, simulation provider name, delivery status, opened-state marker, UTC timestamps, and safe failure category. It does not return approved-message ciphertext, decrypted contact endpoints, practitioner contact values, source text, clinical content, or raw event metadata.
+`GET /api/v1/alerts/{alertId}/delivery` is authorized by server-side identity and organization scope. It returns alert version/state, outbox processing state, and operational attempt fields: recipient-selection identifier, channel, attempt number, simulation provider name, delivery status, opened-state marker, UTC timestamps, and safe failure category. It does not return approved-message ciphertext, decrypted contact endpoints, practitioner contact values, source text, clinical content, or raw event metadata.
 
-The status projection is not a live screen and does not imply that delivery means opening, acknowledgement, responsibility acceptance, resolution, or escalation stop. Those behaviors remain out of scope and `REQUIRES_HOSPITAL_DECISION` where applicable.
+The delivery projection is not a live screen and does not imply that delivery means opening, acknowledgement, responsibility acceptance, resolution, or escalation stop. The Phase 8 live projection may display a safe manual-fallback placeholder and expose separately authorized simulation lifecycle actions; it never selects a fallback route or calls a provider. Those production behaviors remain `REQUIRES_HOSPITAL_DECISION`.
 
 ## Phase gate
 

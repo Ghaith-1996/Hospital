@@ -6,7 +6,8 @@ public sealed record ValidatedRecipientSelection(
     NotificationChannel Channel,
     string DirectoryRevision,
     DateTimeOffset? DirectorySourceUpdatedAtUtc,
-    string? OnCallSnapshot);
+    string? OnCallSnapshot,
+    RecipientSelectionSource SelectionSource = RecipientSelectionSource.Manual);
 
 public sealed class AlertRecipientSelection
 {
@@ -27,7 +28,8 @@ public sealed class AlertRecipientSelection
         DateTimeOffset selectedAtUtc,
         string directoryRevision,
         DateTimeOffset? directorySourceUpdatedAtUtc,
-        string? onCallSnapshot)
+        string? onCallSnapshot,
+        RecipientSelectionSource selectionSource = RecipientSelectionSource.Manual)
     {
         ValidateDirectoryRevision(directoryRevision);
         ValidateOnCallSnapshot(onCallSnapshot);
@@ -45,6 +47,7 @@ public sealed class AlertRecipientSelection
             ? null
             : UtcInstant.Require(directorySourceUpdatedAtUtc.Value, nameof(directorySourceUpdatedAtUtc));
         OnCallSnapshot = onCallSnapshot;
+        SelectionSource = selectionSource;
     }
 
     public AlertRecipientSelectionId Id { get; private set; }
@@ -70,6 +73,8 @@ public sealed class AlertRecipientSelection
     public DateTimeOffset? DirectorySourceUpdatedAtUtc { get; private set; }
 
     public string? OnCallSnapshot { get; private set; }
+
+    public RecipientSelectionSource SelectionSource { get; private set; }
 
     internal static void ValidateDirectoryRevision(string value)
     {

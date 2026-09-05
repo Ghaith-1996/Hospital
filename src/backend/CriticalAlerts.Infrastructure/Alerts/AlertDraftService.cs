@@ -40,12 +40,15 @@ public sealed class AlertDraftService(
             departmentId,
             actorUserId,
             RequireText(request.SimulationPatientReference, "simulation patient reference"),
+            protector.Protect(
+                RequireText(request.SimulationPatientReference, "simulation patient reference"),
+                Context(ProtectedValuePurposes.AlertPatientReference, organizationId)),
             location,
             urgency,
             AlertSourceType.Typed,
-            protector.Protect(sourceText, Context("alert-typed-source", organizationId)),
+            protector.Protect(sourceText, Context(ProtectedValuePurposes.AlertTypedSource, organizationId)),
             now,
-            protector.Protect(JsonSerializer.Serialize(sbar, JsonOptions), Context("alert-sbar", organizationId)));
+            protector.Protect(JsonSerializer.Serialize(sbar, JsonOptions), Context(ProtectedValuePurposes.AlertSbar, organizationId)));
 
         foreach (var field in criticalFields)
         {
@@ -92,10 +95,11 @@ public sealed class AlertDraftService(
         alert.UpdateTypedContent(
             location,
             urgency,
-            protector.Protect(sourceText, Context("alert-typed-source", organizationId)),
-            protector.Protect(JsonSerializer.Serialize(sbar, JsonOptions), Context("alert-sbar", organizationId)),
+            protector.Protect(sourceText, Context(ProtectedValuePurposes.AlertTypedSource, organizationId)),
+            protector.Protect(JsonSerializer.Serialize(sbar, JsonOptions), Context(ProtectedValuePurposes.AlertSbar, organizationId)),
             new AlertDraftVersion(request.ExpectedVersion),
-            now);
+            now,
+            actorUserId);
         foreach (var field in criticalFields)
         {
             alert.RegisterUnresolvedCriticalField(field.FieldId, field.OriginalValue, field.Unit, alert.DraftVersion);
@@ -180,7 +184,7 @@ public sealed class AlertDraftService(
         var approvedMessage = RequireSimulationText(request.ApprovedMessage, "approved message");
         var now = time.GetUtcNow();
         alert.SetApprovedMessage(
-            protector.Protect(approvedMessage, Context("alert-approved-message", organizationId)),
+            protector.Protect(approvedMessage, Context(ProtectedValuePurposes.AlertApprovedMessage, organizationId)),
             new AlertDraftVersion(request.ExpectedVersion),
             now);
 
@@ -251,6 +255,7 @@ public sealed class AlertDraftService(
             .Include(alert => alert.FieldConfirmations)
             .Include(alert => alert.RecipientSelections)
             .Include(alert => alert.StateTransitions)
+            .Include(alert => alert.SourceRevisions)
             .SingleOrDefaultAsync(alert => alert.OrganizationId == organizationId && alert.Id == alertId, cancellationToken);
 
     private static IReadOnlyList<DirectorySelectionCandidate> ParseRecipientCandidates(
@@ -410,22 +415,25 @@ public sealed class AlertDraftService(
 
     private AlertDraftView ToView(Alert alert, OrganizationId organizationId)
     {
-        var sourceText = alert.OriginalSource is null
+        var source = alert.CurrentSourceRevision?.Source ?? alert.OriginalSource;
+        var sourceText = source is null
             ? null
-            : protector.Unprotect(alert.OriginalSource, Context("alert-typed-source", organizationId));
+            : protector.Unprotect(source, Context(ProtectedValuePurposes.AlertTypedSource, organizationId));
         var sbar = alert.StructuredSuggestion is null
             ? null
             : JsonSerializer.Deserialize<AlertSbarDraft>(
-                protector.Unprotect(alert.StructuredSuggestion, Context("alert-sbar", organizationId)),
+                protector.Unprotect(alert.StructuredSuggestion, Context(ProtectedValuePurposes.AlertSbar, organizationId)),
                 JsonOptions);
         var approvedMessage = alert.ApprovedMessage is null
             ? null
-            : protector.Unprotect(alert.ApprovedMessage, Context("alert-approved-message", organizationId));
+            : protector.Unprotect(alert.ApprovedMessage, Context(ProtectedValuePurposes.AlertApprovedMessage, organizationId));
         return new AlertDraftView(
             alert.Id.Value,
             alert.State.ToString(),
             alert.DraftVersion.Value,
-            alert.SimulationPatientReference,
+            protector.Unprotect(
+                alert.SimulationPatientReference,
+                Context(ProtectedValuePurposes.AlertPatientReference, organizationId)),
             alert.Location,
             alert.UrgencyLabel,
             alert.SourceType.ToString(),
@@ -455,7 +463,8 @@ public sealed class AlertDraftService(
                     recipient.SelectedAtUtc,
                     recipient.DirectoryRevision,
                     recipient.DirectorySourceUpdatedAtUtc,
-                    recipient.OnCallSnapshot))
+                    recipient.OnCallSnapshot,
+                    recipient.SelectionSource.ToString()))
                 .ToArray());
     }
 

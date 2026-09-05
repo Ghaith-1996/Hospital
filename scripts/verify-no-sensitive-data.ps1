@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$ignoredDirectoryNames = @(".git", ".next", "node_modules", "bin", "obj", "TestResults", "playwright-report", "test-results", ".playwright-browsers", ".dotnet")
+$ignoredDirectoryNames = @(".git", ".next", "node_modules", "bin", "obj", "TestResults", "playwright-report", "test-results", ".playwright-browsers", ".dotnet", ".dotnet10")
 $files = Get-ChildItem -LiteralPath $repositoryRoot -File -Recurse | Where-Object {
     $relative = $_.FullName.Substring($repositoryRoot.Length).TrimStart('\', '/')
     $parts = $relative -split '[\\/]'

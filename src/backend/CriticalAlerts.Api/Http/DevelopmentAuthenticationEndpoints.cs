@@ -10,7 +10,8 @@ internal static class DevelopmentAuthenticationEndpoints
 {
     public static void MapDevelopmentAuthenticationEndpoints(this WebApplication app, bool enabled)
     {
-        var api = app.MapGroup("/api");
+        var api = app.MapGroup(ApiRouteConstants.BasePath)
+            .RequireRateLimiting("api");
         api.MapGet("/me", GetCurrentUser).RequireAuthorization();
         api.MapGet("/authorization/operator", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Operator);
         api.MapGet("/authorization/administrator", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Administrator);

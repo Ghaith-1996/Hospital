@@ -17,20 +17,27 @@ public static class DatabaseCommandHost
         var connectionString = ResolveConnectionString();
         if (args is ["database", "migrate"])
         {
-            await DatabaseOperations.MigrateAsync(connectionString);
-            Console.WriteLine("Phase 2 migrations applied. No provider or hospital integration was configured.");
+            var key = Environment.GetEnvironmentVariable("CRITICAL_ALERTS_DATA_PROTECTION_KEY");
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                throw new InvalidOperationException(
+                    "CRITICAL_ALERTS_DATA_PROTECTION_KEY is required to apply protected-data migrations.");
+            }
+
+            await DatabaseOperations.MigrateAsync(connectionString, key);
+            Console.WriteLine("Database migrations applied. No provider or hospital integration was configured.");
             return 0;
         }
 
-        if (args is ["database", "reset-demo"])
+        if (args is ["database", "reset-demo", "--confirm-demo-reset"])
         {
             var key = Environment.GetEnvironmentVariable("CRITICAL_ALERTS_DATA_PROTECTION_KEY");
-            await DatabaseOperations.ResetDemoAsync(connectionString, environment, key ?? string.Empty);
-            Console.WriteLine("Phase 2 demo database was reset with fictional simulation data only.");
+            await DatabaseOperations.ResetDemoAsync(connectionString, environment, key ?? string.Empty, confirmReset: true);
+            Console.WriteLine("Demo database was reset with fictional simulation data only.");
             return 0;
         }
 
-        throw new InvalidOperationException("Supported database commands are 'database migrate' and 'database reset-demo'.");
+        throw new InvalidOperationException("Supported database commands are 'database migrate' and 'database reset-demo --confirm-demo-reset'.");
     }
 
     private static string ResolveConnectionString()

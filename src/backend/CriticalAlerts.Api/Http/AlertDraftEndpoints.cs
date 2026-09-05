@@ -13,7 +13,9 @@ internal static class AlertDraftEndpoints
 {
     public static void MapAlertDraftEndpoints(this WebApplication app)
     {
-        var alerts = app.MapGroup("/api/alerts").RequireAuthorization(AuthorizationPolicies.AlertDraftEditor);
+        var alerts = app.MapGroup($"{ApiRouteConstants.BasePath}/alerts")
+            .RequireAuthorization(AuthorizationPolicies.AlertDraftEditor)
+            .RequireRateLimiting("api");
         alerts.MapPost("/drafts", Create);
         alerts.MapGet("/{alertId:guid}/review", Review);
         alerts.MapPost("/{alertId:guid}/confirm", Confirm);
@@ -53,7 +55,7 @@ internal static class AlertDraftEndpoints
                 CorrelationId(httpContext),
                 request,
                 cancellationToken);
-            return Results.Created($"/api/alerts/{draft.AlertId:D}", draft);
+            return Results.Created($"{ApiRouteConstants.BasePath}/alerts/{draft.AlertId:D}", draft);
         }
         catch (Exception exception) when (exception is AlertDraftValidationException or DomainException)
         {

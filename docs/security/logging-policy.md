@@ -1,6 +1,6 @@
 # Logging Policy
 
-Status: Phase 7 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
+Status: Phase 8 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
 
 ## Purpose
 
@@ -86,6 +86,10 @@ Phase 6 confirmation audit metadata is limited to actor and organization identif
 ## Phase 7 boundary
 
 Phase 7 worker audit metadata is limited to organization, alert/attempt identifiers, channel, provider name, attempt number, safe status or failure category, retry timing, event ordering outcome, and correlation ID. Simulation scenario controls record only the selected channel and scenario name. Delivery-status responses expose status/timestamps and safe failure categories, never protected message ciphertext, decrypted contact values, source content, or raw provider payloads. The simulation adapter has no network boundary and must remain unavailable outside Development/Test.
+
+## Phase 8 boundary
+
+Phase 8 response and lifecycle audit metadata is limited to opaque organization, actor, practitioner, alert, version, response, lifecycle action, and optional assignment identifiers; response category; allowlisted reason code; outcome; UTC timestamp; and correlation ID. It must not include practitioner display names, approved/source/SBAR content, patient references, contact values, provider references, request bodies, or arbitrary reason text. The operator live projection exposes only allowlisted operational delivery/response/lifecycle fields and safe failure categories. Manual-fallback display is a safe category only and never contains a route or contact value. Authorization and environment failures return non-disclosing problem details and do not reveal whether a foreign or unaddressed alert exists.
 
 ## Access, retention, and incident response
 

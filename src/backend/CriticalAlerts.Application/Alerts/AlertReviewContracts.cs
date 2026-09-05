@@ -24,7 +24,8 @@ public sealed record AlertReviewRecipient(
     DateTimeOffset? DirectorySourceUpdatedAtUtc,
     string? OnCallSnapshot,
     bool IsStale,
-    string DirectoryRevision);
+    string DirectoryRevision,
+    string SelectionSource);
 
 public sealed record AlertReviewView(
     Guid AlertId,

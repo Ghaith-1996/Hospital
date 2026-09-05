@@ -11,16 +11,20 @@ public sealed class ResponsibilityAssignment
         ResponsibilityAssignmentId id,
         OrganizationId organizationId,
         AlertId alertId,
+        AlertDraftVersion alertVersion,
         PractitionerId practitionerId,
         UserId actorUserId,
+        RecipientResponseId sourceResponseId,
         DateTimeOffset acceptedAtUtc,
         string reasonCode)
     {
         Id = id;
         OrganizationId = organizationId;
         AlertId = alertId;
+        AlertVersion = alertVersion;
         PractitionerId = practitionerId;
         ActorUserId = actorUserId;
+        SourceResponseId = sourceResponseId;
         AcceptedAtUtc = acceptedAtUtc;
         ReasonCode = reasonCode;
     }
@@ -31,9 +35,13 @@ public sealed class ResponsibilityAssignment
 
     public AlertId AlertId { get; private set; }
 
+    public AlertDraftVersion AlertVersion { get; private set; }
+
     public PractitionerId PractitionerId { get; private set; }
 
     public UserId ActorUserId { get; private set; }
+
+    public RecipientResponseId SourceResponseId { get; private set; }
 
     public DateTimeOffset AcceptedAtUtc { get; private set; }
 
@@ -45,8 +53,10 @@ public sealed class ResponsibilityAssignment
         ResponsibilityAssignmentId id,
         OrganizationId organizationId,
         AlertId alertId,
+        AlertDraftVersion alertVersion,
         PractitionerId practitionerId,
         UserId actorUserId,
+        RecipientResponseId sourceResponseId,
         DateTimeOffset acceptedAtUtc,
         string reasonCode)
     {
@@ -54,13 +64,15 @@ public sealed class ResponsibilityAssignment
             id,
             organizationId,
             alertId,
+            alertVersion,
             practitionerId,
             actorUserId,
+            sourceResponseId,
             UtcInstant.Require(acceptedAtUtc, nameof(acceptedAtUtc)),
             reasonCode.Trim());
     }
 
-    public static ResponsibilityAssignment? FromResponse(RecipientResponse response, PractitionerId practitionerId)
+    public static ResponsibilityAssignment? FromResponse(RecipientResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
         if (!response.ImpliesResponsibilityAcceptance)
@@ -72,8 +84,10 @@ public sealed class ResponsibilityAssignment
             ResponsibilityAssignmentId.New(),
             response.OrganizationId,
             response.AlertId,
-            practitionerId,
+            response.AlertVersion,
+            response.PractitionerId,
             response.ActorUserId,
+            response.Id,
             response.OccurredAtUtc,
             "responsibility-accepted");
     }

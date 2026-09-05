@@ -1,6 +1,6 @@
 # Conceptual Data Model
 
-Status: Phase 0 conceptual model. It is a design boundary for fictional simulation data, not a production schema approval.
+Status: Conceptual model through the Phase 8 simulation-response boundary. It is a design boundary for fictional simulation data, not a production schema approval.
 
 ## Design rules
 
@@ -27,6 +27,8 @@ Concepts: `users`, `roles`, `user_roles`, and `external_identities`.
 
 Simulation identities are fixed fictional users. Production identity provider, tenant restriction, MFA, role mapping, break-glass process, and deprovisioning are `REQUIRES_HOSPITAL_DECISION`.
 
+Phase 8 adds `practitioner_user_links` as the sole user-to-practitioner authority for response routes. Each link carries `organization_id`, `user_id`, and `practitioner_id`; PostgreSQL enforces one linked practitioner per organization/user and one linked user per organization/practitioner. The server resolves the link from the authenticated principal and never infers it from a display name or development handle.
+
 ### 003 — practitioner directory
 
 Concepts: `practitioners`, `practitioner_roles`, `contact_endpoints`, `on_call_assignments`, `directory_source_records`, and `directory_sync_runs`.
@@ -41,7 +43,7 @@ Templates, approved terminology, required fields, numeric confirmation fields, c
 
 ### 005 — alerts and provenance
 
-Concepts: `alerts`, `alert_field_confirmations`, `alert_recipient_selections`, and `alert_state_transitions`.
+Concepts: `alerts`, `alert_field_confirmations`, `alert_recipient_selections`, `alert_source_revisions`, and `alert_state_transitions`.
 
 An alert stores or references the following separate representations:
 
@@ -54,13 +56,17 @@ An alert stores or references the following separate representations:
 | Critical-field confirmation | Per-field approved value, unit, actor, time, and draft version. | Human confirmation required. |
 | Recipient selection | Practitioner, selected channel, selection source, actor, and directory timestamp shown. | Manual human selection. |
 
-The alert may carry a synthetic patient reference, location, operator-selected urgency, source type, protected source/approved content, structured payload reference, current draft version, workflow state, confirmation metadata, resolution metadata, and concurrency token. Full patient charts, real identifiers, and unapproved clinical payloads are out of scope.
+The alert may carry a synthetic patient reference, location, operator-selected urgency, source type, protected source/approved content, structured payload reference, current draft version, workflow state, confirmation metadata, resolution metadata, and concurrency token. The patient reference is persisted as purpose-bound ciphertext (`simulation_patient_reference_ciphertext`, key version, and purpose), never as a plaintext database column. Full patient charts, real identifiers, and unapproved clinical payloads are out of scope.
 
 The `SIM-` patient-reference prefix is a `SimulationEnvironmentPolicy` for Development/Test. It is not a `HealthcareDomainInvariant`. Production patient-reference formats are `REQUIRES_HOSPITAL_DECISION`.
 
 ### `user_roles` uniqueness
 
 A user may hold a role at most once in an organization. Persistence enforces `UNIQUE (organization_id, user_id, role_id)` as both the composite primary key and the named unique index `UX_user_roles_organization_id_user_id_role_id`. Duplicate assignments such as Operator/Operator/Operator for the same user are rejected by PostgreSQL.
+
+### Source revision history
+
+`alert_source_revisions` is append-only application history keyed by organization, alert, and draft version. Each row stores the protected source body, source type, creator, and UTC creation time. The first operator source and every later correction remain reconstructable; `OriginalSource` is not overwritten by an edit. A migration encrypts the retired plaintext patient-reference column with the configured data-protection key before dropping that column.
 
 ### Canonical critical-field confirmation
 
@@ -78,11 +84,15 @@ Every source edit creates a new draft version. The typed source and exact transc
 
 ### 006 — deliveries and responses
 
-Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `responsibility_assignments`, and `escalation_runs`.
+Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `responsibility_assignments`, and future `escalation_runs`.
 
 Delivery, provider submission, delivery, opening, acknowledgement, responsibility acceptance, decline, unavailable, and escalation are separate records or state dimensions. Each channel declares whether a state is supported; unsupported states are recorded as `NotApplicable`, while supported but unseen states remain pending/not observed. Provider event IDs are unique and callbacks are idempotent.
 
-The exact relationship between a response and a hospital responsibility transfer is `REQUIRES_HOSPITAL_DECISION`; the simulation keeps the events separate so no implied clinical responsibility is created.
+Phase 8 stores `opened_at_utc` on a SecureMessage delivery attempt. SMS and Voice opening remain `NotApplicable`; provider delivery never implies opening. Recipient responses include an allowlisted reason code; a non-terminal `CallUnitRequested` event is distinct from acknowledgement and terminal disposition.
+
+Practitioner responses are keyed to the organization, alert, exact alert version, and practitioner. PostgreSQL permits at most one acknowledgement category, one call-unit request category, and one terminal disposition category per practitioner/alert/version, even when the alert has multiple channels. A response stores an allowlisted reason code rather than free text. An accepted response may own exactly one `responsibility_assignment`, also scoped to the organization and exact alert version; acknowledgement, call-unit request, decline, and unavailable create none. Responses do not automatically alter the alert lifecycle; separately authorized operator resolve/cancel commands do, subject to exact-version and responsibility preconditions.
+
+The exact relationship between a response and a hospital responsibility transfer is `REQUIRES_HOSPITAL_DECISION`; the simulation keeps acknowledgement, disposition, assignment, and lifecycle separate so no production clinical responsibility rule is inferred.
 
 ### 007 — reliable work and audit
 
@@ -96,13 +106,17 @@ Outbox payloads contain identifiers only. Inbox uniqueness is `(external_message
 erDiagram
     ORGANIZATION ||--o{ USER : owns
     ORGANIZATION ||--o{ PRACTITIONER : contains
+    USER ||--o| PRACTITIONER_USER_LINK : maps
+    PRACTITIONER ||--o| PRACTITIONER_USER_LINK : maps
     ORGANIZATION ||--o{ ALERT : scopes
     ALERT ||--o{ ALERT_FIELD_CONFIRMATION : has
     ALERT ||--o{ ALERT_RECIPIENT_SELECTION : targets
     ALERT ||--o{ ALERT_STATE_TRANSITION : records
+    ALERT ||--o{ ALERT_SOURCE_REVISION : preserves
     ALERT_RECIPIENT_SELECTION ||--o{ DELIVERY_ATTEMPT : creates
     DELIVERY_ATTEMPT ||--o{ DELIVERY_EVENT : receives
     ALERT_RECIPIENT_SELECTION ||--o{ RECIPIENT_RESPONSE : records
+    RECIPIENT_RESPONSE ||--o| RESPONSIBILITY_ASSIGNMENT : creates
     ALERT ||--o{ RESPONSIBILITY_ASSIGNMENT : records
     ALERT ||--o{ ESCALATION_RUN : evaluates
     ALERT ||--o{ OUTBOX_MESSAGE : emits

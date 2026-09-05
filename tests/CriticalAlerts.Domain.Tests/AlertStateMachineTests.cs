@@ -415,6 +415,7 @@ public sealed class AlertStateMachineTests
             DepartmentId.New(),
             UserId.New(),
             "HOSP-PAT-0001",
+            ProtectPatient("HOSP-PAT-0001"),
             "North Wing / Sim Unit 2 / Room 204",
             "Urgent",
             AlertSourceType.Typed,
@@ -451,14 +452,15 @@ public sealed class AlertStateMachineTests
             RecipientResponseId.New(),
             OrganizationId.New(),
             AlertId.New(),
-            AlertRecipientSelectionId.New(),
+            AlertDraftVersion.Initial,
+            PractitionerId.New(),
             RecipientResponseType.Acknowledged,
             UserId.New(),
             Now,
-            "acknowledged");
+            "simulation-acknowledged");
 
         response.ImpliesResponsibilityAcceptance.Should().BeFalse();
-        ResponsibilityAssignment.FromResponse(response, PractitionerId.New()).Should().BeNull();
+        ResponsibilityAssignment.FromResponse(response).Should().BeNull();
     }
 
     [Fact]
@@ -469,13 +471,14 @@ public sealed class AlertStateMachineTests
             RecipientResponseId.New(),
             OrganizationId.New(),
             AlertId.New(),
-            AlertRecipientSelectionId.New(),
+            AlertDraftVersion.Initial,
+            practitionerId,
             RecipientResponseType.Accepted,
             UserId.New(),
             Now,
-            "accepted");
+            "simulation-responsibility-accepted");
 
-        var assignment = ResponsibilityAssignment.FromResponse(response, practitionerId);
+        var assignment = ResponsibilityAssignment.FromResponse(response);
 
         assignment.Should().NotBeNull();
         assignment!.PractitionerId.Should().Be(practitionerId);
@@ -588,6 +591,7 @@ public sealed class AlertStateMachineTests
             DepartmentId.New(),
             UserId.New(),
             "SIM-PAT-0001",
+            ProtectPatient("SIM-PAT-0001"),
             "North Wing / Sim Unit 2 / Room 204",
             "Urgent",
             AlertSourceType.Typed,
@@ -627,4 +631,7 @@ public sealed class AlertStateMachineTests
 
     private static ProtectedValue Protect(string text)
         => new(System.Text.Encoding.UTF8.GetBytes(text), "test-v1", "alert-source");
+
+    private static ProtectedValue ProtectPatient(string text)
+        => new(System.Text.Encoding.UTF8.GetBytes(text), "test-v1", ProtectedValuePurposes.AlertPatientReference);
 }

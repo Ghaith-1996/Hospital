@@ -34,6 +34,16 @@ jobs:
       - name: Restore backend dependencies
         run: dotnet restore src/backend/CriticalAlerts.sln --locked-mode
 
+      - name: Verify backend formatting
+        run: dotnet format src/backend/CriticalAlerts.sln --verify-no-changes --no-restore --verbosity minimal
+
+      - name: Verify OpenAPI contract
+        shell: pwsh
+        run: ./scripts/verify-openapi.ps1
+
+      - name: Scan backend dependencies
+        run: dotnet list src/backend/CriticalAlerts.sln package --vulnerable --include-transitive --no-restore
+
       - name: Build backend
         run: dotnet build src/backend/CriticalAlerts.sln --configuration Release --no-restore --nologo
 
@@ -45,6 +55,9 @@ jobs:
 
       - name: Install web dependencies
         run: npm ci --prefix src/web --no-audit --no-fund
+
+      - name: Scan web dependencies
+        run: npm audit --prefix src/web --audit-level=high --omit=dev
 
       - name: Run web unit tests
         run: npm --prefix src/web test -- --run
@@ -60,6 +73,19 @@ jobs:
 
       - name: Run web smoke test
         run: npm run web:e2e
+
+      - name: Build API container
+        run: docker build --file src/backend/CriticalAlerts.Api/Dockerfile --tag critical-alerts-api:ci .
+
+      - name: Build worker container
+        run: docker build --file src/backend/CriticalAlerts.Worker/Dockerfile --tag critical-alerts-worker:ci .
+
+      - name: Build web container
+        run: docker build --file src/web/Dockerfile --tag critical-alerts-web:ci .
+
+      - name: Verify web container API proxy
+        shell: pwsh
+        run: ./scripts/verify-web-container.ps1 -WebImage critical-alerts-web:ci
 
       - name: Run repository safety check
         shell: pwsh

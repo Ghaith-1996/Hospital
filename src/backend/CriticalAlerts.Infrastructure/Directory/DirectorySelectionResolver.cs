@@ -149,7 +149,8 @@ public sealed class DirectorySelectionResolver(CriticalAlertsDbContext db) : IDi
                 candidate.Channel,
                 revision,
                 latestSource?.SourceUpdatedAtUtc,
-                latestOnCall?.Tier.ToString()));
+                latestOnCall?.Tier.ToString(),
+                RecipientSelectionSource.Manual));
         }
 
         return resolved;

@@ -10,7 +10,9 @@ The API derives organization and user identity from the authenticated server pri
 
 ## Protected content and concurrency
 
-Typed source and serialized SBAR content use the existing `ISensitiveDataProtector` with separate purposes and separate persisted properties. The original operator-entered source content is persisted separately from the structured SBAR representation and is never silently overwritten by normalization or critical-field confirmation. The API returns authorized simulation content for the compose screen, never ciphertext or protected-value internals. General API logs and safe error responses are tested with synthetic sentinels to ensure they do not contain the patient reference, typed source, or complete SBAR payload.
+Each source revision owns a separate protected value and ciphertext buffer, including revisions that carry unchanged source through recipient or approved-message edits. This preserves historical rows without reassigning EF owned entities between revisions.
+
+Typed source and serialized SBAR content use the existing `ISensitiveDataProtector` with separate purposes and separate persisted properties. The original operator-entered source content is persisted separately from the structured SBAR representation and is never silently overwritten by normalization or critical-field confirmation. Each source edit creates an immutable `alert_source_revisions` row for the new draft version, preserving the first source revision and every later correction. The synthetic patient reference is protected ciphertext at rest with a purpose and key version. The API returns authorized simulation content for the compose screen, never ciphertext or protected-value internals. General API logs and safe error responses are tested with synthetic sentinels to ensure they do not contain the patient reference, typed source, or complete SBAR payload.
 
 Every edit names the expected `DraftVersion`; stale edit, critical-field confirmation, and submission commands are rejected with a safe conflict response and recovery guidance. Any source, SBAR, location, urgency, critical-value, or unit edit increments the version. The complete critical-field list is recreated as unresolved for the new version, so no confirmation from an earlier version remains current.
 
@@ -18,11 +20,11 @@ Critical-field confirmations persist the exact recorded value, unit, normalized 
 
 ## Routes in this phase
 
-- `POST /api/alerts/drafts`
-- `GET /api/alerts/{alertId}`
-- `PATCH /api/alerts/{alertId}`
-- `POST /api/alerts/{alertId}/field-confirmations`
-- `POST /api/alerts/{alertId}/submit-for-confirmation`
+- `POST /api/v1/alerts/drafts`
+- `GET /api/v1/alerts/{alertId}`
+- `PATCH /api/v1/alerts/{alertId}`
+- `POST /api/v1/alerts/{alertId}/field-confirmations`
+- `POST /api/v1/alerts/{alertId}/submit-for-confirmation`
 
 Recipient selection, review confirmation, transactional outbox, simulated channels, provider adapters, and hospital integrations are later-phase work and remain `REQUIRES_HOSPITAL_DECISION` where production behavior would be involved.
 

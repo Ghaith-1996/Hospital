@@ -30,6 +30,11 @@ public readonly record struct ExternalIdentityId(Guid Value)
     public static ExternalIdentityId New() => new(Guid.NewGuid());
 }
 
+public readonly record struct PractitionerUserLinkId(Guid Value)
+{
+    public static PractitionerUserLinkId New() => new(Guid.NewGuid());
+}
+
 public readonly record struct PractitionerId(Guid Value)
 {
     public static PractitionerId New() => new(Guid.NewGuid());
@@ -85,6 +90,11 @@ public readonly record struct AlertRecipientSelectionId(Guid Value)
 public readonly record struct AlertStateTransitionId(Guid Value)
 {
     public static AlertStateTransitionId New() => new(Guid.NewGuid());
+}
+
+public readonly record struct AlertSourceRevisionId(Guid Value)
+{
+    public static AlertSourceRevisionId New() => new(Guid.NewGuid());
 }
 
 public readonly record struct DeliveryAttemptId(Guid Value)

@@ -17,8 +17,8 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
     {
         using var client = fixture.CreateClient();
 
-        using var scenario = await client.GetAsync("/api/dev/dispatch-scenarios/Sms");
-        using var status = await client.GetAsync($"/api/alerts/{Guid.NewGuid():D}/delivery");
+        using var scenario = await client.GetAsync("/api/v1/dev/dispatch-scenarios/Sms");
+        using var status = await client.GetAsync($"/api/v1/alerts/{Guid.NewGuid():D}/delivery");
 
         scenario.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         status.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -32,7 +32,7 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(handle);
 
         using var response = await client.PutAsJsonAsync(
-            "/api/dev/dispatch-scenarios/Sms",
+            "/api/v1/dev/dispatch-scenarios/Sms",
             new
             {
                 scenario = "ProviderOutage",
@@ -50,7 +50,7 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
 
         using var set = await client.PutAsJsonAsync(
-            "/api/dev/dispatch-scenarios/Sms",
+            "/api/v1/dev/dispatch-scenarios/Sms",
             new
             {
                 scenario = "ProviderOutage",
@@ -58,14 +58,14 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
                 userId = DemoDataSeeder.JordanUserId.Value,
                 roles = new[] { "Operator" },
             });
-        using var get = await client.GetAsync("/api/dev/dispatch-scenarios/Sms");
+        using var get = await client.GetAsync("/api/v1/dev/dispatch-scenarios/Sms");
         var value = await get.Content.ReadFromJsonAsync<ScenarioDto>();
 
         set.StatusCode.Should().Be(HttpStatusCode.OK);
         get.StatusCode.Should().Be(HttpStatusCode.OK);
         value.Should().Be(new ScenarioDto("Sms", "ProviderOutage"));
 
-        using var reset = await client.DeleteAsync("/api/dev/dispatch-scenarios/Sms");
+        using var reset = await client.DeleteAsync("/api/v1/dev/dispatch-scenarios/Sms");
         reset.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
@@ -75,7 +75,7 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
 
         using var response = await client.PutAsJsonAsync(
-            "/api/dev/dispatch-scenarios/Voice",
+            "/api/v1/dev/dispatch-scenarios/Voice",
             new { scenario = "RealProviderSecret" });
         var body = await response.Content.ReadAsStringAsync();
 
@@ -89,10 +89,10 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
     public async Task PractitionerCannotReadDeliveryStatusAndOperatorsCannotReadOtherOrganizations()
     {
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
-        using var practitionerResponse = await practitioner.GetAsync($"/api/alerts/{Guid.NewGuid():D}/delivery");
+        using var practitionerResponse = await practitioner.GetAsync($"/api/v1/alerts/{Guid.NewGuid():D}/delivery");
 
         using var operatorClient = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-        using var operatorResponse = await operatorClient.GetAsync($"/api/alerts/{Guid.NewGuid():D}/delivery");
+        using var operatorResponse = await operatorClient.GetAsync($"/api/v1/alerts/{Guid.NewGuid():D}/delivery");
 
         practitionerResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         operatorResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -109,7 +109,7 @@ public sealed class SimulationDispatchAuthorizationTests(SeededPostgresApiFixtur
         });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        using var response = await client.GetAsync("/api/dev/dispatch-scenarios/Sms");
+        using var response = await client.GetAsync("/api/v1/dev/dispatch-scenarios/Sms");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

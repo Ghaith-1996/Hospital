@@ -1,4 +1,5 @@
 using CriticalAlerts.Domain;
+using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Identity;
 using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Infrastructure.Persistence;
@@ -70,5 +71,31 @@ internal sealed class ExternalIdentityConfiguration : IEntityTypeConfiguration<E
         builder.Property(entity => entity.Subject).HasColumnName("subject").HasMaxLength(200).IsRequired();
         builder.HasIndex(entity => new { entity.OrganizationId, entity.Provider, entity.Subject }).IsUnique();
         builder.HasOne<UserAccount>().WithMany().HasForeignKey(entity => new { entity.UserId, entity.OrganizationId }).HasPrincipalKey(user => new { user.Id, user.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class PractitionerUserLinkConfiguration : IEntityTypeConfiguration<PractitionerUserLink>
+{
+    public void Configure(EntityTypeBuilder<PractitionerUserLink> builder)
+    {
+        builder.ToTable("practitioner_user_links");
+        builder.HasKey(entity => entity.Id);
+        builder.Property(entity => entity.Id).GuidId(value => new PractitionerUserLinkId(value), id => id.Value, "id");
+        builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
+        builder.Property(entity => entity.UserId).GuidId(value => new UserId(value), id => id.Value, "user_id");
+        builder.Property(entity => entity.PractitionerId).GuidId(value => new PractitionerId(value), id => id.Value, "practitioner_id");
+        builder.Property(entity => entity.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.UserId }).IsUnique();
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.PractitionerId }).IsUnique();
+        builder.HasOne<UserAccount>()
+            .WithMany()
+            .HasForeignKey(entity => new { entity.UserId, entity.OrganizationId })
+            .HasPrincipalKey(user => new { user.Id, user.OrganizationId })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Practitioner>()
+            .WithMany()
+            .HasForeignKey(entity => new { entity.PractitionerId, entity.OrganizationId })
+            .HasPrincipalKey(practitioner => new { practitioner.Id, practitioner.OrganizationId })
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

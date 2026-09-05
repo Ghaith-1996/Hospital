@@ -22,7 +22,7 @@ Phase 6 does not lease or process outbox items, create delivery attempts, call c
 
 ## Preserved content records
 
-The original operator-entered source, structured SBAR representation, and operator-approved message remain separately protected records. Formatting or normalization never silently overwrites the original source. Setting or editing the approved message increments `DraftVersion`, invalidates any earlier confirmation state, and recreates the current critical fields as unresolved for the new version.
+The original operator-entered source, structured SBAR representation, and operator-approved message remain separately protected records. Formatting or normalization never silently overwrites the original source. Each source revision is retained in immutable `alert_source_revisions` history. Setting or editing the approved message increments `DraftVersion`, invalidates any earlier confirmation state, and recreates the current critical fields as unresolved for the new version.
 
 The approved message is written by the authenticated operator in Phase 6. AI does not generate, approve, or alter it.
 
@@ -47,7 +47,7 @@ The recipient command sends the revision that the operator reviewed. The server 
 Recipients are replaced as one complete set:
 
 ```text
-PUT /api/alerts/{alertId}/recipients
+PUT /api/v1/alerts/{alertId}/recipients
 {
   "expectedVersion": 4,
   "recipients": [
@@ -69,12 +69,12 @@ Because recipient edits create a new exact alert version, all critical fields fo
 
 ## Exact review projection
 
-`GET /api/alerts/{alertId}/review` returns an immutable view of the current version. It includes:
+`GET /api/v1/alerts/{alertId}/review` returns an immutable view of the current version. It includes:
 
 - synthetic patient reference, simulation location, and urgency label;
 - the separately protected approved message;
 - every current critical value and unit with exact-version confirmation evidence;
-- selected practitioners, optional role labels, channels, selection timestamps, safe directory source timestamps, revisions, and displayed on-call status;
+- selected practitioners, optional role labels, channels, selection timestamps, safe directory source timestamps, revisions, displayed on-call status, and `selectionSource` (`Manual`, `TeamExpansion`, or `EscalationPolicy`);
 - the `DEMO` escalation and notification policy versions; and
 - the draft version used by the confirmation command.
 
@@ -82,7 +82,7 @@ The review query is allowed only when the alert is `PendingConfirmation`, has a 
 
 ## Idempotent confirmation transaction
 
-`POST /api/alerts/{alertId}/confirm` requires `Idempotency-Key` and this body:
+`POST /api/v1/alerts/{alertId}/confirm` requires `Idempotency-Key` and this body:
 
 ```json
 {
@@ -111,7 +111,7 @@ If any write fails, the transaction rolls back and the alert does not remain `Di
 
 ## Authorization and organization isolation
 
-The Phase 6 simulation authorizes Operator and Administrator identities for recipient editing, review, and confirmation. Practitioner and anonymous requests are denied. Production role mapping and separation-of-duty requirements are `REQUIRES_HOSPITAL_DECISION`.
+The Phase 6 simulation authorizes Operator, Administrator, ClinicalSupervisor, and SystemAdministrator identities for recipient editing, review, and confirmation according to the endpoint policy. Practitioner and anonymous requests are denied. Production role mapping and separation-of-duty requirements are `REQUIRES_HOSPITAL_DECISION`.
 
 Every read and command derives `OrganizationId` and `UserId` from the authenticated principal. A foreign-organization alert or practitioner is returned as not found or rejected without disclosing its existence. Client body, query, or header values cannot override the server identity context.
 
@@ -125,11 +125,11 @@ Synthetic sentinel tests scan captured API logs, RFC 7807 responses, audit metad
 
 ## API surface
 
-- `GET /api/directory/practitioners`: extend safe filters and selection metadata.
-- `PUT /api/alerts/{alertId}/approved-message`: protect a manual approved message using `expectedVersion`.
-- `PUT /api/alerts/{alertId}/recipients`: replace the complete current recipient set using `expectedVersion`.
-- `GET /api/alerts/{alertId}/review`: return the exact confirmable review version.
-- `POST /api/alerts/{alertId}/confirm`: idempotently confirm the exact review version.
+- `GET /api/v1/directory/practitioners`: extend safe filters and selection metadata.
+- `PUT /api/v1/alerts/{alertId}/approved-message`: protect a manual approved message using `expectedVersion`.
+- `PUT /api/v1/alerts/{alertId}/recipients`: replace the complete current recipient set using `expectedVersion`.
+- `GET /api/v1/alerts/{alertId}/review`: return the exact confirmable review version.
+- `POST /api/v1/alerts/{alertId}/confirm`: idempotently confirm the exact review version.
 
 All errors use RFC 7807. Stale draft or directory revisions use HTTP 409 with reload guidance. Validation failures use HTTP 400 without echoing sensitive input.
 

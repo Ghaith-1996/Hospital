@@ -44,8 +44,11 @@ flowchart LR
 | Actor | Allowed simulation interaction | Production status |
 |---|---|---|
 | Operator | Enters source, reviews content, confirms critical values, selects recipients, confirms dispatch, monitors status, and performs explicitly permitted actions. | Role, scope, and authorization are `REQUIRES_HOSPITAL_DECISION`. |
-| Practitioner | Opens a fictional alert and records acknowledgement, responsibility acceptance, decline, or unavailability. | Identity, clinical role, and response authority are `REQUIRES_HOSPITAL_DECISION`. |
+| Practitioner/Physician | Opens a fictional alert and records acknowledgement, call-unit request, responsibility acceptance, decline, or unavailability. | Identity, clinical role, and response authority are `REQUIRES_HOSPITAL_DECISION`. |
+| Clinical supervisor | Views safe live simulation status and may perform fixture-approved lifecycle actions. | Scope, clinical authority, and separation of duties are `REQUIRES_HOSPITAL_DECISION`. |
 | Directory administrator | Imports fictional CSV data and reviews freshness/conflicts. | Source, ownership, and administrative authority are `REQUIRES_HOSPITAL_DECISION`. |
+| Integration administrator | Controls only fictional dispatch scenarios in Development/Test. | Provider ownership, credentials, and integration authority are `REQUIRES_HOSPITAL_DECISION`. |
+| Auditor/system administrator | Reads sanitized audit data or exercises explicit simulation administration policy checks. | Access scope and separation of duties are `REQUIRES_HOSPITAL_DECISION`. |
 | Worker | Processes durable outbox work, simulated delivery events, retries, and versioned policy evaluation. | It may not make clinical decisions or stop escalation autonomously. |
 | AI/transcription provider | Future suggestion-only boundary. | Provider, data residency, retention, evaluation, and approval are `REQUIRES_HOSPITAL_DECISION`. |
 
@@ -57,11 +60,13 @@ Development/Test uses fixed fictional identities, fictional data, a fictional CS
 
 ### Authenticated application boundary
 
-The web interface and API are the trusted application surface for authenticated users. The server, not the browser, enforces organization scope, role authorization, draft version checks, critical-field confirmation, recipient confirmation, and dispatch authorization.
+The web interface and API are the trusted application surface for authenticated users. The server, not the browser, enforces organization scope, role authorization, draft version checks, critical-field confirmation, recipient confirmation, dispatch authorization, lifecycle preconditions, and rate/request limits.
+
+The simulation API allows 120 requests per minute per authenticated organization/user pair. Anonymous callers have separate budgets keyed by the actual connection IP; untrusted forwarded headers cannot select a budget. Authentication runs before this partitioning. Production distributed rate limits and trusted-proxy configuration remain `REQUIRES_HOSPITAL_DECISION`.
 
 ### Persistence boundary
 
-PostgreSQL is the durable source for alert versions, recipients, confirmation records, delivery events, responses, escalation runs, outbox messages, idempotency records, and audit events. Sensitive simulation payloads are kept out of ordinary logs and are protected behind a dedicated interface when implementation begins.
+PostgreSQL is the durable source for alert versions, recipients, immutable source revisions, confirmation records, delivery events, responses, lifecycle transitions, escalation runs, outbox messages, idempotency records, and audit events. Patient references and other sensitive simulation payloads are encrypted at rest, kept out of ordinary logs, and protected behind a dedicated interface.
 
 ### External-provider boundary
 

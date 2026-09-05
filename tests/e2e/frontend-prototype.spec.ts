@@ -2,6 +2,17 @@ import { expect, type Page, test } from "@playwright/test";
 
 const storageKey = "critical-alerts.prototype.v1";
 
+test("legacy live URLs open local prototype details without API requests", async ({ page }) => {
+  const apiRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/")) apiRequests.push(request.url());
+  });
+  await openWithFreshDemo(page, "/alerts/alert-critical-1/live");
+  await expect(page).toHaveURL(/\/alerts\/alert-critical-1$/);
+  await expect(page.getByRole("heading", { name: "Alert Details", exact: true })).toBeVisible();
+  expect(apiRequests).toEqual([]);
+});
+
 test("drafts stay private until dispatch and confirmed alerts cannot be edited or dispatched twice", async ({ page }) => {
   await openWithFreshDemo(page, "/alerts/new");
   await page.getByLabel("Patient Reference").fill("SIM-PAT-BOUNDARY-001");

@@ -712,6 +712,29 @@ p {
   font-weight: 700;
 }
 
+.response-card {
+  align-items: start;
+}
+
+.response-state-list,
+.attempt-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.response-state-list {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.response-state-list .focus-link {
+  width: fit-content;
+}
+
+.attempt-list {
+  min-width: min(24rem, 100%);
+}
+
 .channel-options input,
 .confirmation-check input {
   width: auto;

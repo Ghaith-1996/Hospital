@@ -4,21 +4,23 @@
 
 Phase 0 is done only when all of the following are true:
 
-- [ ] README and AGENTS.md state scope, authority, phase gate, and safety invariants.
-- [ ] Product decisions and workflow documents identify every missing hospital decision with `REQUIRES_HOSPITAL_DECISION`.
-- [ ] Simulation-only assumptions are explicitly labelled and cannot be mistaken for production rules.
-- [ ] Original source, transcription, structured suggestions, approved content, critical-number confirmation, and recipient confirmation are specified separately.
-- [ ] Delivered, opened, acknowledged, and responsibility accepted are defined as separate states.
-- [ ] Architecture documents describe the modular monolith, PostgreSQL boundary, outbox, directory integration boundary, and state machine.
-- [ ] ADRs record the major Phase 0 architectural and safety choices.
-- [ ] ADRs remain proposed/pending until the Phase 0 approval record is completed; mandatory user safety rules are clearly distinguished from project-owner and hospital decisions.
-- [ ] Threat model, data classification, logging policy, and production readiness gates exist.
-- [ ] Simulation fixtures permit fictional `555` phone values only, and any future real test endpoints are explicitly outside simulation and marked `REQUIRES_HOSPITAL_DECISION`.
-- [ ] The simulation contract defines deterministic fictional roles and test mechanics without creating production policy.
-- [ ] Delivery-state semantics distinguish supported, pending/not observed, occurred, failed, and `NotApplicable` states.
-- [ ] The Phase 1 implementation plan names files, interfaces, tests, commands, and review gates without adding code to the repository.
-- [ ] The Phase 1 plan has no cross-task test dependency ambiguity, uses exact dependency/image pinning, and distinguishes implementation tasks from the final review gate.
+- [x] README and AGENTS.md state scope, authority, phase gate, and safety invariants.
+- [x] Product decisions and workflow documents identify every missing hospital decision with `REQUIRES_HOSPITAL_DECISION`.
+- [x] Simulation-only assumptions are explicitly labelled and cannot be mistaken for production rules.
+- [x] Original source, transcription, structured suggestions, approved content, critical-number confirmation, and recipient confirmation are specified separately.
+- [x] Delivered, opened, acknowledged, and responsibility accepted are defined as separate states.
+- [x] Architecture documents describe the modular monolith, PostgreSQL boundary, outbox, directory integration boundary, and state machine.
+- [x] ADRs record the major Phase 0 architectural and safety choices.
+- [x] ADRs remain proposed/pending until the Phase 0 approval record is completed; mandatory user safety rules are clearly distinguished from project-owner and hospital decisions.
+- [x] Threat model, data classification, logging policy, and production readiness gates exist.
+- [x] Simulation fixtures permit fictional `555` phone values only, and any future real test endpoints are explicitly outside simulation and marked `REQUIRES_HOSPITAL_DECISION`.
+- [x] The simulation contract defines deterministic fictional roles and test mechanics without creating production policy.
+- [x] Delivery-state semantics distinguish supported, pending/not observed, occurred, failed, and `NotApplicable` states.
+- [x] The Phase 1 implementation plan names files, interfaces, tests, commands, and review gates without adding code to the repository.
+- [x] The Phase 1 plan has no cross-task test dependency ambiguity, uses exact dependency/image pinning, and distinguishes implementation tasks from the final review gate.
 - [ ] A human reviews and approves the Phase 0 package.
+
+The implementation and documentation checks above are complete. The final Phase 0 approval remains intentionally unchecked because it is an external project-owner/hospital action and cannot be self-approved by implementation work.
 
 ## Phase 0 non-goals
 
@@ -156,7 +158,7 @@ Phase 6 is ready for human review only when all of the following are true:
 - [x] PostgreSQL integration tests cover authorization, organization isolation, version conflicts, directory revision conflicts, recipient snapshots, idempotency races, atomic rollback, and identifier-only outbox contents.
 - [x] The web flow includes dynamic compose, recipients, and review routes with deliberate confirmation and double-submission protection; the live/dispatch screen remains unavailable.
 - [x] At the Phase 6 boundary, no worker, provider adapter, delivery attempt, retry, callback, acknowledgement, responsibility acceptance, escalation, hospital connector, or production identity behavior was included.
-- [ ] Fresh format, build, test, typecheck, lint, PostgreSQL integration, browser, sensitive-data, and scope checks pass before human review.
+- [x] Fresh format, build, test, typecheck, lint, PostgreSQL integration, browser, sensitive-data, and scope checks pass before human review.
 - [x] The Phase 6 boundary was accepted as the prerequisite to Phase 7 implementation; Phase 7 has its own review gate below.
 
 ### Phase 6 implementation evidence
@@ -182,11 +184,72 @@ Phase 7 is ready for project-owner review only when all of the following are tru
 - [x] Pinned .NET restore, Release build, focused domain/application/adapter tests, and compile-time API/worker regression coverage pass in the current worktree.
 - [x] PostgreSQL/Testcontainers worker, persistence, and API integration tests pass with a reachable Docker engine.
 - [x] Full `scripts/test-all.ps1`, frontend/browser checks, sensitive-data scan, scope scan, and fresh-clone migrate/seed verification pass.
-- [ ] The project owner reviews Phase 7 and separately authorizes any commit/tag/push action.
+- [x] The project owner reviews Phase 7 and separately authorizes the pushed implementation commit; tag creation remains a separate action.
 
 ### Phase 7 implementation evidence
 
-On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution build passed with zero warnings and errors. Focused domain, application, and simulation-adapter tests passed (6, 10, and 6 respectively). The complete backend solution passed 204 tests (9 architecture, 48 domain, 34 application, 42 infrastructure, and 71 API), including PostgreSQL/Testcontainers worker, persistence, authorization, organization isolation, lease recovery, retry, duplicate, and out-of-order coverage. The prescribed `scripts/test-all.ps1` passed its sensitive-data scan, Release build, backend tests, web 17-test suite, typecheck, lint, and Playwright 1-test browser smoke. A fresh clone of commit `15fa771` applied all migrations through `20260829234957_Phase7SimulatedDispatch` and seeded 3 fictional users and 12 fictional practitioners against an isolated PostgreSQL 18.4 container. The Phase 7 review gate remains open for project-owner review and any separately authorized tag/push; no push or tag has been made.
+On 2026-08-29, the pinned .NET 10.0.100 locked restore and Release solution build passed with zero warnings and errors. Focused domain, application, and simulation-adapter tests passed (6, 10, and 6 respectively). The complete backend solution passed 204 tests (9 architecture, 48 domain, 34 application, 42 infrastructure, and 71 API), including PostgreSQL/Testcontainers worker, persistence, authorization, organization isolation, lease recovery, retry, duplicate, and out-of-order coverage. The prescribed `scripts/test-all.ps1` passed its sensitive-data scan, Release build, backend tests, web 17-test suite, typecheck, lint, and Playwright 1-test browser smoke. A fresh clone of the reviewed content applied all migrations through `20260829234957_Phase7SimulatedDispatch` and seeded 3 fictional users and 12 fictional practitioners against an isolated PostgreSQL 18.4 container. The implementation was finalized and pushed as commit `45f4024`; no `phase-7` tag is currently recorded.
+
+## Phase 8: simulation practitioner response and closed loop
+
+Phase 8 is ready for project-owner review only when all of the following are true:
+
+- [x] A user-to-practitioner link is explicit, organization-scoped, server-resolved, and never inferred from display name or simulation handle.
+- [x] A mapped Practitioner sees only confirmed Active alerts addressed to the linked practitioner; cross-organization and unaddressed alerts are non-disclosing.
+- [x] SecureMessage opened state, acknowledgement, call-unit request, terminal disposition, responsibility assignment, and alert lifecycle remain distinct.
+- [x] Acknowledgement never creates responsibility; acceptance creates one durable assignment, and operator resolution requires that assignment for the exact confirmed version.
+- [x] Declined and unavailable remain visible and do not trigger Phase 9 escalation.
+- [x] One acknowledgement and one terminal disposition per practitioner/alert/version are enforced under concurrent requests.
+- [x] Side-effecting commands require idempotency keys and atomically persist response state, optional responsibility, idempotency result, and sanitized audit metadata.
+- [x] Practitioner inbox/detail and Operator/Administrator live projections derive identity and organization from the authenticated server principal and expose no raw contact/provider/protected storage values.
+- [x] The web UI visibly distinguishes opened, acknowledged, accepted, declined, unavailable, delivery failure, and not-applicable states without color-only communication.
+- [x] Simulation response and lifecycle endpoints fail closed outside Development/Test; no real provider, callback, automated escalation, production resolution/transfer, hospital integration, AI, or Phase 9 behavior is added.
+- [x] Call-unit requests are allowlisted, non-terminal, idempotent simulation records and never contact a real unit.
+- [x] Operator Resolve and Cancel actions are exact-version, organization-scoped, idempotent commands with server-side role and responsibility preconditions.
+- [x] Delivery failures remain visible and render a non-routing manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`.
+- [x] Patient references are protected ciphertext at rest, and source edits append immutable protected source revisions rather than replacing history.
+- [x] Recipient selections persist `selectionSource` provenance, currently `Manual`, with future expansion values explicit in the domain contract.
+- [x] API routes are under `/api/v1`, OpenAPI is generated as 3.1.x, API requests are rate-limited and size-bounded, and old unversioned routes are not mapped.
+- [x] CI includes formatting, OpenAPI contract verification, dependency vulnerability checks, web audit, and API/worker/web container builds.
+- [x] Full backend, PostgreSQL/Testcontainers, web, browser, safety, and fresh-source migrate/seed verification pass for the corrected tree before push.
+- [x] The project owner authorizes review, correction of findings, and commit/push after successful verification on 2026-09-05; no tag is created by implementation work.
+
+### Phase 8 implementation evidence
+
+On 2026-08-30, the exact .NET 10.0.100, Node.js 24.16.0, and npm 11.13.0 pins were used for fresh verification. The prescribed `scripts/test-all.ps1` passed the sensitive-data scan, Release build with zero warnings and errors, 237 backend tests (9 architecture, 57 domain, 39 application, 48 infrastructure, and 84 API), 22 web unit tests, typecheck, lint, and 2 Playwright browser flows. The pinned production web build also passed, and rendered desktop/mobile browser checks verified the simulation boundary, navigation, unavailable-API fallback, and responsive layout.
+
+A fresh detached worktree reproduced the complete Phase 8 working-tree patch over commit `45f4024`. An isolated PostgreSQL 18.4 container applied migrations through `20260830160849_Phase8PractitionerResponses`, then seeded 3 fictional users, 12 fictional practitioners, 1 explicit user-to-practitioner link, and 5 protected fictional contact endpoints. Focused fresh-tree tests passed for the Phase 8 domain (9), environment guard (5), PostgreSQL persistence (6), and response/live API behavior (13). `git diff --check` and the scope scan passed. No commit, push, or tag is claimed; those remain separate owner actions.
+
+The final diff review on 2026-09-02 corrected strict response/reason-code validation, idempotency-key normalization, SecureMessage-only opened observations, and `NotApplicable` web rendering, with regression coverage added. The compliance-correction pass on 2026-09-02 added protected patient-reference migration, immutable source revisions, selection provenance, call-unit response handling, exact operator lifecycle actions, safe fallback display, API v1/OpenAPI/rate-limit/body-size controls, expanded simulation role names, and CI/container gates. Current local verification passes formatting, locked restore, Debug compilation, focused Domain/Application/API-hardening/safety tests, web unit tests, typecheck, lint, OpenAPI contract verification, sensitive-data scan, and `git diff --check`. PostgreSQL/Testcontainers lifecycle and persistence suites and container builds remain to be run with Docker Desktop available; Playwright and the full release `scripts/test-all.ps1` run also remain pending in this host. Human Phase 0/6/8 approval and GitHub branch/ruleset enforcement remain external review actions. No production provider, callback, hospital integration, automated escalation, or Phase 9 behavior was added.
+
+## Compliance-correction review record
+
+- [x] Protected patient-reference storage and migration are implemented and covered by schema/migration tests.
+- [x] Source edits preserve immutable protected revisions keyed by alert draft version.
+- [x] Call-unit requests, approved decline reasons, operator resolve/cancel actions, and manual-fallback display are implemented with regression coverage.
+- [x] Recipient selection provenance, expanded simulation role names/policies, API v1 routing, OpenAPI 3.1 verification, rate limits, request limits, dependency checks, and container build definitions are present.
+- [x] The local formatter and non-Docker focused verification pass.
+- [x] Docker-backed PostgreSQL/Testcontainers, container image builds, full release verification, and pinned Playwright verification are complete on a host with the required services.
+- [x] The project owner authorizes correction of review findings and publication after successful verification.
+- [ ] GitHub rulesets/branch protection are configured by a repository administrator.
+
+### 2026-09-05 review and verification
+
+This verification supersedes the outstanding local checks recorded on 2026-09-02. The review corrected shared EF ownership of source revisions, response/lifecycle races, the globally shared API request budget, and the web container's compiled API destination. Full-suite execution additionally corrected source-version collision handling, the API fixture's reset-safe database name, a typed-ID query in a lifecycle test, and shared-fixture rate-limit interference. The web image now includes root build dependencies, and container verification exercises its real proxy against a separate synthetic HTTP fixture.
+
+Fresh `scripts/test-all.ps1` execution passed using .NET SDK 10.0.100, Node.js 24.16.0, npm 11.13.0, and Docker Desktop with PostgreSQL 18.4 test containers. Evidence:
+
+- Locked backend restore, formatting verification, and Release build passed with zero build warnings/errors.
+- All 273 backend tests passed: 60 domain, 39 application, 9 architecture, 67 infrastructure, and 98 API integration tests; none were skipped.
+- Backend dependency scanning found no vulnerable packages, and the web production-dependency audit found zero vulnerabilities.
+- All 24 web tests, TypeScript checking, ESLint, and both Chromium browser flows passed.
+- API, worker, and production web Docker image builds passed. `scripts/verify-web-container.ps1` confirmed that the built web image preserves the API path/query when proxying to a separate container.
+- The sensitive-data scan, OpenAPI contract verifier, and `git diff --cached --check` passed.
+- A new local clone checked out the exact staged source tree `6c360d435a4f4463363161be2974d28ce08a9832`, without local build artifacts. Locked restore and three focused PostgreSQL tests passed for empty-database migration/seeding, legacy plaintext upgrade, and missing-key recovery. The temporary checkout and test containers were removed afterward.
+
+Regression evidence includes failures before each behavior fix, followed by passing persisted source-history tests, five deterministic PostgreSQL lifecycle/response races, caller-budget isolation tests, and the container proxy check. Stale source writes are now safe concurrency conflicts for both synchronous and asynchronous saves, with winning history retained and failed-writer audit data rolled back. Independent final code review found no remaining actionable blockers in the combined corrections.
+
+The reviewed change set covers the existing Phase 8 domain/persistence, application/API, web, tests, CI/container, and documentation corrections. Intended commit message: `feat: complete Phase 8 simulation compliance corrections`. No production deployment, external provider, hospital integration, Phase 9 behavior, or tag is included. Production and hospital approval gates remain `REQUIRES_HOSPITAL_DECISION`; repository ruleset administration remains a human action.
 
 ## Frontend Prototype Phase: redesign review gate
 
@@ -242,3 +305,7 @@ Verification commands:
 - `rg -n "fetch\(|/api/|setInterval|setTimeout|XMLHttpRequest|EventSource|WebSocket" src\web\app src\web\components src\web\features`: no matches, confirming no active frontend route/component/store fetch, API, or timer calls.
 
 `scripts/test-all.ps1` was not run on this host because `global.json` requires .NET SDK `10.0.100`, while the host only reports SDK `9.0.310`. Frontend-only gates above are the available local evidence.
+
+## Integration with Phase 8 backend baseline
+
+The frontend prototype replaces the old backend-connected screens and their UI tests. Backend implementation, migrations, API integration tests, data-protection checks, container support, and historical Phase 8 verification evidence are retained from main. The local prototype suite covers the replacement workflows; it does not claim browser-to-API integration. The legacy live-status route redirects to local alert details, and the API proxy retains the versioned `/api/v1` boundary.

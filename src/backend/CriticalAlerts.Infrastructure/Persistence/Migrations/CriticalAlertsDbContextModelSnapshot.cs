@@ -86,12 +86,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("resolved_by_user_id");
 
-                    b.Property<string>("SimulationPatientReference")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("simulation_patient_reference");
-
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid")
                         .HasColumnName("site_id");
@@ -258,6 +252,12 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("selected_by_user_id");
 
+                    b.Property<string>("SelectionSource")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("selection_source");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AlertId", "OrganizationId");
@@ -271,6 +271,51 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_alert_recipient_selection_version_practitioner_channel");
 
                     b.ToTable("alert_recipient_selections", (string)null);
+                });
+
+            modelBuilder.Entity("CriticalAlerts.Domain.Alerts.AlertSourceRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AlertId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("alert_id");
+
+                    b.Property<int>("AlertVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("alert_version");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("source_type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlertId", "AlertVersion")
+                        .IsUnique()
+                        .HasDatabaseName("UX_alert_source_revisions_alert_id_alert_version");
+
+                    b.HasIndex("AlertId", "OrganizationId");
+
+                    b.HasIndex("CreatedByUserId", "OrganizationId");
+
+                    b.ToTable("alert_source_revisions", (string)null);
                 });
 
             modelBuilder.Entity("CriticalAlerts.Domain.Alerts.AlertStateTransition", b =>
@@ -373,6 +418,10 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("idempotency_key");
+
+                    b.Property<DateTimeOffset?>("OpenedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at_utc");
 
                     b.Property<string>("OpenedState")
                         .IsRequired()
@@ -545,6 +594,16 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("alert_id");
 
+                    b.Property<int>("AlertVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("alert_version");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("response_category");
+
                     b.Property<DateTimeOffset>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurred_at_utc");
@@ -553,9 +612,9 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
 
-                    b.Property<Guid>("RecipientSelectionId")
+                    b.Property<Guid>("PractitionerId")
                         .HasColumnType("uuid")
-                        .HasColumnName("recipient_selection_id");
+                        .HasColumnName("practitioner_id");
 
                     b.Property<string>("ResponseType")
                         .IsRequired()
@@ -573,7 +632,11 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AlertId", "OrganizationId");
 
-                    b.HasIndex("RecipientSelectionId", "OrganizationId");
+                    b.HasIndex("PractitionerId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "AlertId", "AlertVersion", "PractitionerId", "Category")
+                        .IsUnique()
+                        .HasDatabaseName("UX_recipient_responses_practitioner_category");
 
                     b.ToTable("recipient_responses", (string)null);
                 });
@@ -596,6 +659,10 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("alert_id");
 
+                    b.Property<int>("AlertVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("alert_version");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid")
                         .HasColumnName("organization_id");
@@ -614,9 +681,23 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("released_at_utc");
 
+                    b.Property<Guid>("SourceResponseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_response_id");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AlertId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "SourceResponseId")
+                        .IsUnique();
+
+                    b.HasIndex("PractitionerId", "OrganizationId");
+
+                    b.HasIndex("SourceResponseId", "OrganizationId");
+
+                    b.HasIndex("OrganizationId", "AlertId", "AlertVersion", "PractitionerId")
+                        .IsUnique();
 
                     b.ToTable("responsibility_assignments", (string)null);
                 });
@@ -1039,6 +1120,43 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("external_identities", (string)null);
+                });
+
+            modelBuilder.Entity("CriticalAlerts.Domain.Identity.PractitionerUserLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("PractitionerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("practitioner_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "PractitionerId")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("PractitionerId", "OrganizationId");
+
+                    b.HasIndex("UserId", "OrganizationId");
+
+                    b.ToTable("practitioner_user_links", (string)null);
                 });
 
             modelBuilder.Entity("CriticalAlerts.Domain.Identity.Role", b =>
@@ -1754,6 +1872,36 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                                 .HasForeignKey("AlertId");
                         });
 
+                    b.OwnsOne("CriticalAlerts.Domain.ProtectedValue", "SimulationPatientReference", b1 =>
+                        {
+                            b1.Property<Guid>("AlertId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<byte[]>("Ciphertext")
+                                .IsRequired()
+                                .HasColumnType("bytea")
+                                .HasColumnName("simulation_patient_reference_ciphertext");
+
+                            b1.Property<string>("KeyVersion")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("simulation_patient_reference_key_version");
+
+                            b1.Property<string>("Purpose")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("simulation_patient_reference_purpose");
+
+                            b1.HasKey("AlertId");
+
+                            b1.ToTable("alerts");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AlertId");
+                        });
+
                     b.OwnsOne("CriticalAlerts.Domain.ProtectedValue", "StructuredSuggestion", b1 =>
                         {
                             b1.Property<Guid>("AlertId")
@@ -1818,6 +1966,9 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
 
                     b.Navigation("OriginalSource");
 
+                    b.Navigation("SimulationPatientReference")
+                        .IsRequired();
+
                     b.Navigation("StructuredSuggestion");
 
                     b.Navigation("Transcription");
@@ -1854,6 +2005,56 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PractitionerRoleId", "OrganizationId")
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CriticalAlerts.Domain.Alerts.AlertSourceRevision", b =>
+                {
+                    b.HasOne("CriticalAlerts.Domain.Alerts.Alert", null)
+                        .WithMany("SourceRevisions")
+                        .HasForeignKey("AlertId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CriticalAlerts.Domain.Identity.UserAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.OwnsOne("CriticalAlerts.Domain.ProtectedValue", "Source", b1 =>
+                        {
+                            b1.Property<Guid>("AlertSourceRevisionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<byte[]>("Ciphertext")
+                                .IsRequired()
+                                .HasColumnType("bytea")
+                                .HasColumnName("source_ciphertext");
+
+                            b1.Property<string>("KeyVersion")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("source_key_version");
+
+                            b1.Property<string>("Purpose")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)")
+                                .HasColumnName("source_purpose");
+
+                            b1.HasKey("AlertSourceRevisionId");
+
+                            b1.ToTable("alert_source_revisions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AlertSourceRevisionId");
+                        });
+
+                    b.Navigation("Source")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CriticalAlerts.Domain.Alerts.AlertStateTransition", b =>
@@ -1912,9 +2113,9 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("CriticalAlerts.Domain.Alerts.AlertRecipientSelection", null)
+                    b.HasOne("CriticalAlerts.Domain.Directory.Practitioner", null)
                         .WithMany()
-                        .HasForeignKey("RecipientSelectionId", "OrganizationId")
+                        .HasForeignKey("PractitionerId", "OrganizationId")
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -1925,6 +2126,20 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                     b.HasOne("CriticalAlerts.Domain.Alerts.Alert", null)
                         .WithMany()
                         .HasForeignKey("AlertId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CriticalAlerts.Domain.Directory.Practitioner", null)
+                        .WithMany()
+                        .HasForeignKey("PractitionerId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CriticalAlerts.Domain.Delivery.RecipientResponse", null)
+                        .WithMany()
+                        .HasForeignKey("SourceResponseId", "OrganizationId")
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -2059,6 +2274,23 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("CriticalAlerts.Domain.Identity.ExternalIdentity", b =>
                 {
+                    b.HasOne("CriticalAlerts.Domain.Identity.UserAccount", null)
+                        .WithMany()
+                        .HasForeignKey("UserId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CriticalAlerts.Domain.Identity.PractitionerUserLink", b =>
+                {
+                    b.HasOne("CriticalAlerts.Domain.Directory.Practitioner", null)
+                        .WithMany()
+                        .HasForeignKey("PractitionerId", "OrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("CriticalAlerts.Domain.Identity.UserAccount", null)
                         .WithMany()
                         .HasForeignKey("UserId", "OrganizationId")
@@ -2205,6 +2437,8 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                     b.Navigation("FieldConfirmations");
 
                     b.Navigation("RecipientSelections");
+
+                    b.Navigation("SourceRevisions");
 
                     b.Navigation("StateTransitions");
                 });
