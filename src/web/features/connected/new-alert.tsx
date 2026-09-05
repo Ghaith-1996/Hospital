@@ -16,7 +16,7 @@ export function NewAlert() {
   const [error, setError] = React.useState<unknown>(null);
   const [busy, setBusy] = React.useState(false);
   const lock = React.useRef(false);
-  const releaseDirty = useUnsavedChanges(!!patient || JSON.stringify(content) !== JSON.stringify(emptyContent));
+  const releaseDirty = useUnsavedChanges(!!siteId || !!departmentId || !!patient || JSON.stringify(content) !== JSON.stringify(emptyContent));
   const router = useRouter();
   const departments = query.data?.sites.find(site => site.siteId === siteId)?.departments ?? [];
   return <><PageHeader title="Alert Doctor" description="Create a fictional alert with human-entered source and SBAR." />

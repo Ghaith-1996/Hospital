@@ -59,11 +59,11 @@ export function useUnsavedChanges(dirty: boolean) {
   return () => { dirtyRef.current = false; };
 }
 
-export function Field({ label, value, onChange, multiline = false, required = true }: {
-  label: string; value: string; onChange(value: string): void; multiline?: boolean; required?: boolean;
+export function Field({ label, value, onChange, multiline = false, required = true, readOnly = false }: {
+  label: string; value: string; onChange(value: string): void; multiline?: boolean; required?: boolean; readOnly?: boolean;
 }) {
   const id = React.useId();
   return <label className="filter-field" htmlFor={id}>{label}{multiline
-    ? <textarea id={id} value={value} required={required} onChange={event => onChange(event.target.value)} />
-    : <input id={id} value={value} required={required} onChange={event => onChange(event.target.value)} />}</label>;
+    ? <textarea id={id} value={value} required={required} readOnly={readOnly} onChange={event => onChange(event.target.value)} />
+    : <input id={id} value={value} required={required} readOnly={readOnly} onChange={event => onChange(event.target.value)} />}</label>;
 }
