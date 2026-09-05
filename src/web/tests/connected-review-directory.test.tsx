@@ -54,3 +54,23 @@ test("network retry uses the same exact version and idempotency key and replay s
   const calls = vi.mocked(api.confirmAlertReview).mock.calls;
   expect(calls[0]).toEqual(calls[1]);
 });
+
+test("explicit directory reload replaces stale evidence even when the draft version is unchanged", async () => {
+  vi.mocked(api.getAlertDraft).mockResolvedValue({ alertId: "sim-alert", draftVersion: 6, recipients: [] } as unknown as api.AlertDraft);
+  vi.mocked(api.searchDirectory).mockResolvedValueOnce([practitioner]).mockResolvedValue([{ ...practitioner, selectionRevision: "revision-2" }]);
+  vi.mocked(api.replaceAlertRecipients).mockRejectedValueOnce(new api.AlertApiError(409, "directory-revision-changed", "Directory changed"));
+  const discard = vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(<RecipientSelection alertId="sim-alert" />);
+  fireEvent.click(await screen.findByRole("checkbox", { name: /Select Dr. Maya Chen SIM-PRAC-1/ }));
+  fireEvent.change(screen.getByLabelText(/Channel for Dr. Maya Chen/), { target: { value: "Sms" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save recipients and reconfirm fields" }));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: "Reload server state" }));
+  await waitFor(() => expect(screen.getByRole("checkbox", { name: /Select Dr. Maya Chen SIM-PRAC-1/ })).not.toBeChecked());
+  fireEvent.click(screen.getByRole("checkbox", { name: /Select Dr. Maya Chen SIM-PRAC-1/ }));
+  fireEvent.change(screen.getByLabelText(/Channel for Dr. Maya Chen/), { target: { value: "Sms" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save recipients and reconfirm fields" }));
+  expect(api.replaceAlertRecipients).toHaveBeenLastCalledWith("sim-alert", 6, [expect.objectContaining({ directoryRevision: "revision-2" })]);
+  expect(discard).toHaveBeenCalledTimes(1);
+  discard.mockRestore();
+});

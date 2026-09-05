@@ -10,8 +10,13 @@ import { DirectoryBrowser, DirectoryEvidence } from "./directory-browser";
 export function RecipientSelection({ alertId }: { alertId: string }) {
   const load = React.useCallback(async () => ({ draft: await api.getAlertDraft(alertId), people: await api.searchDirectory({ includeInactive: true }) }), [alertId]);
   const query = useServerQuery(load);
-  return <><PageHeader title="Select Recipients" description="Manually review each fictional clinician and notification channel." /><ApiError error={query.error} retry={query.reload} />
-    {query.loading ? <Loading /> : query.data && <RecipientsForm key={query.data.draft.draftVersion} {...query.data} reload={query.reload} />}</>;
+  const [revision, setRevision] = React.useState(0);
+  const reload = () => {
+    const guard = new Event("workflow:before-leave", { cancelable: true });
+    if (window.dispatchEvent(guard)) void query.refresh().then(() => setRevision(value => value + 1)).catch(() => {});
+  };
+  return <><PageHeader title="Select Recipients" description="Manually review each fictional clinician and notification channel." /><ApiError error={query.error} retry={reload} />
+    {query.loading ? <Loading /> : query.data && <RecipientsForm key={`${query.data.draft.draftVersion}-${revision}`} {...query.data} reload={reload} />}</>;
 }
 function RecipientsForm({ draft, people, reload }: { draft: api.AlertDraft; people: api.DirectoryPractitioner[]; reload(): void }) {
   const initial = draft.recipients.map(({ practitionerId, practitionerRoleId, channel, directoryRevision }) => ({ practitionerId, practitionerRoleId, channel, directoryRevision }));
@@ -23,10 +28,7 @@ function RecipientsForm({ draft, people, reload }: { draft: api.AlertDraft; peop
   const router = useRouter();
   const releaseDirty = useUnsavedChanges(JSON.stringify(selected) !== JSON.stringify(initial));
   const invalid = selected.some(item => !item.channel || !known.find(person => person.practitionerId === item.practitionerId)?.selectable);
-  return <div className="new-alert-layout"><div className="new-alert-form"><p>Draft version {draft.draftVersion}</p><ApiError error={error} retry={() => {
-    const guard = new Event("workflow:before-leave", { cancelable: true });
-    if (window.dispatchEvent(guard)) reload();
-  }} />
+  return <div className="new-alert-layout"><div className="new-alert-form"><p>Draft version {draft.draftVersion}</p><ApiError error={error} retry={reload} />
     <DirectoryBrowser initial={people} onResults={results => setKnown(current => [...current.filter(person => !results.some(result => result.practitionerId === person.practitionerId)), ...results])} controls={person => <label className="confirmation-check"><input type="checkbox" aria-label={`Select ${person.displayName} ${person.simulationCode}`} disabled={!person.selectable || busy} checked={selected.some(item => item.practitionerId === person.practitionerId)} onChange={event => setSelected(event.target.checked ? [...selected, { practitionerId: person.practitionerId, practitionerRoleId: person.practitionerRoleId, channel: "", directoryRevision: person.selectionRevision }] : selected.filter(item => item.practitionerId !== person.practitionerId))} />Select</label>} />
     <Link href={`/alerts/${draft.alertId}/compose`}>Back to compose</Link>
   </div><aside className="alert-summary"><h2>Selected Clinicians ({selected.length})</h2>
