@@ -23,7 +23,10 @@ function RecipientsForm({ draft, people, reload }: { draft: api.AlertDraft; peop
   const router = useRouter();
   const releaseDirty = useUnsavedChanges(JSON.stringify(selected) !== JSON.stringify(initial));
   const invalid = selected.some(item => !item.channel || !known.find(person => person.practitionerId === item.practitionerId)?.selectable);
-  return <div className="new-alert-layout"><div className="new-alert-form"><p>Draft version {draft.draftVersion}</p><ApiError error={error} retry={reload} />
+  return <div className="new-alert-layout"><div className="new-alert-form"><p>Draft version {draft.draftVersion}</p><ApiError error={error} retry={() => {
+    const guard = new Event("workflow:before-leave", { cancelable: true });
+    if (window.dispatchEvent(guard)) reload();
+  }} />
     <DirectoryBrowser initial={people} onResults={results => setKnown(current => [...current.filter(person => !results.some(result => result.practitionerId === person.practitionerId)), ...results])} controls={person => <label className="confirmation-check"><input type="checkbox" aria-label={`Select ${person.displayName} ${person.simulationCode}`} disabled={!person.selectable || busy} checked={selected.some(item => item.practitionerId === person.practitionerId)} onChange={event => setSelected(event.target.checked ? [...selected, { practitionerId: person.practitionerId, practitionerRoleId: person.practitionerRoleId, channel: "", directoryRevision: person.selectionRevision }] : selected.filter(item => item.practitionerId !== person.practitionerId))} />Select</label>} />
     <Link href={`/alerts/${draft.alertId}/compose`}>Back to compose</Link>
   </div><aside className="alert-summary"><h2>Selected Clinicians ({selected.length})</h2>

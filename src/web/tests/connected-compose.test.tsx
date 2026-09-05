@@ -25,13 +25,19 @@ test("loads server SBAR and leaves critical values unresolved until an explicit 
   expect(api.confirmCriticalField).toHaveBeenCalledWith("sim-alert", { expectedVersion: 4, fieldId: "pulse", originalValue: "118", normalizedValue: "118", unit: "beats/min" });
 });
 
-test("stale save reloads server data and requires review without overwriting", async () => {
+test("stale save preserves local edits until explicit discard and reload", async () => {
   vi.mocked(api.getAlertDraft).mockResolvedValueOnce(draft).mockResolvedValue({ ...draft, draftVersion: 5, sourceText: "SIMULATION: another operator" });
   vi.mocked(api.updateAlertDraft).mockRejectedValue(new api.AlertApiError(409, "stale-alert-version", "Conflict"));
   render(<ComposeAlert alertId="sim-alert" />);
   fireEvent.change(await screen.findByLabelText("Source text"), { target: { value: "SIMULATION: unsaved change" } });
   fireEvent.click(screen.getByRole("button", { name: "Save source and SBAR" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(/changed.*review/i);
+  expect(screen.getByLabelText("Source text")).toHaveValue("SIMULATION: unsaved change");
+  expect(screen.getByRole("button", { name: "Save source and SBAR" })).toBeDisabled();
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Discard local edits and load server version" }));
   await waitFor(() => expect(screen.getByLabelText("Source text")).toHaveValue("SIMULATION: another operator"));
   expect(api.updateAlertDraft).toHaveBeenCalledTimes(1);
   expect(screen.getByText(/Draft version 5/)).toBeVisible();

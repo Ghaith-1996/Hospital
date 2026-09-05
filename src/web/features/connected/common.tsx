@@ -22,14 +22,24 @@ export function useServerQuery<T>(load: () => Promise<T>) {
   const [data, setData] = React.useState<T | null>(null);
   const [error, setError] = React.useState<unknown>(null);
   const [loading, setLoading] = React.useState(true);
-  const [revision, setRevision] = React.useState(0);
+  const sequence = React.useRef({ value: 0 });
+  const refresh = React.useCallback(async () => {
+    const current = ++sequence.current.value;
+    try {
+      const value = await load();
+      if (current === sequence.current.value) { setData(value); setError(null); setLoading(false); }
+    } catch (failure) {
+      if (current === sequence.current.value) { setError(failure); setLoading(false); }
+      throw failure;
+    }
+  }, [load]);
   React.useEffect(() => {
-    let active = true;
-    load().then(value => { if (active) { setData(value); setError(null); setLoading(false); } }, failure => { if (active) { setError(failure); setLoading(false); } });
-    return () => { active = false; };
-  }, [load, revision]);
-  const reload = React.useCallback(() => { setLoading(true); setData(null); setRevision(value => value + 1); }, []);
-  return { data, setData, error, loading, reload };
+    const counter = sequence.current;
+    void refresh().catch(() => {});
+    return () => { ++counter.value; };
+  }, [refresh]);
+  const reload = React.useCallback(() => { void refresh().catch(() => {}); }, [refresh]);
+  return { data, setData, error, loading, reload, refresh };
 }
 
 export function useUnsavedChanges(dirty: boolean) {
@@ -47,10 +57,18 @@ export function useUnsavedChanges(dirty: boolean) {
       if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.getAttribute("target") === "_blank") return;
       if (dirtyRef.current && !window.confirm("Discard unsaved edits and leave? Only the last server-saved draft will be recovered.")) { event.preventDefault(); event.stopPropagation(); }
     }
+    // Navigation API cancellation happens before App Router traverses browser history.
+    // Cross-document exits remain protected by beforeunload.
+    const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+    function navigate(event: Event) {
+      if ((event as Event & { navigationType?: string }).navigationType === "traverse" && event.cancelable) beforeLeave(event);
+    }
+    navigation?.addEventListener("navigate", navigate);
     window.addEventListener("beforeunload", beforeUnload);
     window.addEventListener("workflow:before-leave", beforeLeave);
     document.addEventListener("click", linkClick, true);
     return () => {
+      navigation?.removeEventListener("navigate", navigate);
       window.removeEventListener("beforeunload", beforeUnload);
       window.removeEventListener("workflow:before-leave", beforeLeave);
       document.removeEventListener("click", linkClick, true);

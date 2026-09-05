@@ -3,6 +3,7 @@ import React from "react";
 import { PageHeader } from "../../components/ui/page-header";
 import { applyDirectoryImport, previewDirectoryImport, type DirectoryImportPreview } from "../../lib/directory-import";
 import { ApiError, useUnsavedChanges } from "./common";
+import { isAlertApiError } from "../../lib/alerts";
 export function DirectoryImport() {
   const [file, setFile] = React.useState<File | null>(null);
   const [preview, setPreview] = React.useState<DirectoryImportPreview | null>(null);
@@ -20,7 +21,10 @@ export function DirectoryImport() {
         setPreview(response.preview);
         if (response.applied) { releaseDirty(); setResult(`Import applied. Sync run ${response.syncRunId}`); setPreview(null); }
       } else setPreview(await previewDirectoryImport(file));
-    } catch (failure) { setError(failure); if (apply) setPreview(null); }
+    } catch (failure) {
+      setError(failure);
+      if (apply && isAlertApiError(failure) && failure.status >= 400 && failure.status < 500 && failure.status !== 429) setPreview(null);
+    }
     finally { lock.current = false; setBusy(false); }
   }
   return <><PageHeader title="Directory Import" description="Preview and reconcile the fictional CSV fixture using the server directory adapter." /><section className="new-alert-form">

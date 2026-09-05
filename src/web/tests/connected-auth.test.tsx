@@ -19,6 +19,12 @@ test("selects a server-listed handle then shows the authenticated server princip
   }));
   render(<DevelopmentSessionProvider><UserSwitcher /></DevelopmentSessionProvider>);
   fireEvent.click(await screen.findByRole("button", { name: /Select simulation identity/ }));
+  const item = await screen.findByRole("menuitem", { name: /Fictional Operator/ });
+  expect(item).toHaveFocus();
+  fireEvent.keyDown(item, { key: "Escape" });
+  expect(screen.getByRole("button", { name: /Select simulation identity/ })).toHaveFocus();
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("button", { name: /Select simulation identity/ }), { key: "ArrowDown" });
   fireEvent.click(await screen.findByRole("menuitem", { name: /Fictional Operator/ }));
   expect(await screen.findByText("Server Operator")).toBeVisible();
   expect(calls.find(call => call.path.endsWith("/session"))?.body).toBe(JSON.stringify({ simulationHandle: "sim-operator" }));

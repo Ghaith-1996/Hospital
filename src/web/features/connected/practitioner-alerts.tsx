@@ -20,7 +20,7 @@ export function PractitionerInbox() {
 export function PractitionerAlert({ alertId }: { alertId: string }) {
   const load = React.useCallback(() => api.getMyAlert(alertId), [alertId]);
   const query = useServerQuery(load);
-  const refresh = async () => { query.setData(await load()); };
+  const refresh = query.refresh;
   const action = useIdempotentAction(refresh);
   const alert = query.data;
   const choices: Array<{ type: api.RecipientResponseType; label: string; reason: api.RecipientResponseReasonCode; done: boolean }> = alert ? [
@@ -31,13 +31,13 @@ export function PractitionerAlert({ alertId }: { alertId: string }) {
     { type: "CallUnitRequested", label: "Request call to unit", reason: "simulation-call-unit-requested", done: !!alert.callUnitRequestedAtUtc },
   ] : [];
   return <div className="doctor-alert"><PageHeader title="Doctor Alert" description="Opening, acknowledgement and responsibility acceptance are distinct simulation actions." /><Link href="/my-alerts">Back to inbox</Link>
-    <ApiError error={query.error} retry={query.reload} /><ApiError error={action.error} retry={query.reload} />
+    <ApiError error={query.error} retry={query.reload} /><ApiError error={action.error} retry={() => void action.refresh()} />
     {query.loading ? <Loading /> : alert && <><div className="doctor-alert__grid">
       <section className="doctor-alert__card"><h2>Alert details</h2><p>{alert.simulationPatientReference}</p><p>{alert.location}</p><p>{alert.urgencyLabel}</p><p>{alert.state} · Confirmed version {alert.confirmedVersion}</p></section>
       <section className="doctor-alert__card doctor-alert__card--case"><h2>Approved secure message</h2><p>{alert.approvedMessage}</p>{alert.criticalFields.map(field => <p key={field.fieldId}>{field.fieldId}: {field.value} {field.unit}</p>)}</section>
-      <section className="doctor-alert__card"><h2>Opening</h2><p>Opened: {alert.openedState}</p><p>{alert.secureMessageOpenedAtUtc ?? "Opening not recorded"}</p><button type="button" disabled={action.busy || !alert.channels.includes("SecureMessage") || !!alert.secureMessageOpenedAtUtc || (!!action.uncertain && action.uncertain !== "Record opened")} onClick={() => void action.execute("Record opened", key => api.markMyAlertOpened(alertId, alert.confirmedVersion, key))}>Record opened</button></section>
+      <section className="doctor-alert__card"><h2>Opening</h2><p>Opened: {alert.openedState}</p><p>{alert.secureMessageOpenedAtUtc ?? "Opening not recorded"}</p><button type="button" disabled={action.busy || action.refreshRequired || !alert.channels.includes("SecureMessage") || !!alert.secureMessageOpenedAtUtc || (!!action.uncertain && action.uncertain !== "Record opened")} onClick={() => void action.execute("Record opened", key => api.markMyAlertOpened(alertId, alert.confirmedVersion, key))}>Record opened</button></section>
     </div><section className="detail-card"><h2>Your durable response</h2><ResponseFacts alert={alert} /><p>Acknowledgement does not accept responsibility. Acceptance does not resolve the alert.</p></section>
-      <section className="response-panel"><h2>Respond to alert</h2>{action.uncertain && <p role="status">Outcome uncertain. Retry {action.uncertain} using the same attempt.</p>}<div className="form-actions">{choices.map(choice => <button className="response-action" type="button" key={choice.type} disabled={action.busy || choice.done || (!!action.uncertain && action.uncertain !== choice.label)} onClick={() => void action.execute(choice.label, key => api.recordMyAlertResponse(alertId, alert.confirmedVersion, choice.type, key, choice.reason))}>{choice.label}</button>)}</div></section>
+      <section className="response-panel"><h2>Respond to alert</h2>{action.uncertain && <p role="status">Outcome uncertain. Retry {action.uncertain} using the same attempt.</p>}<div className="form-actions">{choices.map(choice => <button className="response-action" type="button" key={choice.type} disabled={action.busy || action.refreshRequired || choice.done || (!!action.uncertain && action.uncertain !== choice.label)} onClick={() => void action.execute(choice.label, key => api.recordMyAlertResponse(alertId, alert.confirmedVersion, choice.type, key, choice.reason))}>{choice.label}</button>)}</div></section>
     </>}
   </div>;
 }
