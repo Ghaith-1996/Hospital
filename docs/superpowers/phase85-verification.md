@@ -92,7 +92,7 @@ The retained fixture has 14 CSV rows representing **12 practitioners, 2 sites, 3
 
 ## 8. CI status
 
-The workflow retains one `verify` job. Hosted execution for this branch is pending; local equivalents below passed. No hosted status is inferred from these results.
+The workflow retains one `verify` job and runs on main, pull requests, and this specific review branch. Hosted execution is pending; local equivalents below passed. No hosted status is inferred from these results. The branch was pushed using the existing Git transport. Draft PR creation through the GitHub connector failed because its account was not a collaborator. Automatic approval review rejected credential-assisted PR creation; that action did not execute. CI runs on the review branch without requiring a PR or changing repository settings.
 
 | Workflow step | Local evidence | Hosted status |
 |---|---|---|
