@@ -106,12 +106,16 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await signIn(page, jordan);
     const draft = await createDraft(page.request, "SIM-PAT-SYSTEM-B");
     await page.goto("/alerts");
-    await page.goto(`/alerts/${draft.alertId}/compose`);
+    await page.getByLabel("Alert identifier").fill(draft.alertId);
+    await page.getByLabel("View").selectOption("compose");
+    await page.getByRole("button", { name: "Open saved alert" }).click();
+    await expect(page).toHaveURL(new RegExp(`/alerts/${draft.alertId}/compose$`));
     await expect(page.getByText(`Draft version ${draft.draftVersion}`)).toBeVisible();
     await page.getByLabel("Source text").fill("SIMULATION: stale browser edit must not overwrite.");
     const navigationDialog = page.waitForEvent("dialog");
     await page.evaluate(() => window.history.back());
     const dialog = await navigationDialog;
+    expect(dialog.type()).toBe("confirm");
     await dialog.dismiss();
     await expect(page).toHaveURL(new RegExp(`/alerts/${draft.alertId}/compose$`));
     await expect(page.getByLabel("Source text")).toHaveValue("SIMULATION: stale browser edit must not overwrite.");
@@ -126,6 +130,13 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await expect(page.getByLabel("Source text")).toHaveValue("SIMULATION: concurrent server edit must survive.");
     await expect(page.getByText(`Draft version ${external.draftVersion}`)).toBeVisible();
     await expect(page.getByText("Confirmed", { exact: true })).toHaveCount(0);
+    await page.getByLabel("Source text").fill("SIMULATION: deliberate edit discarded by accepted Back navigation.");
+    const acceptedNavigation = page.waitForEvent("dialog");
+    await page.evaluate(() => window.history.back());
+    const acceptedDialog = await acceptedNavigation;
+    expect(acceptedDialog.type()).toBe("confirm");
+    await acceptedDialog.accept();
+    await expect(page).toHaveURL(/\/alerts$/);
   });
 
   test("C: same confirmation key replays once and creates one logical delivery set", async ({ page }) => {
