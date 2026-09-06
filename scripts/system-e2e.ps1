@@ -7,13 +7,21 @@ $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$dotnet = if ($IsWindows) { Join-Path $repositoryRoot ".dotnet10\dotnet.exe" } else { "dotnet" }
 $nodeRoot = Split-Path -Parent $repositoryRoot
-$npm = if ($IsWindows) { Join-Path $nodeRoot ".node-v24.16.0\npm.cmd" } else { "npm" }
-$npx = if ($IsWindows) { Join-Path $nodeRoot ".node-v24.16.0\npx.cmd" } else { "npx" }
+$localDotnet = Join-Path $repositoryRoot ".dotnet10\dotnet.exe"
+$localNode = Join-Path $nodeRoot ".node-v24.16.0\node.exe"
+$localNpm = Join-Path $nodeRoot ".node-v24.16.0\npm.cmd"
+$localNpx = Join-Path $nodeRoot ".node-v24.16.0\npx.cmd"
+$dotnet = if ($IsWindows -and (Test-Path -LiteralPath $localDotnet)) { $localDotnet } else { "dotnet" }
+$node = if ($IsWindows -and (Test-Path -LiteralPath $localNode)) { $localNode } else { "node" }
+$npm = if ($IsWindows -and (Test-Path -LiteralPath $localNpm)) { $localNpm } else { "npm" }
+$npx = if ($IsWindows -and (Test-Path -LiteralPath $localNpx)) { $localNpx } else { "npx" }
 $apiProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\CriticalAlerts.Api.csproj"
 $workerProject = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Worker\CriticalAlerts.Worker.csproj"
+$apiDll = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\bin\Release\net10.0\CriticalAlerts.Api.dll"
+$workerDll = Join-Path $repositoryRoot "src\backend\CriticalAlerts.Worker\bin\Release\net10.0\CriticalAlerts.Worker.dll"
 $webRoot = Join-Path $repositoryRoot "src\web"
+$nextBin = Join-Path $webRoot "node_modules\next\dist\bin\next"
 $postgresImage = "postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636"
 $runId = [Guid]::NewGuid().ToString("N")
 $containerName = "critical-alerts-system-$runId"
@@ -78,6 +86,7 @@ $connectionString = "Host=127.0.0.1;Port=$postgresPort;Database=$database;Userna
 $exitCode = 1
 
 New-Item -ItemType Directory -Path $logRoot | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $logRoot "screenshots") | Out-Null
 Set-Location -LiteralPath $repositoryRoot
 if ([string]::IsNullOrWhiteSpace($env:PLAYWRIGHT_BROWSERS_PATH)) {
     $localBrowsers = Join-Path $repositoryRoot ".playwright-browsers"
@@ -103,20 +112,21 @@ try {
     $env:SimulationResponses__Enabled = "true"
     $env:SimulationDispatch__Enabled = "true"
 
-    & $dotnet run --project $apiProject --no-launch-profile -- database migrate
-    & $dotnet run --project $apiProject --no-launch-profile -- database reset-demo --confirm-demo-reset
+    & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database migrate
+    & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database reset-demo --confirm-demo-reset
+    & $dotnet build $workerProject --configuration Release --nologo
 
     $env:ASPNETCORE_URLS = "http://127.0.0.1:$apiPort"
-    $api = Start-OwnedProcess $dotnet @("run", "--project", $apiProject, "--no-launch-profile") $repositoryRoot "api"
+    $api = Start-OwnedProcess $dotnet @($apiDll) $repositoryRoot "api"
     Wait-Http "http://127.0.0.1:$apiPort/health/ready" $api
 
-    $worker = Start-OwnedProcess $dotnet @("run", "--project", $workerProject, "--no-launch-profile") $repositoryRoot "worker"
+    $worker = Start-OwnedProcess $dotnet @($workerDll) $repositoryRoot "worker"
     $env:CRITICAL_ALERTS_API_URL = "http://127.0.0.1:$apiPort"
     if (-not $SkipWebBuild) {
         & $npm --prefix $webRoot run build
     }
 
-    $web = Start-OwnedProcess $npm @("--prefix", $webRoot, "run", "start", "--", "--hostname", "127.0.0.1", "--port", "$webPort") $repositoryRoot "web"
+    $web = Start-OwnedProcess $node @($nextBin, "start", "--hostname", "127.0.0.1", "--port", "$webPort") $webRoot "web"
     Wait-Http "http://127.0.0.1:$webPort" $web
 
     $env:SYSTEM_E2E_API_URL = "http://127.0.0.1:$apiPort"
@@ -124,6 +134,7 @@ try {
     $env:SYSTEM_E2E_POSTGRES_CONTAINER = $containerName
     $env:SYSTEM_E2E_POSTGRES_DATABASE = $database
     $env:SYSTEM_E2E_POSTGRES_USER = $username
+    $env:SYSTEM_E2E_SCREENSHOT_DIR = Join-Path $logRoot "screenshots"
     & $npx playwright test --config playwright.system.config.ts
     $exitCode = $LASTEXITCODE
 } finally {
@@ -136,6 +147,9 @@ try {
     $liveOwnedProcesses = @($ownedProcesses | Where-Object { -not $_.HasExited }).Count
     $portsClosed = [int]((Test-PortClosed $postgresPort) -and (Test-PortClosed $apiPort) -and (Test-PortClosed $webPort))
     Write-Output "SYSTEM_E2E_TEARDOWN container_remaining=$([int](-not [string]::IsNullOrWhiteSpace($containerRemaining))) live_owned_processes=$liveOwnedProcesses ports_closed=$portsClosed logs=$logRoot"
+    if (-not [string]::IsNullOrWhiteSpace($containerRemaining) -or $liveOwnedProcesses -ne 0 -or $portsClosed -ne 1) {
+        throw "System E2E teardown verification failed."
+    }
 }
 
 if ($exitCode -ne 0) { throw "System E2E failed with exit $exitCode." }

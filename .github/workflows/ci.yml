@@ -83,7 +83,7 @@ jobs:
 
       - name: Run connected system E2E
         shell: pwsh
-        run: ./scripts/system-e2e.ps1 -SkipWebBuild
+        run: ./scripts/system-e2e.ps1
 
       - name: Build API container
         run: docker build --file src/backend/CriticalAlerts.Api/Dockerfile --tag critical-alerts-api:ci .

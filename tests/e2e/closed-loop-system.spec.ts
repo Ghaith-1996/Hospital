@@ -28,9 +28,11 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await page.getByLabel("Critical field 1 identifier").fill("heartRate");
     await page.getByLabel("Critical field 1 original value").fill("118");
     await page.getByLabel("Critical field 1 unit").fill("beats/min");
+    await capture(page, "01-new-alert.png");
     await page.getByRole("button", { name: "Create backend draft" }).click();
     await expect(page).toHaveURL(/\/alerts\/[0-9a-f-]+\/compose$/);
     const alertId = page.url().match(/alerts\/([0-9a-f-]+)\/compose/i)![1];
+    await capture(page, "02-compose-alert.png");
 
     await page.getByLabel("Approved secure message").fill("SIMULATION: secure clinical details for addressed fictional practitioners.");
     await page.getByRole("button", { name: "Approve and save message" }).click();
@@ -61,6 +63,7 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await expect(page.getByText("SIM-PAT-SYSTEM-A")).toBeVisible();
     await expect(page.getByText(/Riley Sato/)).toBeVisible();
     await expect(page.getByText(/Channel: SecureMessage/).first()).toBeVisible();
+    await capture(page, "03-exact-review.png");
     await page.getByRole("checkbox").check();
     const confirm = page.getByRole("button", { name: "Confirm & Dispatch" });
     await confirm.dblclick();
@@ -69,12 +72,14 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await expect(page.getByRole("heading", { name: "Alert Live Status" })).toBeVisible();
     await expect(page.getByText("Status: Delivered").first()).toBeVisible({ timeout: 60_000 });
     await expect(page.locator("body")).toContainText("SIM-PRAC-0108");
+    await capture(page, "04-live-delivery.png");
 
     await switchIdentity(page, riley);
     const inboxLink = page.getByRole("link", { name: new RegExp(`Open alert ${alertId}`, "i") });
     await expect(inboxLink).toBeVisible();
     await inboxLink.click();
     await expect(page.getByText("Opened: PendingNotObserved")).toBeVisible();
+    await capture(page, "05-practitioner-alert.png");
     await page.getByRole("button", { name: "Record opened" }).click();
     await expect(page.getByText("Opened: Occurred")).toBeVisible();
     await expect(page.getByText("Acknowledged: Not recorded")).toBeVisible();
@@ -93,20 +98,31 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await expect(page.getByRole("heading", { name: "Resolved" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "Resolved" })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await capture(page, "06-mobile-resolved-shell.png");
   });
 
   test("B: stale browser edit is rejected and current server version is reloaded", async ({ page }) => {
     await signIn(page, jordan);
     const draft = await createDraft(page.request, "SIM-PAT-SYSTEM-B");
+    await page.goto("/alerts");
     await page.goto(`/alerts/${draft.alertId}/compose`);
     await expect(page.getByText(`Draft version ${draft.draftVersion}`)).toBeVisible();
+    await page.getByLabel("Source text").fill("SIMULATION: stale browser edit must not overwrite.");
+    const navigationDialog = page.waitForEvent("dialog");
+    await page.evaluate(() => window.history.back());
+    const dialog = await navigationDialog;
+    await dialog.dismiss();
+    await expect(page).toHaveURL(new RegExp(`/alerts/${draft.alertId}/compose$`));
+    await expect(page.getByLabel("Source text")).toHaveValue("SIMULATION: stale browser edit must not overwrite.");
     const external = await apiJson(page.request, "patch", `/api/v1/alerts/${draft.alertId}`, {
       ...draftInput("SIM-PAT-SYSTEM-B"), expectedVersion: draft.draftVersion,
       sourceText: "SIMULATION: concurrent server edit must survive.",
     });
-    await page.getByLabel("Source text").fill("SIMULATION: stale browser edit must not overwrite.");
     await page.getByRole("button", { name: "Save source and SBAR" }).click();
     await expect(page.locator(".error-panel[role=alert]")).toContainText(/changed|reloaded|No stale edits/i);
+    await expect(page.getByLabel("Source text")).toHaveValue("SIMULATION: stale browser edit must not overwrite.");
+    await page.getByRole("button", { name: "Discard local edits and load server version" }).click();
     await expect(page.getByLabel("Source text")).toHaveValue("SIMULATION: concurrent server edit must survive.");
     await expect(page.getByText(`Draft version ${external.draftVersion}`)).toBeVisible();
     await expect(page.getByText("Confirmed", { exact: true })).toHaveCount(0);
@@ -188,4 +204,9 @@ function requiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required; run through scripts/system-e2e.ps1.`);
   return value;
+}
+
+async function capture(page: Page, name: string) {
+  const directory = process.env.SYSTEM_E2E_SCREENSHOT_DIR;
+  if (directory) await page.screenshot({ path: `${directory}/${name}`, fullPage: true });
 }
