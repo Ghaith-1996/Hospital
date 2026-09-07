@@ -39,6 +39,14 @@ public sealed class LegacyEscalationSnapshotMigrationTests(PostgresFixture fixtu
                     {DemoDataSeeder.JordanUserId.Value}, {now}, 'DEMO', 'DEMO', {now}, {now})
                 """);
         }
+        await using (var legacy = DatabaseOperations.CreateContext(fixture.ConnectionString))
+        {
+            for (var index = 0; index < 2; index++)
+                await legacy.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO escalation_runs (id, organization_id, alert_id, policy_id, policy_version, current_step, next_due_at_utc, state, started_at_utc)
+                    VALUES ({Guid.NewGuid()}, {DemoDataSeeder.OrganizationId.Value}, {id.Value}, {Guid.NewGuid()}, 'DEMO', 1, {now}, 'Scheduled', {now})
+                    """);
+        }
         await DatabaseOperations.MigrateAsync(fixture.ConnectionString, key);
         await using var verify = DatabaseOperations.CreateContext(fixture.ConnectionString);
         var alert = await verify.Alerts.SingleAsync(a => a.Id == id);
@@ -51,6 +59,17 @@ public sealed class LegacyEscalationSnapshotMigrationTests(PostgresFixture fixtu
         alert.ExactEscalationPlanRevision.Should().BeNull();
         (await verify.AlertEscalationPlans.CountAsync()).Should().Be(0);
         (await verify.AlertEscalationRecipientSnapshots.CountAsync()).Should().Be(0);
+        var legacyRuns = await verify.EscalationRuns.Where(r => r.AlertId == id).ToArrayAsync();
+        legacyRuns.Should().HaveCount(2);
+        foreach (var run in legacyRuns)
+        {
+            run.AlertVersion.Should().BeNull();
+            run.PlanId.Should().BeNull();
+            run.PlanRevision.Should().BeNull();
+            run.UpdatedAtUtc.Should().BeNull();
+            var claim = () => run.AcquireLease("demo-worker", now, TimeSpan.FromMinutes(1));
+            claim.Should().Throw<DomainException>();
+        }
         protector.Unprotect(alert.SimulationPatientReference, new SensitiveDataContext(
             ProtectedValuePurposes.AlertPatientReference, DemoDataSeeder.OrganizationId.Value)).Should().Be("SIM-PAT-LEGACY-ESCALATION");
     }

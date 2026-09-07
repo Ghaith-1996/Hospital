@@ -118,18 +118,22 @@ internal sealed class EscalationRunConfiguration : IEntityTypeConfiguration<Esca
     public void Configure(EntityTypeBuilder<EscalationRun> builder)
     {
         builder.ToTable("escalation_runs");
-        // Task 3 domain additions are mapped by the additive Task 4 migration.
-        builder.Ignore(entity => entity.AlertVersion);
-        builder.Ignore(entity => entity.PlanId);
-        builder.Ignore(entity => entity.PlanRevision);
-        builder.Ignore(entity => entity.UpdatedAtUtc);
-        builder.Ignore(entity => entity.LeaseOwner);
-        builder.Ignore(entity => entity.LeaseExpiresAtUtc);
-        builder.Ignore(entity => entity.PausedAtUtc);
-        builder.Ignore(entity => entity.RemainingDelay);
-        builder.Ignore(entity => entity.Outcome);
-        builder.Ignore(entity => entity.FailureCategory);
-        builder.Ignore(entity => entity.ConsumedSignals);
+        builder.Property(e => e.AlertVersion).HasColumnName("alert_version").HasConversion(v => v.HasValue ? v.Value.Value : (int?)null, v => v.HasValue ? new AlertDraftVersion(v.Value) : null);
+        builder.Property(e => e.PlanId).HasColumnName("plan_id").HasConversion(v => v.HasValue ? v.Value.Value : (Guid?)null, v => v.HasValue ? new AlertEscalationPlanId(v.Value) : null);
+        builder.Property(e => e.PlanRevision).HasColumnName("plan_revision").HasMaxLength(64);
+        builder.Property(e => e.UpdatedAtUtc).HasColumnName("updated_at_utc");
+        builder.Property(e => e.LeaseOwner).HasColumnName("lease_owner").HasMaxLength(100);
+        builder.Property(e => e.LeaseExpiresAtUtc).HasColumnName("lease_expires_at_utc");
+        builder.Property(e => e.PausedAtUtc).HasColumnName("paused_at_utc");
+        builder.Property(e => e.RemainingDelay).HasColumnName("remaining_delay");
+        builder.Property(e => e.Outcome).HasColumnName("outcome").HasConversion<string>().HasMaxLength(32);
+        builder.Property(e => e.FailureCategory).HasColumnName("failure_category").HasConversion<string>().HasMaxLength(64);
+        builder.HasAlternateKey(e => new { e.Id, e.OrganizationId });
+        builder.HasIndex(e => new { e.OrganizationId, e.AlertId, e.AlertVersion }).IsUnique();
+        builder.HasIndex(e => new { e.State, e.LeaseExpiresAtUtc });
+        builder.HasOne<CriticalAlerts.Domain.Escalation.AlertEscalationPlan>().WithMany().HasForeignKey(e => new { e.PlanId, e.OrganizationId }).HasPrincipalKey(e => new { e.Id, e.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(e => e.ConsumedSignals).WithOne().HasForeignKey(e => new { e.RunId, e.OrganizationId }).HasPrincipalKey(e => new { e.Id, e.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        builder.Navigation(e => e.ConsumedSignals).HasField("_consumedSignals").UsePropertyAccessMode(PropertyAccessMode.Field).AutoInclude();
         builder.HasKey(entity => entity.Id);
         builder.Property(entity => entity.Id).GuidId(value => new EscalationRunId(value), id => id.Value, "id");
         builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");

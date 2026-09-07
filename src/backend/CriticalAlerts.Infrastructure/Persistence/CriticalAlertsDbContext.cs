@@ -78,6 +78,10 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public DbSet<AlertEscalationRecipientSnapshot> AlertEscalationRecipientSnapshots => Set<AlertEscalationRecipientSnapshot>();
 
+    public DbSet<EscalationEvent> EscalationEvents => Set<EscalationEvent>();
+
+    public DbSet<EscalationConsumedSignal> EscalationConsumedSignals => Set<EscalationConsumedSignal>();
+
     public DbSet<EscalationRun> EscalationRuns => Set<EscalationRun>();
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
@@ -120,7 +124,7 @@ public sealed class CriticalAlertsDbContext : DbContext
     {
         ChangeTracker.DetectChanges();
         if (ChangeTracker.Entries().Any(entry =>
-            (entry.Entity is AlertEscalationPlan or AlertEscalationRecipientSnapshot)
+            (entry.Entity is AlertEscalationPlan or AlertEscalationRecipientSnapshot or EscalationEvent or EscalationConsumedSignal)
             && entry.State is EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Confirmed escalation snapshots are immutable.");
     }
