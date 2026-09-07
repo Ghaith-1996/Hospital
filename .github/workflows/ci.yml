@@ -76,7 +76,16 @@ jobs:
         run: npm --prefix src/web run build
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 12
+        run: |
+          npx playwright install-deps chromium
+          for attempt in 1 2 3; do
+            if timeout 180s npx playwright install --only-shell chromium; then
+              exit 0
+            fi
+            echo "Headless Chromium installation attempt $attempt failed; retrying within the bounded CI step."
+          done
+          exit 1
 
       - name: Run web smoke test
         run: npm run web:e2e
