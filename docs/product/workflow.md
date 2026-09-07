@@ -1,6 +1,6 @@
 # Workflow Specification
 
-Status: Proposed simulation workflow through the local Phase 8 practitioner-response, lifecycle, and fallback-display boundary. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
+Status: Phase 9 simulation workflow specification authorized 2026-09-07 over the connected Phase 8.5 baseline; Phase 9 implementation/verification remain in progress. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
@@ -10,7 +10,7 @@ Phase 8.5 retains the visual redesign and connects operator, practitioner, direc
 
 The browser holds unsaved forms in memory with navigation warnings. It submits exact versions and manually selected recipients/channels, displays the server review, and confirms with an idempotency key. The local worker processes the durable outbox through simulated adapters. The live page reads the safe API projection, including distinct delivery/opening/acknowledgement/acceptance states and the unresolved manual-fallback placeholder. No browser timer fabricates dispatch or escalation.
 
-The historical prototype design is superseded by `docs/superpowers/specs/2026-09-05-phase-0-8-reintegration-design.md`. Production policy remains `REQUIRES_HOSPITAL_DECISION`; no Phase 9 automation is included.
+The historical prototype design is superseded by `docs/superpowers/specs/2026-09-05-phase-0-8-reintegration-design.md`. Production policy remains `REQUIRES_HOSPITAL_DECISION`; the authorized Phase 9 extension is specified below and does not reinstate the prototype.
 
 ## Workflow identity
 
@@ -29,12 +29,12 @@ The production workflow owner, authorized roles, clinical trigger, required data
 2. Original typed or transcribed content is immutable history and is never replaced by a structured suggestion.
 3. Structured fields and AI suggestions are separate from the original source and from approved content.
 4. Every critical number and unit is individually confirmed by a human before dispatch.
-5. Recipients are manually selected. A specialty suggestion may never select or pre-check a practitioner.
+5. Primary recipients are manually selected. Future DEMO backups are explicitly displayed and human-confirmed before dispatch; activation may use only that exact plan. A specialty suggestion may never select or pre-check a practitioner.
 6. The review screen shows the exact alert version, message, critical values and units, recipient list, channel list, and escalation-policy version.
 7. Dispatch requires an explicit authenticated human confirmation of that exact version and recipient set.
 8. Any edit to content, critical values, units, urgency, policy version, or recipients invalidates confirmation.
 9. A provider's accepted/submitted status is not delivery; delivery is not opening; opening is not acknowledgement; acknowledgement is not responsibility acceptance.
-10. Only an approved human workflow may stop escalation. AI and background workers may not decide to stop escalation.
+10. Only explicit human-confirmed DEMO rules may drive worker stop behavior: durable lifecycle or active exact-version responsibility. AI cannot stop escalation; production stop policy is `REQUIRES_HOSPITAL_DECISION`.
 11. Failed delivery and provider outage remain visible and actionable.
 12. No SMS or voicemail contains patient, clinical, or detailed case content by default.
 13. A channel state that is not supported is recorded as `NotApplicable`, not as pending, failed, or successful.
@@ -93,7 +93,7 @@ Each extracted number is displayed with its unit, source/evidence reference when
 
 The operator searches the fictional directory by name, specialty, department, site, and on-call display. Similar names show disambiguating fields. Inactive or stale entries are visibly flagged and selection behavior for a real hospital is `REQUIRES_HOSPITAL_DECISION`.
 
-No background process may add a recipient. The system records who selected each recipient and which directory timestamp was shown.
+No background process may add an unconfirmed recipient. Phase 9 activation is limited to exact future backup snapshots shown and confirmed by the operator, and records SelectionSource=EscalationPolicy plus policy/step provenance. The system records confirmation evidence and the directory timestamp shown.
 
 ### 6. Review and confirm
 
@@ -138,7 +138,7 @@ These are not a single linear clinical state. A supported state may be pending/n
 
 In Development/Test, the server resolves the authenticated fictional user's practitioner through an explicit organization-scoped link. A mapped Practitioner sees only confirmed Active alerts whose exact version addresses that practitioner. SecureMessage may record an opened timestamp; SMS and Voice report opening as `NotApplicable`.
 
-The practitioner may acknowledge independently, request that the simulation call unit be notified, and may record exactly one terminal disposition: accepted, declined, or unavailable. Acceptance creates one durable responsibility assignment tied to that exact alert version and response; acknowledgement or a call-unit request alone does not. Declined and unavailable remain visible but trigger no automatic next step. Safe reason codes are allowlisted and no free-text reason is accepted.
+The practitioner may acknowledge independently, request that the simulation call unit be notified, and may record exactly one terminal disposition: accepted, declined, or unavailable. Acceptance creates one durable responsibility assignment tied to that exact alert version and response; acknowledgement or a call-unit request alone does not. At the retained Phase 8 boundary, declined and unavailable only remain visible. The Phase 9 extension below consumes each exact-version decline/unavailable signal at most once to expedite the next eligible preconfirmed step. Safe reason codes are allowlisted and no free-text reason is accepted.
 
 An Operator, Administrator, ClinicalSupervisor, Auditor, or SystemAdministrator may view the organization-scoped live projection according to the server policy. The page refreshes on a five-second polling interval and labels the displayed refresh time; it is not a real-time callback or push surface. It exposes operational status only, never protected message content, contact values, or raw provider references.
 
@@ -162,14 +162,28 @@ If the alert or any delivery attempt has a durable failure, the live projection 
 | Duplicate confirmation | Idempotency and optimistic concurrency prevent duplicate dispatch. |
 | Provider callback replay/out of order | Authenticate, validate, deduplicate, and normalize without regressing durable state. |
 | All channels fail | Show a durable operator-visible failure and the simulation manual-fallback placeholder; never silently disappear. The hospital-approved fallback route is `REQUIRES_HOSPITAL_DECISION`. |
-| Acknowledged but not accepted | Keep acknowledgement and responsibility separate; no automatic escalation or lifecycle action is taken. |
+| Acknowledged but not accepted | Keep acknowledgement and responsibility separate; acknowledgement alone does not stop the confirmed DEMO escalation and never changes lifecycle. |
 | Duplicate or concurrent response | Scope the idempotency key to the authenticated organization and operation; enforce one acknowledgement and one terminal disposition per practitioner/alert/version. |
 | Accepted response | Create one durable responsibility assignment for the exact practitioner and alert version; the authorized operator may later resolve the active alert. |
-| Declined or unavailable response | Keep the terminal disposition visible; do not infer escalation, reassignment, resolution, or cancellation. |
+| Declined or unavailable response | Keep the terminal disposition visible; Phase 9 consumes its signal once to expedite only the next preconfirmed step, without inferring reassignment, resolution or cancellation. |
 | Call-unit request | Record one non-terminal call-unit request with an allowlisted simulation reason; do not page or contact a real unit. |
 | Operator resolve/cancel | Require exact version, authenticated lifecycle role, and idempotency; resolve additionally requires an unreleased exact-version responsibility assignment. |
 | Channel cannot report opened | Record `NotApplicable`; do not infer opened, acknowledged, or responsibility accepted. |
 | Concurrent operator edit | Reject stale version updates and require the operator to refresh/review. |
+
+## Phase 9 exact confirmed DEMO escalation
+
+This is the authorized target behavior, tracked by the [Phase 9 plan](../superpowers/plans/2026-09-07-phase-9-escalation.md), not a claim of completed implementation. The [design](../superpowers/specs/2026-09-07-phase-9-escalation-design.md) and [architecture](../architecture/escalation.md) define the full contract.
+
+Before initial dispatch, review shows the exact policy ID/version, plan revision, ordered DEMO steps/delays and every future backup practitioner/role/channel with directory/on-call evidence. Human confirmation supplies exact alert version and expected plan revision. A policy/directory/on-call change returns 409 `escalation-plan-changed` with no confirmation or dispatch, requiring refreshed review. The transaction persists immutable plan/rules/recipient snapshots with confirmation evidence. Legacy confirmations without those snapshots are ineligible; no policy is guessed or backfilled.
+
+Once the confirmed alert is Active, PostgreSQL schedules one durable run for that exact organization/alert/version. Database UTC time owns due work and lease recovery. The scheduler/processor and acceptance/lifecycle/Pause/Resume transactions lock the alert row before the run and re-read durable stop conditions. Terminal lifecycle or active exact-version responsibility stops escalation before pause, pending decline/unavailable or deadline evaluation. Delivered, opened, acknowledged and call-unit requested do not stop it.
+
+Each exact-version declined/unavailable response is consumed durably once with its triggered step, preventing later polls/restarts from accelerating every remaining step. Pause suppresses automation and retains signals; Resume restores stored remaining delay (zero if already due) and then considers pending signals. Only the authenticated lifecycle-role human may Pause/Resume, with exact version, idempotency key and allowlisted reason. There is no new permanent stop action; Cancel/Resolve remain explicit human lifecycle controls.
+
+A due step activates only confirmed backup snapshots, without changing the approved content or DraftVersion, and atomically records selection provenance, timeline, signal consumption, step state, audit and identifier-only outbox. The existing dispatch worker delivers only newly activated IDs. A now-inactive/missing/ineligible backup fails visibly with manual fallback; the worker never searches for a replacement or silently activates part of an invalid step. Exhaustion and provider/processing failure remain visible with the non-routing `REQUIRES_HOSPITAL_DECISION` fallback warning.
+
+Live status shows DEMO policy/version, eligibility, current step, next evaluation UTC, pause/stop/exhaustion/failure and append-only timeline, identifying policy-added recipients. Five-second polling and any countdown are display-only; reaching zero never executes escalation. No clinical/contact/protected payload enters live escalation, outbox, audit, timeline or logs. Simulation only; no real providers, AI, clinical selection, hospital integration, production timing or Phase 10.
 
 ## Production decision register
 
