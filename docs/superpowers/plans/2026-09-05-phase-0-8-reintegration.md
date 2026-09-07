@@ -79,8 +79,8 @@ Files: active architecture/product/docs and Phase 8.5 verification report.
 - [x] Run clean locked restore, format, Release build, all backend tests including PostgreSQL/API/architecture; empty migration and guarded reset.
 - [x] Run clean npm installs, unit tests, typecheck, lint, production build, smoke and real system E2E.
 - [x] Build API/worker/web containers and verify internal API proxy; run dependency and sensitive-data scans; generated OpenAPI comparison; diff/scope review.
-- [ ] Repeat required verification from a clean checkout of committed work. Record exact commands, counts, skips/failures and CI job/step status.
-- [ ] Obtain independent code/spec review, correct findings, then produce the user-requested twelve-part review package. Human acceptance remains external; no Phase 9.
+- [x] Repeat required verification from a clean checkout of committed work. Record exact commands, counts, skips/failures and CI job/step status.
+- [x] Obtain independent code/spec review, correct findings, then produce the user-requested twelve-part review package. Human acceptance remains external; no Phase 9.
 
 ## Execution notes
 
@@ -91,3 +91,4 @@ Files: active architecture/product/docs and Phase 8.5 verification report.
 
 - Verification: clean clone passed297 backend tests (60 domain,39 application,67 infrastructure,122 API,9 architecture),28 frontend tests,3 real system scenarios and1 smoke; generated contract, scans, format, builds and proxy passed. See phase85-verification.md for exact evidence and hosted CI status.
 - Review corrections: full OpenAPI success/header/form metadata, explicit stale-buffer discard, stable uncertain actions/read recovery, same-version directory reload, keyboard menu focus, browser history cancellation, baked API URL and process teardown in CI. Independent broad review findings were corrected.
+- Hosted closure: run `34147632647` at `61b9c95` passes all 30 job steps, with 297 backend tests, 28 frontend tests, one smoke and three real system scenarios. Earlier browser extraction and E2E synchronization failures were corrected without weakening application guards. See the twelve-part verification package and CI evidence JSON.

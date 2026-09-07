@@ -1,4 +1,4 @@
-﻿# Phase Definition of Done
+# Phase Definition of Done
 
 ## Phase 0: specification and repository rules
 
@@ -319,8 +319,8 @@ The earlier frontend prototype replaced connected screens with a local store. Ph
 - [x] Source/SBAR, critical confirmation, exact recipients/channels/review, and durable response/lifecycle boundaries are preserved.
 - [x] Governance evidence is reconciled without filling unrecorded approvals.
 - [x] System harness and CI definitions exercise real PostgreSQL, migrations, API, outbox, worker, web and Chromium.
-- [ ] Final clean verification, generated contract, exact test counts, scans and container checks are recorded for the reviewed source.
-- [ ] GitHub CI passes for the reviewed source.
+- [x] Final clean verification, generated contract, exact test counts, scans and container checks are recorded for the reviewed source.
+- [x] GitHub CI passes for the reviewed source (`61b9c95`, run `34147632647`; all 30 reported steps succeed).
 - [ ] Project owner accepts the integrated Phase 0–8 simulation baseline.
 
 No Phase 9, real provider, hospital connection, production identity or real data is authorized. Missing hospital decisions remain `REQUIRES_HOSPITAL_DECISION`. Repository visibility/settings remain unchanged; the direct request requires a public repository.

@@ -2,11 +2,13 @@
 
 Date: 2026-09-05 (America/Toronto). Baseline: `c94401f`. Branch: `fix/phase-0-8-reintegration`.
 
-CI follow-up: 2026-09-07. The first hosted run passed all application checks but hit GitHub's six-hour limit during browser extraction. [Playwright's upstream report](https://github.com/microsoft/playwright/issues/41000) identifies this hang on Node 24.16.0 and a fix in Playwright 1.60.0. Both test dependency pins/locks were updated from 1.55.1 to 1.60.0; Node and application dependencies remain unchanged. Browser installation is also bounded and installs the required headless shell. Earlier local browser evidence below used 1.55.1; the final hosted run verifies the corrected dependency from a fresh runner.
+CI follow-up: 2026-09-07. The first hosted run passed the checks preceding browser installation but hit GitHub's six-hour limit during browser extraction. [Playwright's upstream report](https://github.com/microsoft/playwright/issues/41000) identifies this hang on Node 24.16.0 and a fix in Playwright 1.60.0. Both test dependency pins/locks were updated from 1.55.1 to 1.60.0; Node and application dependencies remain unchanged. Browser installation is also bounded and installs the required headless shell. Earlier local browser evidence below used 1.55.1; the final hosted run verifies the corrected dependency from a fresh runner.
+
+The next hosted run installed the browser and passed standalone smoke, then exposed a synchronization error in system Scenario A: its old draft-version assertion was already true before the approved-message save completed. The test now awaits the successful API response and its exact rendered version before navigating, preserving the application's unsaved-edit guard. Playwright 1.60.0 was also verified locally with a fresh headless-shell installation, 28 component tests, typecheck, lint and one standalone smoke test.
 
 ## 1. Executive verdict
 
-The redesigned application now exercises the real Phase 0–8 simulation architecture: browser → Next.js → API → PostgreSQL → transactional outbox → worker → simulated adapter → durable delivery → practitioner response/responsibility → operator lifecycle. Local clean-checkout verification passes. Hosted GitHub CI and human acceptance are separate gates; their status is recorded below, not inferred from local tests.
+The redesigned application now exercises the real Phase 0–8 simulation architecture: browser → Next.js → API → PostgreSQL → transactional outbox → worker → simulated adapter → durable delivery → practitioner response/responsibility → operator lifecycle. Local clean-checkout verification and hosted GitHub CI pass. The Phase 8.5 technical gate is complete; project-owner acceptance remains open.
 
 ## 2. Files changed
 
@@ -90,38 +92,51 @@ Pinned .NET SDK 10.0.100 and Node 24.16.0 were placed on PATH; the existing pinn
 
 Logs/TRX remain outside the source repository under `D:\hospital\phase85-*.log` and `D:\hospital\phase85-test-results`. Review exposed genuine red tests for contract completeness, stale-form preservation, failed-refresh idempotency and keyboard/import recovery before their corrections. No claim is made that passing component mocks substitute for PostgreSQL or system tests.
 
+The final local clean-checkout system run at `b9045d7` passed all three scenarios in 15.2 seconds, including cancellation and acceptance of same-document browser Back navigation. Teardown reported zero remaining containers, zero live owned processes and closed ports. Subsequent source changes are confined to CI, Playwright test dependencies, test synchronization and verification documentation; hosted verification below identifies its precise tested commit.
+
 The retained fixture has 14 CSV rows representing **12 practitioners, 2 sites, 3 departments, 2 inactive practitioners, 6 specialties, two Martin surnames, Primary and Backup on-call examples, 3 rows missing optional endpoints, and 1 intentionally stale practitioner**. Parser, directory and seed tests use this same fictional fixture; the divergent frontend directory is retired. Existing reset tests cover explicit confirmation, environment/local-database guards and invalid reset targets.
 
 ## 8. CI status
 
-The workflow retains one `verify` job and runs on main, pull requests, and this specific review branch. Hosted execution is pending; local equivalents below passed. No hosted status is inferred from these results. The branch was pushed using the existing Git transport. Draft PR creation through the GitHub connector failed because its account was not a collaborator. Automatic approval review rejected credential-assisted PR creation; that action did not execute. CI runs on the review branch without requiring a PR or changing repository settings.
+[Hosted run 34147632647](https://github.com/Ghaith-1996/Hospital/actions/runs/34147632647) completed successfully on 2026-09-07 for commit `61b9c952f02e5091ad28fb5dbf1c3404912984df`. The single `verify` job and all 30 reported steps succeeded; none failed or skipped. [Machine-readable evidence](phase85-ci-evidence.json) records the exact job and step results. The subsequent report commit changes documentation only and intentionally skips another CI run; its application, tests, dependencies and workflow are identical to this verified commit.
 
-| Workflow step | Local evidence | Hosted status |
+Fresh Ubuntu runner results: **297 backend tests** (60 domain, 39 application, 67 infrastructure, 122 API, 9 architecture), **28 frontend tests in 8 files**, **1 smoke test in 4.6 seconds**, and **3 system scenarios in 14.0 seconds**. Backend tests report zero failures/skips; all browser scenarios ran. System teardown reports `container_remaining=0 live_owned_processes=0 ports_closed=1`. Release builds report zero warnings/errors. Full OpenAPI runtime comparison, both dependency scans, all three container builds, container API proxy, storage and repository safety checks passed. GitHub's Node cache post-step emits an upstream `url.parse()` deprecation warning but completes successfully.
+
+The workflow runs on main, pull requests and this specific review branch. The branch was pushed using the existing Git transport. Draft PR creation through the GitHub connector failed because its account was not a collaborator. Automatic approval review rejected credential-assisted PR creation; that action did not execute. CI ran on the review branch without requiring a PR or changing repository settings.
+
+| Step number | Workflow step | Hosted result |
 |---|---|---|
-| Checkout | Clean local clone | Pending |
-| Set up .NET / Node | Exact pinned runtimes | Pending |
-| Restore backend | Pass | Pending |
-| Backend formatting | Pass | Pending |
-| OpenAPI contract | Pass | Pending |
-| Backend vulnerability scan | Pass | Pending |
-| Backend build | Pass | Pending |
-| Backend tests | 297 pass | Pending |
-| Install root dependencies | Pass | Pending |
-| Install web dependencies | Pass | Pending |
-| Web vulnerability scan | Zero reported | Pending |
-| Web unit tests | 28 pass | Pending |
-| Web typecheck | Pass | Pending |
-| Web lint | Pass | Pending |
-| Workflow storage safety | Pass | Pending |
-| Production web build | Pass | Pending |
-| Install Chromium | Existing pinned browser used locally | Pending |
-| Standalone smoke | 1 pass | Pending |
-| Connected system E2E | 3 pass | Pending |
-| API container build | Pass | Pending |
-| Worker container build | Pass | Pending |
-| Web container build | Pass | Pending |
-| Container API proxy | Pass | Pending |
-| Repository safety | Pass | Pending |
+| 1 | Set up job | success |
+| 2 | Check out repository | success |
+| 3 | Set up .NET SDK | success |
+| 4 | Set up Node.js | success |
+| 5 | Restore backend dependencies | success |
+| 6 | Verify backend formatting | success |
+| 7 | Verify OpenAPI contract | success |
+| 8 | Scan backend dependencies | success |
+| 9 | Build backend | success |
+| 10 | Run backend tests | success |
+| 11 | Install root test dependencies | success |
+| 12 | Install web dependencies | success |
+| 13 | Scan web dependencies | success |
+| 14 | Run web unit tests | success |
+| 15 | Typecheck web | success |
+| 16 | Lint web | success |
+| 17 | Verify active workflow storage safety | success |
+| 18 | Build production web | success |
+| 19 | Install Playwright browser | success |
+| 20 | Run web smoke test | success |
+| 21 | Run connected system E2E | success |
+| 22 | Build API container | success |
+| 23 | Build worker container | success |
+| 24 | Build web container | success |
+| 25 | Verify web container API proxy | success |
+| 26 | Run repository safety check | success |
+| 50 | Post Set up Node.js | success |
+| 51 | Post Set up .NET SDK | success |
+| 52 | Post Check out repository | success |
+| 53 | Complete job | success |
+
 
 ## 9. Known limitations
 
@@ -139,4 +154,4 @@ Generic SMS/voice wake-up content, protected detailed content, Development/Test 
 
 ## 12. Proposed next action
 
-Finish hosted CI verification for this review branch, then request project-owner review of the integrated Phase 0–8 simulation baseline. Do not begin Phase 9 or alter repository visibility/settings.
+Project-owner review of the integrated Phase 0–8 simulation baseline is the next action. The technical gate passes; no human acceptance is inferred. Do not begin Phase 9 or alter repository visibility/settings.
