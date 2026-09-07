@@ -51,7 +51,9 @@ public sealed class EscalationPlanResolver(CriticalAlertsDbContext db)
             roles = roles.Where(r => r.PractitionerId == id),
             sources = sources.Where(s => s.PractitionerId == id),
             onCall = onCall.Where(o => o.PractitionerId == id).Select(o => new { assignment = o, active = o.StartsAtUtc <= now && now < o.EndsAtUtc }),
-            endpoints = endpoints.Where(e => e.PractitionerId == id), departments, sites,
+            endpoints = endpoints.Where(e => e.PractitionerId == id),
+            departments,
+            sites,
         });
         string OnCallSummary(PractitionerId id)
         {

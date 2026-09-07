@@ -1,5 +1,5 @@
+using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Escalation;
-﻿using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Simulation;
 
 namespace CriticalAlerts.Domain.Alerts;

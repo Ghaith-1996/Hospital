@@ -74,10 +74,15 @@ public sealed class AlertEscalationPlan
             throw new DomainException("The escalation plan revision changed.");
         return new AlertEscalationPlan
         {
-            Id = AlertEscalationPlanId.New(), OrganizationId = new(definition.OrganizationId),
-            AlertId = new(definition.AlertId), AlertVersion = definition.AlertVersion,
-            EscalationPolicyId = new(definition.PolicyId), EscalationPolicyVersion = definition.PolicyVersion,
-            Revision = revision, DefinitionJson = canonical, ConfirmedByUserId = actor,
+            Id = AlertEscalationPlanId.New(),
+            OrganizationId = new(definition.OrganizationId),
+            AlertId = new(definition.AlertId),
+            AlertVersion = definition.AlertVersion,
+            EscalationPolicyId = new(definition.PolicyId),
+            EscalationPolicyVersion = definition.PolicyVersion,
+            Revision = revision,
+            DefinitionJson = canonical,
+            ConfirmedByUserId = actor,
             ConfirmedAtUtc = UtcInstant.Require(at, nameof(at)),
         };
     }

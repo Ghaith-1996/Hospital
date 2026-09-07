@@ -24,12 +24,22 @@ public sealed class AlertEscalationRecipientSnapshot
     public static IReadOnlyList<AlertEscalationRecipientSnapshot> FromPlan(AlertEscalationPlan plan)
         => plan.Definition.Steps.SelectMany(step => step.Recipients.Select(recipient => new AlertEscalationRecipientSnapshot
         {
-            Id = AlertEscalationRecipientSnapshotId.New(), PlanId = plan.Id, OrganizationId = plan.OrganizationId,
-            AlertId = plan.AlertId, AlertVersion = plan.AlertVersion, EscalationPolicyId = plan.EscalationPolicyId,
-            EscalationPolicyVersion = plan.EscalationPolicyVersion, PlanRevision = plan.Revision,
-            StepSequence = step.Sequence, PractitionerId = new(recipient.PractitionerId), PractitionerRoleId = new(recipient.PractitionerRoleId),
-            Channel = Enum.Parse<NotificationChannel>(recipient.Channel), DirectoryRevision = recipient.DirectoryRevision,
-            DirectorySourceUpdatedAtUtc = recipient.DirectorySourceUpdatedAtUtc, OnCallSnapshot = recipient.OnCallSnapshot,
-            ConfirmedByUserId = plan.ConfirmedByUserId, ConfirmedAtUtc = plan.ConfirmedAtUtc,
+            Id = AlertEscalationRecipientSnapshotId.New(),
+            PlanId = plan.Id,
+            OrganizationId = plan.OrganizationId,
+            AlertId = plan.AlertId,
+            AlertVersion = plan.AlertVersion,
+            EscalationPolicyId = plan.EscalationPolicyId,
+            EscalationPolicyVersion = plan.EscalationPolicyVersion,
+            PlanRevision = plan.Revision,
+            StepSequence = step.Sequence,
+            PractitionerId = new(recipient.PractitionerId),
+            PractitionerRoleId = new(recipient.PractitionerRoleId),
+            Channel = Enum.Parse<NotificationChannel>(recipient.Channel),
+            DirectoryRevision = recipient.DirectoryRevision,
+            DirectorySourceUpdatedAtUtc = recipient.DirectorySourceUpdatedAtUtc,
+            OnCallSnapshot = recipient.OnCallSnapshot,
+            ConfirmedByUserId = plan.ConfirmedByUserId,
+            ConfirmedAtUtc = plan.ConfirmedAtUtc,
         })).ToArray();
 }

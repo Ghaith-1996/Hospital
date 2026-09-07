@@ -1,7 +1,7 @@
-using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain.Identity;
 using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Infrastructure.Persistence;

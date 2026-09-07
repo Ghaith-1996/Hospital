@@ -1,5 +1,3 @@
-using CriticalAlerts.Domain.Escalation;
-using CriticalAlerts.Infrastructure.Escalation;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,8 +6,10 @@ using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Domain.Reliability;
+using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
