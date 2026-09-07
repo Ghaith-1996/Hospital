@@ -1,3 +1,5 @@
+using CriticalAlerts.Domain.Escalation;
+
 namespace CriticalAlerts.Domain.Policies;
 
 public sealed class AlertTemplate
@@ -160,8 +162,8 @@ public sealed class EscalationPolicy
             "DEMO sequential backup",
             "DEMO-1",
             isActive: true,
-            "DEMO: elapsed PostgreSQL UTC delay or one unconsumed Declined/Unavailable response; REQUIRES_HOSPITAL_DECISION.",
-            "DEMO: stop on active exact-version responsibility, human resolve or cancel; pause suspends activation; REQUIRES_HOSPITAL_DECISION.");
+            DemoEscalationSemantics.TriggerCondition,
+            DemoEscalationSemantics.StopCondition);
     }
 }
 

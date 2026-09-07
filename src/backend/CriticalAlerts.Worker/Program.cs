@@ -1,6 +1,8 @@
 using CriticalAlerts.Application.Dispatch;
+using CriticalAlerts.Application.Escalation;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Infrastructure.Dispatch;
+using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,18 +16,24 @@ var developmentAuthenticationEnabled = builder.Configuration.GetValue("Developme
 DevelopmentAuthenticationGuard.EnsureAllowed(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
 var simulationDispatchEnabled = builder.Configuration.GetValue("SimulationDispatch:Enabled", false);
 SimulationDispatchEnvironmentGuard.EnsureAllowed(builder.Environment.EnvironmentName, simulationDispatchEnabled);
+var simulationEscalationEnabled = builder.Configuration.GetValue("SimulationEscalation:Enabled", false);
+SimulationEscalationEnvironmentGuard.EnsureAllowed(builder.Environment.EnvironmentName, simulationEscalationEnabled);
 
-if (simulationDispatchEnabled)
+if (simulationDispatchEnabled || simulationEscalationEnabled)
 {
     var connectionString = builder.Configuration.GetConnectionString("CriticalAlerts");
     if (string.IsNullOrWhiteSpace(connectionString))
     {
-        throw new InvalidOperationException("Simulation dispatch requires a PostgreSQL connection string.");
+        throw new InvalidOperationException("Simulation workers require a PostgreSQL connection string.");
     }
 
     builder.Services.AddCriticalAlertsPersistence(
         connectionString,
         builder.Configuration["DataProtection:Key"] ?? builder.Configuration["CRITICAL_ALERTS_DATA_PROTECTION_KEY"]);
+}
+
+if (simulationDispatchEnabled)
+{
     builder.Services
         .AddOptions<DispatchWorkerOptions>()
         .Bind(builder.Configuration.GetSection("SimulationDispatch"))
@@ -33,7 +41,16 @@ if (simulationDispatchEnabled)
     builder.Services.AddSimulationDispatch();
     builder.Services.AddHostedService<SimulationDispatchWorker>();
 }
-else
+if (simulationEscalationEnabled)
+{
+    builder.Services.AddOptions<EscalationWorkerOptions>()
+        .Bind(builder.Configuration.GetSection("SimulationEscalation"))
+        .PostConfigure(options => { options.Enabled = true; options.Validate(); })
+        .ValidateOnStart();
+    builder.Services.AddSimulationEscalation();
+    builder.Services.AddHostedService<SimulationEscalationWorker>();
+}
+if (!simulationDispatchEnabled && !simulationEscalationEnabled)
 {
     builder.Services.AddHostedService<PlatformWorker>();
 }

@@ -6,7 +6,7 @@ namespace CriticalAlerts.Application.Tests;
 public sealed class WorkerConfigurationTests
 {
     [Fact]
-    public void WorkerRegistersOnlyTheSimulationDispatchBoundary()
+    public void WorkerRegistersOnlyTheGuardedSimulationBoundaries()
     {
         var workerProgram = Path.Combine(RepositoryRoot(), "src", "backend", "CriticalAlerts.Worker", "Program.cs");
 
@@ -16,6 +16,9 @@ public sealed class WorkerConfigurationTests
         source.Should().Contain("SimulationDispatchEnvironmentGuard");
         source.Should().Contain("AddSimulationDispatch");
         source.Should().Contain("SimulationDispatchWorker");
+        source.Should().Contain("SimulationEscalationEnvironmentGuard");
+        source.Should().Contain("AddSimulationEscalation");
+        source.Should().Contain("SimulationEscalationWorker");
         source.Should().NotContain("HttpClient");
         source.Should().NotContain("Twilio");
         source.Should().NotContain("Azure.Communication");

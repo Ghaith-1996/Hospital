@@ -25,6 +25,7 @@ public sealed class EscalationPlanResolver(CriticalAlertsDbContext db)
         var policies = await db.EscalationPolicies.AsNoTracking().Where(p => p.OrganizationId == organization && p.IsActive).ToArrayAsync(cancellationToken);
         if (policies.Length != 1) throw InvalidPlan();
         var policy = policies[0];
+        if (!DemoEscalationSemantics.IsSupported(policy.TriggerCondition, policy.StopCondition)) throw InvalidPlan();
         var steps = await db.EscalationSteps.AsNoTracking().Where(s => s.OrganizationId == organization && s.PolicyId == policy.Id)
             .OrderBy(s => s.SequenceNumber).ToArrayAsync(cancellationToken);
         var roles = await db.PractitionerRoles.AsNoTracking().Where(r => r.OrganizationId == organization).OrderBy(r => r.Id).ToArrayAsync(cancellationToken);

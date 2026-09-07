@@ -159,6 +159,8 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
     [InlineData("foreign-role")]
     [InlineData("primary-overlap")]
     [InlineData("cross-step-duplicate")]
+    [InlineData("unsupported-trigger")]
+    [InlineData("unsupported-stop")]
     public async Task InvalidBackupPlanIsRejectedBeforeConfirmationWithoutReplacement(string kind)
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
@@ -167,11 +169,19 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         var policy = await db.EscalationPolicies.SingleAsync(p => p.OrganizationId == DemoDataSeeder.OrganizationId);
         var step = await db.EscalationSteps.SingleAsync(s => s.PolicyId == policy.Id);
         var originalSource = step.RecipientSource;
+        var originalTrigger = policy.TriggerCondition;
+        var originalStop = policy.StopCondition;
         var backupRole = new PractitionerRoleId(Guid.Parse(originalSource["DEMO-role:".Length..]));
         var backupId = (await db.PractitionerRoles.SingleAsync(r => r.Id == backupRole)).PractitionerId;
         var extraId = EscalationStepId.New();
         switch (kind)
         {
+            case "unsupported-trigger":
+                await db.EscalationPolicies.Where(p => p.Id == policy.Id).ExecuteUpdateAsync(p => p.SetProperty(x => x.TriggerCondition, "DEMO unsupported trigger"));
+                break;
+            case "unsupported-stop":
+                await db.EscalationPolicies.Where(p => p.Id == policy.Id).ExecuteUpdateAsync(p => p.SetProperty(x => x.StopCondition, "DEMO unsupported stop"));
+                break;
             case "inactive":
                 await db.Practitioners.Where(p => p.Id == backupId).ExecuteUpdateAsync(p => p.SetProperty(x => x.IsActive, false));
                 break;
@@ -208,6 +218,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         }
         finally
         {
+            await db.EscalationPolicies.Where(p => p.Id == policy.Id).ExecuteUpdateAsync(p => p.SetProperty(x => x.TriggerCondition, originalTrigger).SetProperty(x => x.StopCondition, originalStop));
             await db.Practitioners.Where(p => p.Id == backupId).ExecuteUpdateAsync(p => p.SetProperty(x => x.IsActive, true));
             await db.EscalationSteps.Where(s => s.Id == step.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RecipientSource, originalSource));
             await db.EscalationSteps.Where(s => s.Id == extraId).ExecuteDeleteAsync();
