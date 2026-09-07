@@ -8,6 +8,8 @@ The Phase 6 implementation uses fictional directory and patient data exclusively
 
 ## Scope
 
+Phase 8.5 connects the redesigned `/alerts/[id]/recipients` and `/alerts/[id]/review` screens to these APIs. Directory evidence and exact review content come from the server. Channels require deliberate selection; confirmation retains one idempotency key for an uncertain attempt and shows `DispatchQueued` before opening live status. The frontend does not synthesize delivery, response, or responsibility state.
+
 Phase 6 adds:
 
 - manual practitioner search by name, specialty, department, site, and on-call status;

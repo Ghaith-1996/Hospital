@@ -12,11 +12,11 @@ internal static class DevelopmentAuthenticationEndpoints
     {
         var api = app.MapGroup(ApiRouteConstants.BasePath)
             .RequireRateLimiting("api");
-        api.MapGet("/me", GetCurrentUser).RequireAuthorization();
-        api.MapGet("/authorization/operator", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Operator);
-        api.MapGet("/authorization/administrator", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Administrator);
-        api.MapGet("/authorization/practitioner", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Practitioner);
-        api.MapGet("/authorization/organization-scope/{organizationId:guid}", CheckOrganizationScope).RequireAuthorization();
+        api.MapGet("/me", GetCurrentUser).RequireAuthorization().Produces<CurrentUserResponse>().WithApiErrors();
+        api.MapGet("/authorization/operator", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Operator).Produces(204).WithApiErrors();
+        api.MapGet("/authorization/administrator", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Administrator).Produces(204).WithApiErrors();
+        api.MapGet("/authorization/practitioner", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.Practitioner).Produces(204).WithApiErrors();
+        api.MapGet("/authorization/organization-scope/{organizationId:guid}", CheckOrganizationScope).RequireAuthorization().Produces(204).WithApiErrors();
 
         if (!enabled)
         {
@@ -31,7 +31,7 @@ internal static class DevelopmentAuthenticationEndpoints
                 identity.SimulationHandle,
                 identity.Roles,
                 identity.OrganizationId.ToString("D"))));
-        });
+        }).Produces<IReadOnlyList<DevelopmentIdentityResponse>>().Produces(429);
         api.MapPost("/dev/session", async (DevelopmentSessionRequest? request, IDevelopmentIdentityDirectory directory, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
             var identity = await directory.FindActiveByHandleAsync(request?.SimulationHandle ?? string.Empty, cancellationToken);
@@ -42,12 +42,12 @@ internal static class DevelopmentAuthenticationEndpoints
 
             await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, DevelopmentUserPrincipalFactory.Create(identity));
             return Results.NoContent();
-        });
+        }).Produces(204).ProducesProblem(400).Produces(413).Produces(429);
         api.MapPost("/dev/session/clear", async (HttpContext httpContext) =>
         {
             await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.NoContent();
-        });
+        }).Produces(204).Produces(429);
     }
 
     private static IResult GetCurrentUser(ClaimsPrincipal principal)

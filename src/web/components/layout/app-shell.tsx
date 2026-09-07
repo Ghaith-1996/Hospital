@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePrototype } from "../../features/alerts/prototype-store";
+import { useDevelopmentSession } from "../../features/session/development-session";
 import { BellIcon, CloseIcon, DirectoryIcon, InboxIcon, ListIcon, MenuIcon, ReportIcon, SettingsIcon, ShieldIcon } from "../ui/icons";
 import { ScreenState } from "../ui/screen-state";
 import { UserSwitcher } from "./user-switcher";
@@ -17,12 +17,12 @@ type NavigationItem = {
 const operatorNavigation: NavigationItem[] = [
   { label: "Alert Doctor", href: "/alerts/new", icon: BellIcon },
   { label: "Alerts", href: "/alerts", icon: ListIcon },
+  { label: "Directory", href: "/directory", icon: DirectoryIcon },
 ];
 
 const doctorNavigation: NavigationItem[] = [{ label: "Inbox", href: "/my-alerts", icon: InboxIcon }];
 
 const comingLaterItems = [
-  { label: "Directory", icon: DirectoryIcon },
   { label: "Reports", icon: ReportIcon },
   { label: "Settings", icon: SettingsIcon },
 ];
@@ -66,17 +66,17 @@ function useDrawerMode() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { hydrated, storageError, state } = usePrototype();
+  const { user, pending, generation } = useDevelopmentSession();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const drawerMode = useDrawerMode();
   const menuButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const sidebarRef = React.useRef<HTMLElement | null>(null);
-  const currentUser = state.users.find((user) => user.id === state.selectedUserId) ?? state.users[0];
-  const navigation = currentUser.role === "doctor" ? doctorNavigation : operatorNavigation;
-  const navigationLabel = currentUser.role === "doctor" ? "Doctor navigation" : "Operator navigation";
+  const isDoctor = user?.roles.some(role => role === "Practitioner" || role === "Physician");
+  const navigation = isDoctor ? doctorNavigation : operatorNavigation;
+  const navigationLabel = isDoctor ? "Doctor navigation" : "Operator navigation";
   const activeHref = activeNavigationHref(pathname, navigation);
-  const roleNavigationReady = hydrated;
+  const roleNavigationReady = !!user && !pending;
   const modalDrawerOpen = drawerMode && drawerOpen;
 
   React.useEffect(() => {
@@ -153,7 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span>Critical Alerts</span>
         </div>
         <span className="simulation-pill" aria-hidden="true">
-          SIMULATION
+          SIMULATION MODE
         </span>
       </header>
 
@@ -163,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className={`sidebar ${modalDrawerOpen ? "sidebar--open" : ""}`}
         id="prototype-sidebar"
         ref={sidebarRef}
-        aria-label="Prototype sidebar"
+        aria-label="Simulation sidebar"
         aria-hidden={drawerMode && !drawerOpen ? true : undefined}
         aria-modal={modalDrawerOpen ? true : undefined}
         inert={drawerMode && !drawerOpen ? true : undefined}
@@ -186,8 +186,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <CloseIcon />
           </button>
-          <span className="simulation-pill simulation-pill--sidebar" role="status" aria-label="SIMULATION">
-            SIMULATION
+          <span className="simulation-pill simulation-pill--sidebar" role="status" aria-label="SIMULATION MODE">
+            SIMULATION MODE
           </span>
         </div>
 
@@ -235,8 +235,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="app-shell__main" id="main-content" tabIndex={-1} inert={modalDrawerOpen ? true : undefined}>
         <div className="app-shell__content">
-          {storageError ? <ScreenState kind="recoverable-storage" label={storageError} headingLevel="h2" /> : null}
-          {children}
+          {pending ? <ScreenState kind="loading" label="Loading backend session" /> : user ? <React.Fragment key={`${user.userId}:${generation}`}>{children}</React.Fragment> : <section className="detail-card"><h1>Simulation workspace</h1><p>Select a seeded fictional identity to begin. The simulation API and database must be running.</p><p>SIMULATION MODE · Fictional data only</p></section>}
         </div>
       </main>
     </div>

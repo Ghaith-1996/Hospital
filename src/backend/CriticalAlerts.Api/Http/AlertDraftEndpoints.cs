@@ -16,15 +16,15 @@ internal static class AlertDraftEndpoints
         var alerts = app.MapGroup($"{ApiRouteConstants.BasePath}/alerts")
             .RequireAuthorization(AuthorizationPolicies.AlertDraftEditor)
             .RequireRateLimiting("api");
-        alerts.MapPost("/drafts", Create);
-        alerts.MapGet("/{alertId:guid}/review", Review);
-        alerts.MapPost("/{alertId:guid}/confirm", Confirm);
-        alerts.MapGet("/{alertId:guid}", Get);
-        alerts.MapPatch("/{alertId:guid}", Update);
-        alerts.MapPost("/{alertId:guid}/field-confirmations", ConfirmCriticalField);
-        alerts.MapPost("/{alertId:guid}/submit-for-confirmation", Submit);
-        alerts.MapPut("/{alertId:guid}/approved-message", SetApprovedMessage);
-        alerts.MapPut("/{alertId:guid}/recipients", ReplaceRecipients);
+        alerts.MapPost("/drafts", Create).Produces<AlertDraftView>(201).WithApiErrors(400, 409).Produces(413);
+        alerts.MapGet("/{alertId:guid}/review", Review).Produces<AlertReviewView>().WithApiErrors(400, 404, 409);
+        alerts.MapPost("/{alertId:guid}/confirm", Confirm).WithIdempotencyHeader().Produces<ConfirmAlertReviewResult>().WithApiErrors(400, 404, 409).Produces(413);
+        alerts.MapGet("/{alertId:guid}", Get).Produces<AlertDraftView>().WithApiErrors(404);
+        alerts.MapPatch("/{alertId:guid}", Update).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);
+        alerts.MapPost("/{alertId:guid}/field-confirmations", ConfirmCriticalField).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);
+        alerts.MapPost("/{alertId:guid}/submit-for-confirmation", Submit).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);
+        alerts.MapPut("/{alertId:guid}/approved-message", SetApprovedMessage).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);
+        alerts.MapPut("/{alertId:guid}/recipients", ReplaceRecipients).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);
     }
 
     private static async Task<IResult> Create(

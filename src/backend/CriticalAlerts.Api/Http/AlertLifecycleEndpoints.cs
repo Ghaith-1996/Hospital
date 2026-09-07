@@ -20,8 +20,8 @@ internal static class AlertLifecycleEndpoints
         var group = app.MapGroup($"{ApiRouteConstants.BasePath}/alerts")
             .RequireAuthorization(AuthorizationPolicies.AlertLifecycleOperator)
             .RequireRateLimiting("api");
-        group.MapPost("/{alertId:guid}/resolve", Resolve);
-        group.MapPost("/{alertId:guid}/cancel", Cancel);
+        group.MapPost("/{alertId:guid}/resolve", Resolve).WithIdempotencyHeader().Produces<AlertLifecycleResult>().WithApiErrors(400, 404, 409).Produces(413);
+        group.MapPost("/{alertId:guid}/cancel", Cancel).WithIdempotencyHeader().Produces<AlertLifecycleResult>().WithApiErrors(400, 404, 409).Produces(413);
     }
 
     private static Task<IResult> Resolve(

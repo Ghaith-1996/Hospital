@@ -2,7 +2,7 @@ name: phase-1-ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/phase-0-8-reintegration]
   pull_request:
 
 permissions:
@@ -68,11 +68,31 @@ jobs:
       - name: Lint web
         run: npm --prefix src/web run lint
 
+      - name: Verify active workflow storage safety
+        shell: pwsh
+        run: ./scripts/verify-web-storage-safety.ps1
+
+      - name: Build production web
+        run: npm --prefix src/web run build
+
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 12
+        run: |
+          npx playwright install-deps chromium
+          for attempt in 1 2 3; do
+            if timeout 180s npx playwright install --only-shell chromium; then
+              exit 0
+            fi
+            echo "Headless Chromium installation attempt $attempt failed; retrying within the bounded CI step."
+          done
+          exit 1
 
       - name: Run web smoke test
         run: npm run web:e2e
+
+      - name: Run connected system E2E
+        shell: pwsh
+        run: ./scripts/system-e2e.ps1
 
       - name: Build API container
         run: docker build --file src/backend/CriticalAlerts.Api/Dockerfile --tag critical-alerts-api:ci .

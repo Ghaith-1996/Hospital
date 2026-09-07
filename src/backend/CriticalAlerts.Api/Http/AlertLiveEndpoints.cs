@@ -19,7 +19,8 @@ internal static class AlertLiveEndpoints
 
         app.MapGet($"{ApiRouteConstants.BasePath}/alerts/{{alertId:guid}}/live", Get)
             .RequireAuthorization(AuthorizationPolicies.AlertLiveReader)
-            .RequireRateLimiting("api");
+            .RequireRateLimiting("api")
+            .Produces<AlertLiveView>().WithApiErrors(404);
     }
 
     private static async Task<IResult> Get(

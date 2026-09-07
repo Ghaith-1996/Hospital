@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Critical Alerts - Simulation Prototype",
-  description: "Frontend-only fictional critical-alert workflow prototype.",
+  title: "Critical Alerts - Simulation",
+  description: "Human-confirmed fictional critical-alert simulation.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

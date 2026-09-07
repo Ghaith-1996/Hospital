@@ -152,11 +152,11 @@ export type MyAlertSummary = {
 
 export type MyAlertCriticalField = {
   fieldId: string;
-  normalizedValue: string;
+  value: string;
   unit: string | null;
 };
 
-export type MyAlertDetail = MyAlertSummary & {
+export type MyAlertDetail = Omit<MyAlertSummary, "confirmedAtUtc"> & {
   simulationPatientReference: string;
   approvedMessage: string;
   criticalFields: MyAlertCriticalField[];
@@ -260,16 +260,18 @@ export class AlertApiError extends Error {
   }
 }
 
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...init,
     credentials: "include",
+    cache: "no-store",
     headers: {
-      "Content-Type": "application/json",
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(init.headers ?? {}),
     },
   });
   if (response.ok) {
+    if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
 

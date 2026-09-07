@@ -14,7 +14,8 @@ internal static class DeliveryStatusEndpoints
                 $"{ApiRouteConstants.BasePath}/alerts/{{alertId:guid}}/delivery",
                 Get)
             .RequireAuthorization(AuthorizationPolicies.AlertDeliveryReader)
-            .RequireRateLimiting("api");
+            .RequireRateLimiting("api")
+            .Produces<DeliveryStatusView>().WithApiErrors().Produces(404);
     }
 
     private static async Task<IResult> Get(

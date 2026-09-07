@@ -2,6 +2,8 @@
 
 Status: Phase 0 decision register. This is a template and simulation baseline, not a production hospital policy.
 
+Phase 8.5 implementation/verification is explicitly authorized by the current user request. This does not fill the historical Phase 0 approval row or any hospital decision below. See [phase approval evidence](phase-approval-evidence.md) for the reconciled record. The repository must remain public; no repository settings change is part of Phase 8.5.
+
 ## How to use this document
 
 The project owner must record a decision, decision owner, evidence, and approval date before a value can govern a real hospital workflow. Until then, use `REQUIRES_HOSPITAL_DECISION` exactly as written. A simulation value is valid only inside an explicitly labelled `SIMULATION_ONLY_ASSUMPTION` section and must never become a production default.

@@ -18,10 +18,14 @@ export default async function globalTeardown() {
   }
 
   try {
-    execFileSync("taskkill.exe", ["/pid", String(pid), "/T", "/F"], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
+    if (process.platform === "win32") {
+      execFileSync("taskkill.exe", ["/pid", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } else {
+      process.kill(pid, "SIGTERM");
+    }
   } catch {
     // Playwright usually kills the child process first. This handles Windows
     // shells that leave the owned Next process alive after the suite.
