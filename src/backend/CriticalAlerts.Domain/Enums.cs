@@ -117,4 +117,36 @@ public enum EscalationRunState
     Running = 1,
     Completed = 2,
     Stopped = 3,
+    Paused = 4,
+}
+
+public enum EscalationOutcome
+{
+    ResponsibilityAccepted = 0,
+    Resolved = 1,
+    Cancelled = 2,
+    Exhausted = 3,
+    ProcessingFailed = 4,
+}
+
+public enum EscalationFailureCategory
+{
+    ConfirmedRecipientUnavailable = 0,
+    ConfirmedPlanInvalid = 1,
+    ProcessingError = 2,
+}
+
+public enum EscalationEventType
+{
+    Scheduled = 0,
+    StepDue = 1,
+    RecipientActivated = 2,
+    DispatchQueued = 3,
+    Paused = 4,
+    Resumed = 5,
+    StoppedByResponsibility = 6,
+    StoppedByResolution = 7,
+    StoppedByCancellation = 8,
+    Exhausted = 9,
+    ProcessingFailed = 10,
 }

@@ -176,3 +176,13 @@ public readonly record struct IdempotencyRecordId(Guid Value)
 {
     public static IdempotencyRecordId New() => new(Guid.NewGuid());
 }
+
+public readonly record struct EscalationEventId(Guid Value)
+{
+    public static EscalationEventId New() => new(Guid.NewGuid());
+}
+
+public readonly record struct EscalationConsumedSignalId(Guid Value)
+{
+    public static EscalationConsumedSignalId New() => new(Guid.NewGuid());
+}

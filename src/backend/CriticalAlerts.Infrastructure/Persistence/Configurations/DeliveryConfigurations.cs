@@ -118,6 +118,18 @@ internal sealed class EscalationRunConfiguration : IEntityTypeConfiguration<Esca
     public void Configure(EntityTypeBuilder<EscalationRun> builder)
     {
         builder.ToTable("escalation_runs");
+        // Task 3 domain additions are mapped by the additive Task 4 migration.
+        builder.Ignore(entity => entity.AlertVersion);
+        builder.Ignore(entity => entity.PlanId);
+        builder.Ignore(entity => entity.PlanRevision);
+        builder.Ignore(entity => entity.UpdatedAtUtc);
+        builder.Ignore(entity => entity.LeaseOwner);
+        builder.Ignore(entity => entity.LeaseExpiresAtUtc);
+        builder.Ignore(entity => entity.PausedAtUtc);
+        builder.Ignore(entity => entity.RemainingDelay);
+        builder.Ignore(entity => entity.Outcome);
+        builder.Ignore(entity => entity.FailureCategory);
+        builder.Ignore(entity => entity.ConsumedSignals);
         builder.HasKey(entity => entity.Id);
         builder.Property(entity => entity.Id).GuidId(value => new EscalationRunId(value), id => id.Value, "id");
         builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
