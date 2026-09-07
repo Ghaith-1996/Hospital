@@ -1,5 +1,15 @@
 namespace CriticalAlerts.Domain;
 
+public readonly record struct AlertEscalationPlanId(Guid Value)
+{
+    public static AlertEscalationPlanId New() => new(Guid.NewGuid());
+}
+
+public readonly record struct AlertEscalationRecipientSnapshotId(Guid Value)
+{
+    public static AlertEscalationRecipientSnapshotId New() => new(Guid.NewGuid());
+}
+
 public readonly record struct OrganizationId(Guid Value)
 {
     public static OrganizationId New() => new(Guid.NewGuid());

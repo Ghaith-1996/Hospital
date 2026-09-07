@@ -18,7 +18,7 @@ internal static class AlertDraftEndpoints
             .RequireRateLimiting("api");
         alerts.MapPost("/drafts", Create).Produces<AlertDraftView>(201).WithApiErrors(400, 409).Produces(413);
         alerts.MapGet("/{alertId:guid}/review", Review).Produces<AlertReviewView>().WithApiErrors(400, 404, 409);
-        alerts.MapPost("/{alertId:guid}/confirm", Confirm).WithIdempotencyHeader().Produces<ConfirmAlertReviewResult>().WithApiErrors(400, 404, 409).Produces(413);
+        alerts.MapPost("/{alertId:guid}/confirm", Confirm).WithDescription("Confirm the exact reviewed version and mandatory ExpectedEscalationPlanRevision. Changed policy or directory evidence returns 409 escalation-plan-changed without side effects.").WithIdempotencyHeader().Produces<ConfirmAlertReviewResult>().WithApiErrors(400, 404, 409).Produces(413);
         alerts.MapGet("/{alertId:guid}", Get).Produces<AlertDraftView>().WithApiErrors(404);
         alerts.MapPatch("/{alertId:guid}", Update).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);
         alerts.MapPost("/{alertId:guid}/field-confirmations", ConfirmCriticalField).Produces<AlertDraftView>().WithApiErrors(400, 404, 409).Produces(413);

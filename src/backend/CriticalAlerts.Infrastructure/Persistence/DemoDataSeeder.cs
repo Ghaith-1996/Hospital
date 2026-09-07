@@ -49,6 +49,7 @@ public sealed class DemoDataSeeder
         if (await db.Organizations.AnyAsync(organization => organization.Id == OrganizationId, cancellationToken))
         {
             await EnsurePractitionerUserLinkAsync(cancellationToken);
+            await EnsureExactDemoPolicyAsync(cancellationToken);
             return;
         }
 
@@ -132,6 +133,7 @@ public sealed class DemoDataSeeder
             OnCallAssignment.Create(new OnCallAssignmentId(Id("802")), OrganizationId, practitioners[1].Practitioner.Id, NorthSiteId, medicine.Id, OnCallTier.Backup, SeededAt, SeededAt.AddDays(7), "SIM-DIRECTORY", "SIM-SRC-ONCALL-2", SeededAt));
 
         db.DirectorySourceRecords.AddRange(
+            DirectorySourceRecord.Create(new DirectorySourceRecordId(Id("903")), OrganizationId, new PractitionerId(Id("103")), "SIM-DIRECTORY", "SIM-SRC-JULES", SeededAt, "hash-jules", SeededAt, "current", false),
             DirectorySourceRecord.Create(new DirectorySourceRecordId(Id("901")), OrganizationId, practitioners[0].Practitioner.Id, "SIM-DIRECTORY", "SIM-SRC-MAYA", SeededAt, "hash-maya", SeededAt, "current", false),
             DirectorySourceRecord.Create(new DirectorySourceRecordId(Id("902")), OrganizationId, practitioners[10].Practitioner.Id, "SIM-DIRECTORY", "SIM-SRC-TAYLOR", SeededAt.AddDays(-90), "hash-taylor", SeededAt.AddDays(-90), "stale", true));
 
@@ -155,9 +157,30 @@ public sealed class DemoDataSeeder
         db.AlertTemplates.Add(template);
         db.NotificationPolicies.Add(notification);
         db.EscalationPolicies.Add(escalation);
-        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a04")), OrganizationId, escalation.Id, 1));
+        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a04")), OrganizationId, escalation.Id, 1, new PractitionerRoleId(Id("705"))));
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureExactDemoPolicyAsync(CancellationToken cancellationToken)
+    {
+        if (!await db.DirectorySourceRecords.AnyAsync(r => r.OrganizationId == OrganizationId && r.SourceSystem == "SIM-DIRECTORY"
+                && r.SourceRecordId == "SIM-SRC-JULES", cancellationToken))
+        {
+            db.DirectorySourceRecords.Add(DirectorySourceRecord.Create(new DirectorySourceRecordId(Id("903")), OrganizationId,
+                new PractitionerId(Id("103")), "SIM-DIRECTORY", "SIM-SRC-JULES", SeededAt, "hash-jules", SeededAt, "current", false));
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        // Upgrade only the known fictional placeholder. Historical confirmed alerts remain unbound.
+        var policyId = new EscalationPolicyId(Id("a03"));
+        var demo = EscalationPolicy.CreateDemo(policyId, OrganizationId);
+        await db.EscalationPolicies.Where(p => p.Id == policyId && p.OrganizationId == OrganizationId
+                && p.Version == "DEMO-1" && p.TriggerCondition == "REQUIRES_HOSPITAL_DECISION: simulation uses a deterministic fake clock only.")
+            .ExecuteUpdateAsync(p => p.SetProperty(x => x.TriggerCondition, demo.TriggerCondition)
+                .SetProperty(x => x.StopCondition, demo.StopCondition), cancellationToken);
+        await db.EscalationSteps.Where(s => s.Id == new EscalationStepId(Id("a04")) && s.OrganizationId == OrganizationId
+                && s.PolicyId == policyId && s.RecipientSource == "DEMO backup on-call assignment")
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RecipientSource, $"DEMO-role:{Id("705"):D}"), cancellationToken);
     }
 
     private async Task EnsurePractitionerUserLinkAsync(CancellationToken cancellationToken)

@@ -539,6 +539,41 @@
         ],
         "type": "object"
       },
+      "AlertReviewEscalationPlan": {
+        "properties": {
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationStepSnapshot"
+            },
+            "type": "array"
+          },
+          "stopCondition": {
+            "type": "string"
+          },
+          "triggerCondition": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "policyId",
+          "policyVersion",
+          "revision",
+          "steps",
+          "stopCondition",
+          "triggerCondition"
+        ],
+        "type": "object"
+      },
       "AlertReviewRecipient": {
         "properties": {
           "channel": {
@@ -645,6 +680,9 @@
               "string"
             ]
           },
+          "escalationPlan": {
+            "$ref": "#/components/schemas/AlertReviewEscalationPlan"
+          },
           "location": {
             "type": "string"
           },
@@ -671,6 +709,7 @@
           "demoEscalationPolicyVersion",
           "demoNotificationPolicyVersion",
           "draftVersion",
+          "escalationPlan",
           "location",
           "recipients",
           "simulationPatientReference",
@@ -760,6 +799,9 @@
       },
       "ConfirmAlertReviewRequest": {
         "properties": {
+          "expectedEscalationPlanRevision": {
+            "type": "string"
+          },
           "expectedVersion": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -770,6 +812,7 @@
           }
         },
         "required": [
+          "expectedEscalationPlanRevision",
           "expectedVersion"
         ],
         "type": "object"
@@ -1321,6 +1364,96 @@
           "site",
           "sourceSystem",
           "specialty"
+        ],
+        "type": "object"
+      },
+      "EscalationRecipientEvidence": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "directoryRevision": {
+            "type": "string"
+          },
+          "directorySourceUpdatedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "onCallSnapshot": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "roleTitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "directoryRevision",
+          "directorySourceUpdatedAtUtc",
+          "displayName",
+          "onCallSnapshot",
+          "practitionerId",
+          "practitionerRoleId",
+          "roleTitle"
+        ],
+        "type": "object"
+      },
+      "EscalationStepSnapshot": {
+        "properties": {
+          "delaySeconds": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "maxAttempts": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationRecipientEvidence"
+            },
+            "type": "array"
+          },
+          "recipientSource": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "delaySeconds",
+          "maxAttempts",
+          "recipients",
+          "recipientSource",
+          "sequence"
         ],
         "type": "object"
       },
@@ -2317,6 +2450,7 @@
     },
     "/api/v1/alerts/{alertId}/confirm": {
       "post": {
+        "description": "Confirm the exact reviewed version and mandatory ExpectedEscalationPlanRevision. Changed policy or directory evidence returns 409 escalation-plan-changed without side effects.",
         "parameters": [
           {
             "in": "path",

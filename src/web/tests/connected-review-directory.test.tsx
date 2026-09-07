@@ -25,7 +25,7 @@ test("renders disambiguation and freshness, disables inactive selections and req
   await waitFor(() => expect(push).toHaveBeenCalledWith("/alerts/sim-alert/compose"));
   expect(api.replaceAlertRecipients).toHaveBeenCalledWith("sim-alert", 6, [{ practitionerId: "sim-maya", practitionerRoleId: "sim-role", channel: "Sms", directoryRevision: "revision-1" }]);
 });
-const review: api.AlertReview = { alertId: "sim-alert", draftVersion: 9, state: "PendingConfirmation", simulationPatientReference: "SIM-PAT-EXACT", location: "Fictional room", urgencyLabel: "DEMO Urgent", approvedMessage: "SIMULATION: exact approved message", criticalFields: [{ alertVersion: 9, fieldId: "pulse", originalValue: "118", normalizedValue: "118", unit: "beats/min", status: "Confirmed" }], recipients: [{ ...practitioner, channel: "SecureMessage", selectedAtUtc: "2026-09-05T12:00:00Z", directorySourceUpdatedAtUtc: practitioner.lastSynchronizedAtUtc, onCallSnapshot: "Primary SIM-ROSTER", directoryRevision: "revision-1", selectionSource: "Manual" }], demoEscalationPolicyVersion: "DEMO-E1", demoNotificationPolicyVersion: "DEMO-N1" };
+const review: api.AlertReview = { alertId: "sim-alert", draftVersion: 9, state: "PendingConfirmation", simulationPatientReference: "SIM-PAT-EXACT", location: "Fictional room", urgencyLabel: "DEMO Urgent", approvedMessage: "SIMULATION: exact approved message", criticalFields: [{ alertVersion: 9, fieldId: "pulse", originalValue: "118", normalizedValue: "118", unit: "beats/min", status: "Confirmed" }], recipients: [{ ...practitioner, channel: "SecureMessage", selectedAtUtc: "2026-09-05T12:00:00Z", directorySourceUpdatedAtUtc: practitioner.lastSynchronizedAtUtc, onCallSnapshot: "Primary SIM-ROSTER", directoryRevision: "revision-1", selectionSource: "Manual" }], demoEscalationPolicyVersion: "DEMO-E1", demoNotificationPolicyVersion: "DEMO-N1", escalationPlan: { policyId: "sim-policy", policyVersion: "DEMO-1", revision: "plan-revision-1", triggerCondition: "DEMO elapsed delay or declined/unavailable", stopCondition: "DEMO responsibility, resolve or cancel", steps: [{ sequence: 1, delaySeconds: 60, maxAttempts: 1, recipientSource: "DEMO-role:sim-jules-role", recipients: [{ practitionerId: "sim-jules", practitionerRoleId: "sim-jules-role", displayName: "Jules Martin", roleTitle: "Surgeon", channel: "SecureMessage", directoryRevision: "backup-revision", directorySourceUpdatedAtUtc: "2026-09-07T12:00:00Z", onCallSnapshot: "No on-call assignment" }] }] } };
 test("exact review prevents double click and reports queued without claiming delivery", async () => {
   vi.mocked(api.getAlertReview).mockResolvedValue(review);
   let complete!: (value: api.ConfirmResult) => void;
@@ -73,4 +73,17 @@ test("explicit directory reload replaces stale evidence even when the draft vers
   expect(api.replaceAlertRecipients).toHaveBeenLastCalledWith("sim-alert", 6, [expect.objectContaining({ directoryRevision: "revision-2" })]);
   expect(discard).toHaveBeenCalledTimes(1);
   discard.mockRestore();
+});
+
+test("exact review displays every future backup and sends the reviewed plan revision", async () => {
+  vi.mocked(api.getAlertReview).mockResolvedValue(review);
+  vi.mocked(api.confirmAlertReview).mockResolvedValue({ alertId: "sim-alert", confirmedVersion: 9, state: "DispatchQueued", replayed: false });
+  render(<ReviewAlert alertId="sim-alert" />);
+  expect(await screen.findByText("Jules Martin")).toBeVisible();
+  expect(screen.getByText(/DEMO delay: 60 seconds/)).toBeVisible();
+  expect(screen.getByText(/Maximum attempts: 1/)).toBeVisible();
+  expect(screen.getByText(/backup-revision/)).toBeVisible();
+  fireEvent.click(screen.getByLabelText(/I reviewed the exact/));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm & Dispatch" }));
+  expect(api.confirmAlertReview).toHaveBeenCalledWith("sim-alert", 9, "plan-revision-1", expect.any(String));
 });

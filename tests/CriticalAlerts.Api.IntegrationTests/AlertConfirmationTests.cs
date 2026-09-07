@@ -5,9 +5,16 @@ using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Reliability;
+using CriticalAlerts.Domain.Escalation;
+using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Policies;
 using CriticalAlerts.Infrastructure.Persistence;
+using CriticalAlerts.Infrastructure.Alerts;
+using CriticalAlerts.Infrastructure.Protection;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using Xunit;
 
 namespace CriticalAlerts.Api.IntegrationTests;
@@ -15,6 +22,287 @@ namespace CriticalAlerts.Api.IntegrationTests;
 [Collection(SeededPostgresApiCollection.Name)]
 public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task EvidenceWritesAreSerializedThroughConfirmationCommit(bool writerFirst, bool directory)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        await using var writer = fixture.CreateContext();
+        var connectionString = writer.Database.GetConnectionString()!;
+        var gate = new PauseAfterSnapshotSave();
+        await using var confirmationDb = new CriticalAlertsDbContext(new DbContextOptionsBuilder<CriticalAlertsDbContext>()
+            .UseNpgsql(connectionString).AddInterceptors(gate).Options);
+        await confirmationDb.Database.OpenConnectionAsync();
+        await writer.Database.OpenConnectionAsync();
+        var confirmationPid = ((NpgsqlConnection)confirmationDb.Database.GetDbConnection()).ProcessID;
+        var writerPid = ((NpgsqlConnection)writer.Database.GetDbConnection()).ProcessID;
+        var service = new AlertReviewService(confirmationDb, AesGcmSensitiveDataProtector.FromBase64(fixture.DataProtectionKey), TimeProvider.System);
+        var writeSql = directory
+            ? "UPDATE practitioners SET last_name = last_name || ' SIM-lock' WHERE organization_id = {0} AND simulation_code = 'SIM-PRAC-0103'"
+            : "UPDATE escalation_steps SET max_attempts = max_attempts + 1 WHERE organization_id = {0}";
+        var restoreSql = directory
+            ? "UPDATE practitioners SET last_name = replace(last_name, ' SIM-lock', '') WHERE organization_id = {0} AND simulation_code = 'SIM-PRAC-0103'"
+            : "UPDATE escalation_steps SET max_attempts = max_attempts - 1 WHERE organization_id = {0}";
+        Task<ConfirmAlertReviewResult?> Confirm() => service.ConfirmAsync(DemoDataSeeder.OrganizationId, DemoDataSeeder.JordanUserId,
+            "SIM-snapshot-lock", new AlertId(prepared.AlertId), new(prepared.Version, reviewedRevisions[prepared.AlertId]),
+            $"snapshot-lock-{Guid.NewGuid():N}", default);
+        if (writerFirst)
+        {
+            await using var transaction = await writer.Database.BeginTransactionAsync();
+            await writer.Database.ExecuteSqlRawAsync(writeSql, DemoDataSeeder.OrganizationId.Value);
+            var confirming = Confirm();
+            try { await WaitForLockAsync(confirming, confirmationPid, connectionString); }
+            finally { await transaction.CommitAsync(); }
+            try
+            {
+                var act = async () => await confirming;
+                await act.Should().ThrowAsync<AlertReviewValidationException>().Where(e => e.Code == "escalation-plan-changed");
+                (await writer.AlertEscalationPlans.CountAsync(p => p.AlertId == new AlertId(prepared.AlertId))).Should().Be(0);
+                (await writer.OutboxMessages.CountAsync(m => m.AggregateId == prepared.AlertId)).Should().Be(0);
+            }
+            finally { await writer.Database.ExecuteSqlRawAsync(restoreSql, DemoDataSeeder.OrganizationId.Value); }
+        }
+        else
+        {
+            var confirming = Confirm();
+            await gate.Saved.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            var writing = writer.Database.ExecuteSqlRawAsync(writeSql, DemoDataSeeder.OrganizationId.Value);
+            try { await WaitForLockAsync(writing, writerPid, connectionString); }
+            finally { gate.Release.TrySetResult(); }
+            (await confirming)!.State.Should().Be("DispatchQueued");
+            await writing;
+            try
+            {
+                var plan = await writer.AlertEscalationPlans.SingleAsync(p => p.AlertId == new AlertId(prepared.AlertId));
+                plan.Revision.Should().Be(reviewedRevisions[prepared.AlertId]);
+                AlertEscalationPlan.ComputeRevision(plan.Definition).Should().Be(plan.Revision);
+            }
+            finally { await writer.Database.ExecuteSqlRawAsync(restoreSql, DemoDataSeeder.OrganizationId.Value); }
+        }
+    }
+
+    private static async Task WaitForLockAsync(Task task, int pid, string connectionString)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await using var monitor = new NpgsqlConnection(connectionString);
+        await monitor.OpenAsync(timeout.Token);
+        while (!task.IsCompleted)
+        {
+            await using var command = new NpgsqlCommand("SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = @pid", monitor);
+            command.Parameters.AddWithValue("pid", pid);
+            if (await command.ExecuteScalarAsync(timeout.Token) is true) return;
+            await Task.Delay(10, timeout.Token);
+        }
+        task.IsCompleted.Should().BeFalse("the competing transaction must wait on PostgreSQL evidence locks");
+    }
+
+    private sealed class PauseAfterSnapshotSave : SaveChangesInterceptor
+    {
+        public TaskCompletionSource Saved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+        {
+            Saved.TrySetResult();
+            await Release.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+            return result;
+        }
+    }
+
+    [Theory]
+    [InlineData("policy")]
+    [InlineData("step")]
+    [InlineData("directory")]
+    [InlineData("on-call")]
+    public async Task ChangedPolicyStepDirectoryOrOnCallEvidenceInvalidatesReview(string kind)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        await using var db = fixture.CreateContext();
+        await using var change = await db.Database.BeginTransactionAsync();
+        var sql = kind switch
+        {
+            "policy" => "UPDATE escalation_policies SET stop_condition = stop_condition || ' SIM-changed' WHERE organization_id = {0}",
+            "step" => "UPDATE escalation_steps SET max_attempts = max_attempts + 1 WHERE organization_id = {0}",
+            "directory" => "UPDATE practitioners SET last_name = last_name || ' SIM-changed' WHERE organization_id = {0} AND simulation_code = 'SIM-PRAC-0103'",
+            _ => "UPDATE on_call_assignments SET last_synchronized_at_utc = last_synchronized_at_utc + interval '1 second' WHERE organization_id = {0}",
+        };
+        // Commit the change so a fresh confirmation transaction must see it; restore exact values below.
+        (await db.Database.ExecuteSqlRawAsync(sql, DemoDataSeeder.OrganizationId.Value)).Should().BeGreaterThan(0);
+        await change.CommitAsync();
+        try
+        {
+            using var response = await ConfirmAsync(client, prepared.AlertId, prepared.Version, $"changed-{Guid.NewGuid():N}");
+            response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await response.Content.ReadAsStringAsync()).Should().Contain("escalation-plan-changed");
+            (await db.AlertEscalationPlans.CountAsync(p => p.AlertId == new AlertId(prepared.AlertId))).Should().Be(0);
+            (await db.OutboxMessages.CountAsync(m => m.AggregateId == prepared.AlertId)).Should().Be(0);
+        }
+        finally
+        {
+            var restore = kind switch
+            {
+                "policy" => "UPDATE escalation_policies SET stop_condition = replace(stop_condition, ' SIM-changed', '') WHERE organization_id = {0}",
+                "step" => "UPDATE escalation_steps SET max_attempts = max_attempts - 1 WHERE organization_id = {0}",
+                "directory" => "UPDATE practitioners SET last_name = replace(last_name, ' SIM-changed', '') WHERE organization_id = {0} AND simulation_code = 'SIM-PRAC-0103'",
+                _ => "UPDATE on_call_assignments SET last_synchronized_at_utc = last_synchronized_at_utc - interval '1 second' WHERE organization_id = {0}",
+            };
+            await db.Database.ExecuteSqlRawAsync(restore, DemoDataSeeder.OrganizationId.Value);
+        }
+    }
+
+    [Theory]
+    [InlineData("inactive")]
+    [InlineData("foreign-role")]
+    [InlineData("primary-overlap")]
+    [InlineData("cross-step-duplicate")]
+    public async Task InvalidBackupPlanIsRejectedBeforeConfirmationWithoutReplacement(string kind)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        await using var db = fixture.CreateContext();
+        var policy = await db.EscalationPolicies.SingleAsync(p => p.OrganizationId == DemoDataSeeder.OrganizationId);
+        var step = await db.EscalationSteps.SingleAsync(s => s.PolicyId == policy.Id);
+        var originalSource = step.RecipientSource;
+        var backupRole = new PractitionerRoleId(Guid.Parse(originalSource["DEMO-role:".Length..]));
+        var backupId = (await db.PractitionerRoles.SingleAsync(r => r.Id == backupRole)).PractitionerId;
+        var extraId = EscalationStepId.New();
+        switch (kind)
+        {
+            case "inactive":
+                await db.Practitioners.Where(p => p.Id == backupId).ExecuteUpdateAsync(p => p.SetProperty(x => x.IsActive, false));
+                break;
+            case "cross-step-duplicate":
+                db.EscalationSteps.Add(EscalationStep.CreateDemo(extraId, policy.OrganizationId, policy.Id, 2, backupRole));
+                await db.SaveChangesAsync();
+                break;
+            case "foreign-role":
+                var foreign = await fixture.CreateForeignOperatorDraftAsync();
+                var foreignAlert = await db.Alerts.SingleAsync(a => a.Id == new AlertId(foreign.AlertId));
+                var person = Practitioner.Create(PractitionerId.New(), foreignAlert.OrganizationId, "Fictional", "Foreign Backup",
+                    $"SIM-{Guid.NewGuid():N}", "DEMO", true, DateTimeOffset.UtcNow);
+                var foreignRole = PractitionerRoleAssignment.Create(PractitionerRoleId.New(), foreignAlert.OrganizationId,
+                    person.Id, foreignAlert.DepartmentId, "DEMO foreign role", true, "SIM-DIRECTORY", $"SIM-SRC-{Guid.NewGuid():N}");
+                db.Practitioners.Add(person);
+                db.PractitionerRoles.Add(foreignRole);
+                await db.SaveChangesAsync();
+                await db.EscalationSteps.Where(s => s.Id == step.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RecipientSource, $"DEMO-role:{foreignRole.Id.Value:D}"));
+                break;
+            default:
+                var id = (await db.PractitionerRoles.SingleAsync(r => r.PractitionerId == DemoDataSeeder.MayaChenId
+                    && r.SourceSystem == "SIM-DIRECTORY" && r.SourceRecordId == "SIM-SRC-MAYA")).Id.Value;
+                await db.EscalationSteps.Where(s => s.Id == step.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RecipientSource, $"DEMO-role:{id:D}"));
+                break;
+        }
+        try
+        {
+            using var review = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/review");
+            review.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await review.Content.ReadAsStringAsync()).Should().Contain("escalation-plan-invalid");
+            using var confirm = await ConfirmAsync(client, prepared.AlertId, prepared.Version, $"invalid-{Guid.NewGuid():N}");
+            confirm.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await db.OutboxMessages.CountAsync(m => m.AggregateId == prepared.AlertId)).Should().Be(0);
+        }
+        finally
+        {
+            await db.Practitioners.Where(p => p.Id == backupId).ExecuteUpdateAsync(p => p.SetProperty(x => x.IsActive, true));
+            await db.EscalationSteps.Where(s => s.Id == step.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.RecipientSource, originalSource));
+            await db.EscalationSteps.Where(s => s.Id == extraId).ExecuteDeleteAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmedSnapshotsStayImmutableAndReplaySurvivesLaterPolicyChanges()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        var key = $"immutable-{Guid.NewGuid():N}";
+        using var first = await ConfirmAsync(client, prepared.AlertId, prepared.Version, key);
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        await using var db = fixture.CreateContext();
+        var plan = await db.AlertEscalationPlans.SingleAsync(p => p.AlertId == new AlertId(prepared.AlertId));
+        var originalRevision = plan.Revision;
+        var backup = await db.AlertEscalationRecipientSnapshots.SingleAsync(p => p.AlertId == plan.AlertId);
+        var alert = await db.Alerts.Include(a => a.RecipientSelections).SingleAsync(a => a.Id == plan.AlertId);
+        alert.AutomaticEscalationEligible.Should().BeTrue();
+        alert.ExactEscalationPlanRevision.Should().Be(reviewedRevisions[prepared.AlertId]);
+        alert.CurrentRecipients.Should().NotContain(r => r.PractitionerId == backup.PractitionerId);
+        plan.Definition.Steps.Single().MaxAttempts.Should().Be(1);
+        backup.ConfirmedByUserId.Should().Be(DemoDataSeeder.JordanUserId);
+        backup.PlanRevision.Should().Be(plan.Revision);
+        backup.AlertVersion.Should().Be(prepared.Version);
+        var sqlMutation = async () => await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE alert_escalation_plans SET revision = 'changed' WHERE id = {plan.Id.Value}");
+        await sqlMutation.Should().ThrowAsync<Npgsql.PostgresException>().Where(e => e.SqlState == "23514");
+        var sqlDelete = async () => await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM alert_escalation_recipient_snapshots WHERE id = {backup.Id.Value}");
+        await sqlDelete.Should().ThrowAsync<Npgsql.PostgresException>().Where(e => e.SqlState == "23514");
+        await using (var truncateDb = fixture.CreateContext())
+        await using (var truncateTransaction = await truncateDb.Database.BeginTransactionAsync())
+        {
+            var truncate = async () => await truncateDb.Database.ExecuteSqlRawAsync("TRUNCATE alert_escalation_recipient_snapshots");
+            await truncate.Should().ThrowAsync<PostgresException>().Where(e => e.SqlState == "23514");
+        }
+        db.Entry(plan).Property(p => p.Revision).CurrentValue = "changed";
+        var efMutation = async () => await db.SaveChangesAsync();
+        await efMutation.Should().ThrowAsync<InvalidOperationException>().WithMessage("*immutable*");
+        db.ChangeTracker.Clear();
+        await db.EscalationPolicies.Where(p => p.Id == plan.EscalationPolicyId).ExecuteUpdateAsync(p => p.SetProperty(x => x.IsActive, false));
+        try
+        {
+            using var replay = await ConfirmAsync(client, prepared.AlertId, prepared.Version, key);
+            replay.StatusCode.Should().Be(HttpStatusCode.OK);
+            (await replay.Content.ReadFromJsonAsync<ConfirmAlertReviewResult>())!.Replayed.Should().BeTrue();
+            reviewedRevisions[prepared.AlertId] = "different-revision";
+            using var conflict = await ConfirmAsync(client, prepared.AlertId, prepared.Version, key);
+            conflict.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await conflict.Content.ReadAsStringAsync()).Should().Contain("idempotency-conflict");
+            (await db.AlertEscalationPlans.SingleAsync(p => p.Id == plan.Id)).Revision.Should().Be(originalRevision);
+        }
+        finally
+        {
+            await db.EscalationPolicies.Where(p => p.Id == plan.EscalationPolicyId).ExecuteUpdateAsync(p => p.SetProperty(x => x.IsActive, true));
+        }
+    }
+
+    [Theory]
+    [InlineData(null, HttpStatusCode.BadRequest)]
+    [InlineData("wrong-revision", HttpStatusCode.Conflict)]
+    public async Task ExactEscalationRevisionIsRequiredAndMismatchHasNoSideEffects(string? revision, HttpStatusCode expected)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{prepared.AlertId:D}/confirm")
+        {
+            Content = JsonContent.Create(new { expectedVersion = prepared.Version, expectedEscalationPlanRevision = revision }),
+        };
+        request.Headers.Add("Idempotency-Key", $"exact-{Guid.NewGuid():N}");
+        using var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(expected);
+        await using var db = fixture.CreateContext();
+        (await db.Alerts.SingleAsync(a => a.Id == new AlertId(prepared.AlertId))).State.Should().Be(AlertState.PendingConfirmation);
+        (await db.OutboxMessages.CountAsync(m => m.AggregateId == prepared.AlertId)).Should().Be(0);
+        (await db.AuditEvents.CountAsync(a => a.ResourceId == prepared.AlertId && a.Action == "alert.confirmed")).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ReviewExposesExactFutureBackupAndStableRevision()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        using var first = JsonDocument.Parse(await client.GetStringAsync($"/api/v1/alerts/{prepared.AlertId:D}/review"));
+        using var second = JsonDocument.Parse(await client.GetStringAsync($"/api/v1/alerts/{prepared.AlertId:D}/review"));
+        first.RootElement.TryGetProperty("escalationPlan", out var plan).Should().BeTrue();
+        plan.GetProperty("revision").GetString().Should().NotBeNullOrWhiteSpace();
+        plan.GetProperty("policyId").GetGuid().Should().NotBeEmpty();
+        plan.GetProperty("policyVersion").GetString().Should().Be("DEMO-1");
+        plan.GetRawText().Should().Be(second.RootElement.GetProperty("escalationPlan").GetRawText());
+        plan.GetProperty("steps")[0].GetProperty("recipients")[0].GetProperty("displayName").GetString().Should().Be("Jules Martin");
+        plan.GetProperty("steps")[0].GetProperty("recipients")[0].GetProperty("channel").GetString().Should().Be("SecureMessage");
+        plan.GetProperty("steps")[0].GetProperty("recipients")[0].GetProperty("directorySourceUpdatedAtUtc").ValueKind.Should().Be(JsonValueKind.String);
+    }
+
     [Fact]
     public async Task ConfirmationRequiresAKeyCreatesOneIdentifierOnlyOutboxAndReplaysSafely()
     {
@@ -201,7 +489,9 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         }
     }
 
-    private static async Task<HttpResponseMessage> ConfirmAsync(
+    private readonly Dictionary<Guid, string> reviewedRevisions = [];
+
+    private async Task<HttpResponseMessage> ConfirmAsync(
         HttpClient client,
         Guid alertId,
         int expectedVersion,
@@ -209,7 +499,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{alertId:D}/confirm")
         {
-            Content = JsonContent.Create(new ConfirmAlertReviewRequest(expectedVersion)),
+            Content = JsonContent.Create(new ConfirmAlertReviewRequest(expectedVersion, reviewedRevisions[alertId])),
         };
         if (key is not null)
         {
@@ -270,6 +560,8 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
             new SubmitAlertDraftRequest(confirmedDraft!.DraftVersion));
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
         (await submit.Content.ReadFromJsonAsync<AlertDraftView>())!.State.Should().Be("PendingConfirmation");
+        var review = await client.GetFromJsonAsync<AlertReviewView>($"/api/v1/alerts/{draft.AlertId:D}/review");
+        reviewedRevisions[draft.AlertId] = review!.EscalationPlan.Revision;
         return new PreparedAlert(draft.AlertId, confirmedDraft.DraftVersion);
     }
 

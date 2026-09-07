@@ -1,3 +1,4 @@
+using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Directory;
@@ -34,6 +35,15 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
             id => id.HasValue ? id.Value.Value : (Guid?)null,
             value => value.HasValue ? new UserId(value.Value) : null);
         builder.Property(entity => entity.ConfirmedAtUtc).HasColumnName("confirmed_at_utc");
+        builder.Property(entity => entity.ExactEscalationPlanId).HasColumnName("exact_escalation_plan_id").HasConversion(
+            id => id.HasValue ? id.Value.Value : (Guid?)null, value => value.HasValue ? new AlertEscalationPlanId(value.Value) : null);
+        builder.Property(entity => entity.ExactEscalationPolicyId).HasColumnName("exact_escalation_policy_id").HasConversion(
+            id => id.HasValue ? id.Value.Value : (Guid?)null, value => value.HasValue ? new EscalationPolicyId(value.Value) : null);
+        builder.Property(entity => entity.ExactEscalationPolicyVersion).HasColumnName("exact_escalation_policy_version").HasMaxLength(40);
+        builder.Property(entity => entity.ExactEscalationPlanRevision).HasColumnName("exact_escalation_plan_revision").HasMaxLength(64);
+        builder.Ignore(entity => entity.AutomaticEscalationEligible);
+        builder.HasOne<AlertEscalationPlan>().WithMany().HasForeignKey(entity => new { entity.ExactEscalationPlanId, entity.OrganizationId })
+            .HasPrincipalKey(plan => new { plan.Id, plan.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.Property(entity => entity.DemoEscalationPolicyVersion).HasColumnName("demo_escalation_policy_version").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.DemoNotificationPolicyVersion).HasColumnName("demo_notification_policy_version").HasMaxLength(40).IsRequired();
         builder.Property(entity => entity.ResolvedByUserId).HasColumnName("resolved_by_user_id").HasConversion(

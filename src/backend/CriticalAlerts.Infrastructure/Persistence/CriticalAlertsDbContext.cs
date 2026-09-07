@@ -1,3 +1,4 @@
+using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
@@ -73,6 +74,10 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public DbSet<ResponsibilityAssignment> ResponsibilityAssignments => Set<ResponsibilityAssignment>();
 
+    public DbSet<AlertEscalationPlan> AlertEscalationPlans => Set<AlertEscalationPlan>();
+
+    public DbSet<AlertEscalationRecipientSnapshot> AlertEscalationRecipientSnapshots => Set<AlertEscalationRecipientSnapshot>();
+
     public DbSet<EscalationRun> EscalationRuns => Set<EscalationRun>();
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
@@ -85,6 +90,7 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        RejectSnapshotMutation();
         try
         {
             return base.SaveChanges(acceptAllChangesOnSuccess);
@@ -99,6 +105,7 @@ public sealed class CriticalAlertsDbContext : DbContext
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
+        RejectSnapshotMutation();
         try
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
@@ -107,6 +114,15 @@ public sealed class CriticalAlertsDbContext : DbContext
         {
             throw new DbUpdateConcurrencyException("The alert draft version has changed. Reload the alert before editing.", exception);
         }
+    }
+
+    private void RejectSnapshotMutation()
+    {
+        ChangeTracker.DetectChanges();
+        if (ChangeTracker.Entries().Any(entry =>
+            (entry.Entity is AlertEscalationPlan or AlertEscalationRecipientSnapshot)
+            && entry.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Confirmed escalation snapshots are immutable.");
     }
 
     // EF may insert the revision before checking the parent alert's xmin concurrency token.

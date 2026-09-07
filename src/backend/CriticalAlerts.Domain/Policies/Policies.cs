@@ -160,8 +160,8 @@ public sealed class EscalationPolicy
             "DEMO sequential backup",
             "DEMO-1",
             isActive: true,
-            "REQUIRES_HOSPITAL_DECISION: simulation uses a deterministic fake clock only.",
-            "REQUIRES_HOSPITAL_DECISION: simulation stops only on explicit human resolve/cancel.");
+            "DEMO: elapsed PostgreSQL UTC delay or one unconsumed Declined/Unavailable response; REQUIRES_HOSPITAL_DECISION.",
+            "DEMO: stop on active exact-version responsibility, human resolve or cancel; pause suspends activation; REQUIRES_HOSPITAL_DECISION.");
     }
 }
 
@@ -213,7 +213,8 @@ public sealed class EscalationStep
         EscalationStepId id,
         OrganizationId organizationId,
         EscalationPolicyId policyId,
-        int sequenceNumber)
+        int sequenceNumber,
+        PractitionerRoleId? fixedDemoRoleId = null)
     {
         return new EscalationStep(
             id,
@@ -221,7 +222,7 @@ public sealed class EscalationStep
             policyId,
             sequenceNumber,
             TimeSpan.FromMinutes(sequenceNumber),
-            "DEMO backup on-call assignment",
+            fixedDemoRoleId is { } role ? $"DEMO-role:{role.Value:D}" : "DEMO backup on-call assignment",
             "SecureMessage",
             maxAttempts: 1);
     }

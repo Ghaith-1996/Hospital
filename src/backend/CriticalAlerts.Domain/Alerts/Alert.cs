@@ -1,3 +1,4 @@
+using CriticalAlerts.Domain.Escalation;
 ﻿using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Simulation;
 
@@ -104,6 +105,27 @@ public sealed class Alert
     public UserId? ConfirmedByUserId { get; private set; }
 
     public DateTimeOffset? ConfirmedAtUtc { get; private set; }
+
+    public AlertEscalationPlanId? ExactEscalationPlanId { get; private set; }
+    public EscalationPolicyId? ExactEscalationPolicyId { get; private set; }
+    public string? ExactEscalationPolicyVersion { get; private set; }
+    public string? ExactEscalationPlanRevision { get; private set; }
+    public bool AutomaticEscalationEligible => ConfirmedDraftVersion == DraftVersion
+        && ExactEscalationPlanId is not null && ExactEscalationPolicyId is not null
+        && ExactEscalationPolicyVersion is not null && ExactEscalationPlanRevision is not null;
+
+    public void BindExactEscalationPlan(AlertEscalationPlan plan)
+    {
+        if (State != AlertState.DispatchQueued || ConfirmedDraftVersion?.Value != plan.AlertVersion
+            || plan.OrganizationId != OrganizationId || plan.AlertId != Id
+            || plan.ConfirmedByUserId != ConfirmedByUserId || plan.ConfirmedAtUtc != ConfirmedAtUtc
+            || ExactEscalationPlanId is not null)
+            throw new DomainException("An exact plan must match this new dispatch confirmation.");
+        ExactEscalationPlanId = plan.Id;
+        ExactEscalationPolicyId = plan.EscalationPolicyId;
+        ExactEscalationPolicyVersion = plan.EscalationPolicyVersion;
+        ExactEscalationPlanRevision = plan.Revision;
+    }
 
     public string DemoEscalationPolicyVersion { get; private set; }
 

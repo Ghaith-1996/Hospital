@@ -1,3 +1,5 @@
+using CriticalAlerts.Domain.Escalation;
+using CriticalAlerts.Infrastructure.Escalation;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -24,6 +26,10 @@ public sealed class AlertReviewService(
         AlertId alertId,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await AlertMutationLock.AcquireAsync(db, organizationId, alertId, cancellationToken);
+        var resolver = new EscalationPlanResolver(db);
+        await resolver.LockEvidenceAsync(cancellationToken);
         var alert = await db.Alerts
             .AsNoTracking()
             .Include(candidate => candidate.FieldConfirmations)
@@ -137,6 +143,7 @@ public sealed class AlertReviewService(
                 recipient.SelectionSource.ToString());
         }).ToArray();
 
+        var plan = await resolver.ResolveAsync(alert, time.GetUtcNow(), cancellationToken);
         return new AlertReviewView(
             alert.Id.Value,
             alert.DraftVersion.Value,
@@ -159,7 +166,9 @@ public sealed class AlertReviewService(
                 .ToArray(),
             reviewRecipients,
             alert.DemoEscalationPolicyVersion,
-            alert.DemoNotificationPolicyVersion);
+            alert.DemoNotificationPolicyVersion,
+            new AlertReviewEscalationPlan(plan.PolicyId, plan.PolicyVersion, AlertEscalationPlan.ComputeRevision(plan),
+                plan.TriggerCondition, plan.StopCondition, plan.Steps));
     }
 
     public async Task<ConfirmAlertReviewResult?> ConfirmAsync(
@@ -172,12 +181,15 @@ public sealed class AlertReviewService(
         CancellationToken cancellationToken)
     {
         var key = RequireIdempotencyKey(idempotencyKey);
-        var requestHash = ComputeRequestHash(organizationId, alertId, request.ExpectedVersion);
+        if (string.IsNullOrWhiteSpace(request.ExpectedEscalationPlanRevision) || request.ExpectedEscalationPlanRevision.Length > 128)
+            throw new AlertConfirmationValidationException("escalation-plan-revision-required", "Reload exact review and provide its escalation plan revision.");
+        var requestHash = ComputeRequestHash(organizationId, alertId, request.ExpectedVersion, request.ExpectedEscalationPlanRevision);
         var now = time.GetUtcNow();
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            await AlertMutationLock.AcquireAsync(db, organizationId, alertId, cancellationToken);
             var existing = await db.IdempotencyRecords
                 .SingleOrDefaultAsync(record => record.OrganizationId == organizationId
                     && record.OperationType == "confirm-review"
@@ -231,6 +243,15 @@ public sealed class AlertReviewService(
 
                 throw;
             }
+            var resolver = new EscalationPlanResolver(db);
+            await resolver.LockEvidenceAsync(cancellationToken);
+            now = time.GetUtcNow();
+            EscalationPlanDefinition definition;
+            try { definition = await resolver.ResolveAsync(alert, now, cancellationToken); }
+            catch (AlertReviewValidationException) { throw PlanChanged(); }
+            if (!FixedEquals(AlertEscalationPlan.ComputeRevision(definition), request.ExpectedEscalationPlanRevision))
+                throw PlanChanged();
+            var exactPlan = AlertEscalationPlan.Confirm(definition, request.ExpectedEscalationPlanRevision, actorUserId, now);
             var recipientIds = alert.CurrentRecipients
                 .Select(recipient => recipient.PractitionerId)
                 .Distinct()
@@ -251,6 +272,9 @@ public sealed class AlertReviewService(
                 now,
                 correlationId);
 
+            alert.BindExactEscalationPlan(exactPlan);
+            db.AlertEscalationPlans.Add(exactPlan);
+            db.AlertEscalationRecipientSnapshots.AddRange(AlertEscalationRecipientSnapshot.FromPlan(exactPlan));
             var metadata = JsonSerializer.Serialize(new
             {
                 simulationOnly = true,
@@ -410,9 +434,9 @@ public sealed class AlertReviewService(
         return value;
     }
 
-    private static string ComputeRequestHash(OrganizationId organizationId, AlertId alertId, int expectedVersion)
+    private static string ComputeRequestHash(OrganizationId organizationId, AlertId alertId, int expectedVersion, string revision)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"confirm-review|{organizationId.Value:D}|{alertId.Value:D}|{expectedVersion}")));
+            $"confirm-review|{organizationId.Value:D}|{alertId.Value:D}|{expectedVersion}|{revision}")));
 
     private static string EncodeResult(ConfirmAlertReviewResult result)
         => $"{result.AlertId:D}|{result.ConfirmedVersion}|{result.State}";
@@ -443,6 +467,9 @@ public sealed class AlertReviewService(
         {
             SqlState: PostgresErrorCodes.UniqueViolation,
         };
+
+    private static AlertReviewValidationException PlanChanged()
+        => new("escalation-plan-changed", "The escalation policy or directory evidence changed. Reload exact review before confirming.");
 
     private static AlertReviewValidationException NotReady()
         => new(

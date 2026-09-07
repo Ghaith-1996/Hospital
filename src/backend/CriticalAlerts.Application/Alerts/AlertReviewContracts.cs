@@ -1,3 +1,4 @@
+using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain;
 
 namespace CriticalAlerts.Application.Alerts;
@@ -38,9 +39,14 @@ public sealed record AlertReviewView(
     IReadOnlyList<AlertReviewCriticalField> CriticalFields,
     IReadOnlyList<AlertReviewRecipient> Recipients,
     string DemoEscalationPolicyVersion,
-    string DemoNotificationPolicyVersion);
+    string DemoNotificationPolicyVersion,
+    AlertReviewEscalationPlan EscalationPlan);
 
-public sealed record ConfirmAlertReviewRequest(int ExpectedVersion);
+public sealed record AlertReviewEscalationPlan(
+    Guid PolicyId, string PolicyVersion, string Revision, string TriggerCondition, string StopCondition,
+    IReadOnlyList<EscalationStepSnapshot> Steps);
+
+public sealed record ConfirmAlertReviewRequest(int ExpectedVersion, string ExpectedEscalationPlanRevision);
 
 public sealed record ConfirmAlertReviewResult(
     Guid AlertId,
