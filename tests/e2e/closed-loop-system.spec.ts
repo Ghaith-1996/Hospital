@@ -35,9 +35,15 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await capture(page, "02-compose-alert.png");
 
     await page.getByLabel("Approved secure message").fill("SIMULATION: secure clinical details for addressed fictional practitioners.");
+    const messageSaved = page.waitForResponse((response) => response.request().method() === "PUT"
+      && response.url().endsWith(`/api/v1/alerts/${alertId}/approved-message`));
     await page.getByRole("button", { name: "Approve and save message" }).click();
-    await expect(page.getByText(/Draft version/)).toBeVisible();
+    const messageResponse = await messageSaved;
+    expect(messageResponse.status()).toBe(200);
+    const savedDraft = await messageResponse.json();
+    await expect(page.getByText(`Draft version ${savedDraft.draftVersion} · ${savedDraft.state}`, { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Select recipients and channels" }).click();
+    await expect(page).toHaveURL(new RegExp(`/alerts/${alertId}/recipients$`));
     await page.getByLabel("Search name or specialty").fill("Riley");
     await page.getByRole("button", { name: "Search directory" }).click();
     const rileyRow = page.locator("li.clinician-row").filter({ hasText: "SIM-PRAC-0108" });
