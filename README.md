@@ -78,6 +78,7 @@ The web Dockerfile installs both root and web build dependencies. Its API rewrit
 - C#: `14.0`; target framework: `net10.0`.
 - Node.js: `24.16.0`; npm: `11.13.0`.
 - Next.js: `16.3.1`; React/React DOM: `19.2.1` (patched App Router baseline).
+- Playwright: `1.60.0`, pinned to include the browser-extraction fix required by Node.js 24.16.0.
 - PostgreSQL development/test image: `postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636`.
 
 These are local development/test pins selected for this scaffold. They do not approve hospital identity, privacy, retention, security, clinical, escalation, communications, hosting, or production integration decisions; those remain `REQUIRES_HOSPITAL_DECISION` where documented.

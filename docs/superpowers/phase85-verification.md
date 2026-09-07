@@ -2,6 +2,8 @@
 
 Date: 2026-09-05 (America/Toronto). Baseline: `c94401f`. Branch: `fix/phase-0-8-reintegration`.
 
+CI follow-up: 2026-09-07. The first hosted run passed all application checks but hit GitHub's six-hour limit during browser extraction. [Playwright's upstream report](https://github.com/microsoft/playwright/issues/41000) identifies this hang on Node 24.16.0 and a fix in Playwright 1.60.0. Both test dependency pins/locks were updated from 1.55.1 to 1.60.0; Node and application dependencies remain unchanged. Browser installation is also bounded and installs the required headless shell. Earlier local browser evidence below used 1.55.1; the final hosted run verifies the corrected dependency from a fresh runner.
+
 ## 1. Executive verdict
 
 The redesigned application now exercises the real Phase 0–8 simulation architecture: browser → Next.js → API → PostgreSQL → transactional outbox → worker → simulated adapter → durable delivery → practitioner response/responsibility → operator lifecycle. Local clean-checkout verification passes. Hosted GitHub CI and human acceptance are separate gates; their status is recorded below, not inferred from local tests.
