@@ -19,6 +19,7 @@ public sealed class EscalationScheduler(CriticalAlertsDbContext db)
               AND p.alert_id = a.id AND p.alert_version = a.draft_version AND p.revision = a.exact_escalation_plan_revision
               AND p.escalation_policy_id = a.exact_escalation_policy_id AND p.escalation_policy_version = a.exact_escalation_policy_version
             WHERE a.state = 'Active' AND a.confirmed_draft_version = a.draft_version
+              AND p.confirmed_at_utc <= clock_timestamp()
               AND p.definition_json::jsonb ->> 'TriggerCondition' = {DemoEscalationSemantics.TriggerCondition}
               AND p.definition_json::jsonb ->> 'StopCondition' = {DemoEscalationSemantics.StopCondition}
               AND NOT EXISTS (SELECT 1 FROM escalation_runs r WHERE r.organization_id = a.organization_id
@@ -44,6 +45,7 @@ public sealed class EscalationScheduler(CriticalAlertsDbContext db)
         var plan = await db.AlertEscalationPlans.AsNoTracking().SingleOrDefaultAsync(p => p.OrganizationId == organizationId && p.Id == alert.ExactEscalationPlanId, cancellationToken);
         if (plan is null || !EscalationRunRepository.Matches(alert, plan) || !DemoEscalationSemantics.IsSupported(plan.Definition)) return false;
         var now = await new DatabaseClock(db).GetUtcNowAsync(cancellationToken);
+        if (now < plan.ConfirmedAtUtc) return false;
         var run = EscalationRun.Schedule(EscalationRunId.New(), plan, alert.DraftVersion, now);
         var correlation = Guid.NewGuid();
         db.EscalationRuns.Add(run);

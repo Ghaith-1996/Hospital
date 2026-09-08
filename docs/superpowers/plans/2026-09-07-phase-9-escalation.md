@@ -88,10 +88,10 @@ Files: create `src/backend/CriticalAlerts.Infrastructure/Escalation/EscalationRu
 
 Files: create `src/backend/CriticalAlerts.Domain/Escalation/EscalationDispatchRequested.cs`; modify `src/backend/CriticalAlerts.Infrastructure/Escalation/EscalationRunProcessor.cs`, `src/backend/CriticalAlerts.Infrastructure/Dispatch/OutboxDispatchProcessor.cs`, `src/backend/CriticalAlerts.Infrastructure/Dispatch/DispatchServiceCollectionExtensions.cs`; test `tests/CriticalAlerts.Infrastructure.Tests/EscalationDispatchTests.cs`.
 
-- [ ] RED one step outbox and one logical recipient/channel attempt with two workers/replay/restart; strict payload allowlist and organization/version/run/step membership; malformed/extra IDs rejected; original manual selections untouched; crash rolls back activation, timeline, signal, outbox and step together; provider failure remains visible.
-- [ ] Reuse existing dispatch adapters/retries; process only supplied newly activated selection IDs. Never call adapters from escalation. Atomic outbox insertion and stable logical keys complete activation before enabling its worker execution.
-- [ ] GREEN full infrastructure project and backend regression; inspect captured payload/audit/log sentinels.
-- [ ] Commit `feat: dispatch escalation through outbox`.
+- [x] RED one step outbox and one logical recipient/channel attempt with two workers/replay/restart; strict payload allowlist and organization/version/run/step membership; malformed/extra IDs rejected; original manual selections untouched; crash rolls back activation, timeline, signal, outbox and step together; provider failure remains visible.
+- [x] Reuse existing dispatch adapters/retries; process only supplied newly activated selection IDs. Never call adapters from escalation. Atomic outbox insertion and stable logical keys complete activation before enabling its worker execution.
+- [x] GREEN full infrastructure project and backend regression; inspect captured payload/audit/log sentinels.
+- [x] Commit `feat: dispatch escalation through outbox`.
 
 ## Task 8 — Stop conditions, consumed signals and overrides
 

@@ -25,6 +25,7 @@ public sealed class EscalationRunRepository(CriticalAlertsDbContext db)
               AND p.definition_json::jsonb ->> 'TriggerCondition' = {DemoEscalationSemantics.TriggerCondition}
               AND p.definition_json::jsonb ->> 'StopCondition' = {DemoEscalationSemantics.StopCondition}
               AND r.state IN ('Scheduled', 'Running', 'Paused')
+              AND COALESCE(r.updated_at_utc, r.started_at_utc) <= clock_timestamp()
               AND (r.lease_expires_at_utc IS NULL OR r.lease_expires_at_utc <= clock_timestamp())
               AND (a.state IN ('Resolved', 'Cancelled') OR EXISTS (
                 SELECT 1 FROM responsibility_assignments x WHERE x.organization_id = r.organization_id
@@ -89,7 +90,8 @@ public sealed class EscalationRunRepository(CriticalAlertsDbContext db)
         if (!await LockRunAsync(claim.OrganizationId, claim.RunId, skipLocked: false, cancellationToken)) return false;
         var locked = await ReloadAsync(claim.OrganizationId, claim.AlertId, claim.RunId, cancellationToken);
         if (locked is null || locked.Run.LeaseOwner != claim.LeaseOwner || locked.Run.LeaseExpiresAtUtc <= locked.Now
-            || locked.Run.LeaseExpiresAtUtc is null || locked.Run.State is EscalationRunState.Completed or EscalationRunState.Stopped) return false;
+            || locked.Run.LeaseExpiresAtUtc is null || locked.Now < (locked.Run.UpdatedAtUtc ?? locked.Run.StartedAtUtc)
+            || locked.Run.State is EscalationRunState.Completed or EscalationRunState.Stopped) return false;
         var acquiredDeadline = locked.Run.LeaseExpiresAtUtc.Value;
         await action(locked, cancellationToken);
         // A callback may perform database work. Reject an expired acquisition even if it already cleared its lease in memory.
@@ -130,7 +132,9 @@ public sealed class EscalationRunRepository(CriticalAlertsDbContext db)
     private async Task<bool> IsCandidateAsync(LockedEscalationRun locked, CancellationToken cancellationToken)
     {
         var (alert, run, _, now) = locked;
-        if (run.State is EscalationRunState.Completed or EscalationRunState.Stopped || run.LeaseExpiresAtUtc > now) return false;
+        // Wall-clock correction may temporarily precede a previously committed instant. Wait for a later poll; never invent time.
+        if (run.State is EscalationRunState.Completed or EscalationRunState.Stopped || run.LeaseExpiresAtUtc > now
+            || now < (run.UpdatedAtUtc ?? run.StartedAtUtc)) return false;
         if (alert.State is AlertState.Resolved or AlertState.Cancelled) return true;
         if (await db.ResponsibilityAssignments.AnyAsync(x => x.OrganizationId == run.OrganizationId && x.AlertId == run.AlertId
             && x.AlertVersion == run.AlertVersion && x.ReleasedAtUtc == null && x.AcceptedAtUtc <= now, cancellationToken)) return true;

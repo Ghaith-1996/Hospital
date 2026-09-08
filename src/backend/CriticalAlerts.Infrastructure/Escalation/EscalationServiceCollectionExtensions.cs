@@ -9,6 +9,7 @@ public static class EscalationServiceCollectionExtensions
         services.AddScoped<DatabaseClock>();
         services.AddScoped<EscalationScheduler>();
         services.AddScoped<EscalationRunRepository>();
+        services.AddScoped<EscalationRunProcessor>();
         return services;
     }
 }

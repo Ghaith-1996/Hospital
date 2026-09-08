@@ -4,8 +4,10 @@ using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Escalation;
 using CriticalAlerts.Domain.Policies;
 using CriticalAlerts.Domain.Reliability;
+using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -29,11 +31,14 @@ public sealed class OutboxDispatchProcessor(
         string leaseOwner,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(leaseOwner))
+        if (string.IsNullOrWhiteSpace(leaseOwner) || leaseOwner.Trim().Length > 64
+            || leaseOwner.Trim().Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_')))
         {
             throw new ArgumentException("A dispatch worker lease owner is required.", nameof(leaseOwner));
         }
 
+        // A process name is not an acquisition credential, including concurrent calls from the same process.
+        leaseOwner = $"{leaseOwner.Trim()}-{Guid.NewGuid():N}";
         var workerOptions = options.Value;
         workerOptions.Validate();
         var now = RequireUtc(time.GetUtcNow(), "worker clock");
@@ -45,17 +50,17 @@ public sealed class OutboxDispatchProcessor(
 
         try
         {
-            return await ProcessMessageAsync(message, leaseOwner.Trim(), now, workerOptions, cancellationToken);
+            return await ExecuteOwnedAsync(message, leaseOwner, workerOptions, null, false, cancellationToken);
         }
         catch (DispatchValidationException)
         {
-            var alert = await FindAlertForFailureAsync(message, cancellationToken);
-            return await PermanentlyFailAsync(message, alert, leaseOwner.Trim(), now, "dispatch-validation", cancellationToken);
+            db.ChangeTracker.Clear();
+            return await ExecuteOwnedAsync(message, leaseOwner, workerOptions, "dispatch-validation", false, cancellationToken);
         }
         catch (DomainException)
         {
-            var alert = await FindAlertForFailureAsync(message, cancellationToken);
-            return await PermanentlyFailAsync(message, alert, leaseOwner.Trim(), now, "domain-validation", cancellationToken);
+            db.ChangeTracker.Clear();
+            return await ExecuteOwnedAsync(message, leaseOwner, workerOptions, "domain-validation", false, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -64,9 +69,55 @@ public sealed class OutboxDispatchProcessor(
         catch (Exception)
         {
             logger.LogWarning("Simulation dispatch worker encountered a retryable internal failure.");
-            var alert = await FindAlertForFailureAsync(message, cancellationToken);
-            return await RetryOrFailAsync(message, alert, leaseOwner.Trim(), now, workerOptions, "worker-error", cancellationToken);
+            db.ChangeTracker.Clear();
+            return await ExecuteOwnedAsync(message, leaseOwner, workerOptions, "worker-error", true, cancellationToken);
         }
+    }
+
+    private Task<DateTimeOffset> DispatchNowAsync(OutboxMessage message, CancellationToken cancellationToken)
+        => message.EventType == nameof(EscalationDispatchRequested)
+            ? new DatabaseClock(db).GetUtcNowAsync(cancellationToken)
+            : Task.FromResult(RequireUtc(time.GetUtcNow(), "worker clock"));
+
+    private async Task<DispatchProcessingResult> ExecuteOwnedAsync(OutboxMessage claimed, string owner, DispatchWorkerOptions workerOptions,
+        string? failure, bool retry, CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        // Claim transaction has already released its outbox lock. Every workflow mutation takes alert first.
+        await AlertMutationLock.AcquireAsync(db, claimed.OrganizationId, new AlertId(claimed.AggregateId), cancellationToken);
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM outbox_messages WHERE id = {claimed.Id.Value} FOR UPDATE", cancellationToken);
+        db.ChangeTracker.Clear();
+        var message = await db.OutboxMessages.SingleAsync(x => x.Id == claimed.Id, cancellationToken);
+        var now = await DispatchNowAsync(message, cancellationToken);
+        var expiry = message.LeaseExpiresAtUtc;
+        if (message.ProcessingState != OutboxProcessingState.Processing || message.LeaseOwner != owner || expiry is null || expiry <= now)
+            return new(false, false, false, message.Id.Value, "lease-lost");
+        DispatchProcessingResult result;
+        if (failure is null)
+            result = await ProcessMessageAsync(message, owner, now, workerOptions, cancellationToken);
+        else
+        {
+            var alert = await FindAlertForFailureAsync(message, cancellationToken);
+            if (retry && message.EventType == nameof(EscalationDispatchRequested) && alert is not null)
+            {
+                var payload = ParsePayload(message);
+                var plan = await db.AlertEscalationPlans.AsNoTracking().SingleAsync(x => x.Id == alert.ExactEscalationPlanId && x.OrganizationId == alert.OrganizationId, cancellationToken);
+                var bound = plan.Definition.Steps.Single(x => x.Sequence == payload.StepSequence).MaxAttempts;
+                retry = message.AttemptCount < bound;
+            }
+            result = retry
+                ? await RetryOrFailAsync(message, alert, owner, now, workerOptions, failure, cancellationToken)
+                : await PermanentlyFailAsync(message, alert, owner, now, failure, cancellationToken);
+        }
+        // Domain completion clears the in-memory lease. Validate the captured acquisition through final persistence.
+        if (await DispatchNowAsync(message, cancellationToken) >= expiry)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            db.ChangeTracker.Clear();
+            return new(false, false, false, message.Id.Value, "lease-lost");
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     private async Task<OutboxMessage?> ClaimNextAsync(
@@ -80,9 +131,9 @@ public sealed class OutboxDispatchProcessor(
             .SqlQuery<Guid>($"""
                 SELECT id AS "Value"
                 FROM outbox_messages
-                WHERE (processing_state = 'Pending' AND next_attempt_at_utc <= {now})
+                WHERE (processing_state = 'Pending' AND next_attempt_at_utc <= CASE WHEN event_type = 'EscalationDispatchRequested' THEN clock_timestamp() ELSE {now} END)
                    OR (processing_state = 'Processing'
-                       AND (lease_expires_at_utc IS NULL OR lease_expires_at_utc <= {now}))
+                       AND (lease_expires_at_utc IS NULL OR lease_expires_at_utc <= CASE WHEN event_type = 'EscalationDispatchRequested' THEN clock_timestamp() ELSE {now} END))
                 ORDER BY created_at_utc, id
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
@@ -97,6 +148,8 @@ public sealed class OutboxDispatchProcessor(
 
         var message = await db.OutboxMessages
             .SingleAsync(item => item.Id == new OutboxMessageId(messageId), cancellationToken);
+        await db.Entry(message).ReloadAsync(cancellationToken);
+        now = await DispatchNowAsync(message, cancellationToken);
         if (!message.TryAcquireLease(leaseOwner, now, now.Add(workerOptions.LeaseDuration)))
         {
             await transaction.CommitAsync(cancellationToken);
@@ -123,11 +176,11 @@ public sealed class OutboxDispatchProcessor(
             .SingleOrDefaultAsync(
                 item => item.OrganizationId == message.OrganizationId && item.Id == payload.AlertId,
                 cancellationToken);
+        var escalation = payload.EscalationRunId is not null;
         if (alert is null
             || alert.Id.Value != message.AggregateId
             || alert.DraftVersion.Value != payload.DraftVersion
             || alert.ConfirmedDraftVersion?.Value != payload.DraftVersion
-            || alert.State is not (AlertState.DispatchQueued or AlertState.Active)
             || alert.ApprovedMessage is null
             || alert.ApprovedMessage.Ciphertext.Length == 0)
         {
@@ -135,8 +188,21 @@ public sealed class OutboxDispatchProcessor(
         }
 
         var recipients = alert.CurrentRecipients
+            .Where(item => escalation ? payload.RecipientSelectionIds!.Contains(item.Id.Value) : item.SelectionSource != RecipientSelectionSource.EscalationPolicy)
             .OrderBy(item => item.Id.Value)
             .ToArray();
+        var capturedMaxAttempts = escalation ? await ValidateEscalationAsync(message, payload, alert, recipients, cancellationToken) : int.MaxValue;
+        if (escalation && (alert.State is AlertState.Resolved or AlertState.Cancelled
+            || await db.ResponsibilityAssignments.AsNoTracking().AnyAsync(x => x.OrganizationId == alert.OrganizationId && x.AlertId == alert.Id
+                && x.AlertVersion == alert.DraftVersion && x.ReleasedAtUtc == null, cancellationToken)))
+        {
+            message.MarkProcessed(leaseOwner, now);
+            AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.suppressed", "succeeded", $"dispatch:{message.Id.Value:N}", now, new { reason = "responsibility-or-lifecycle" });
+            await db.SaveChangesAsync(cancellationToken);
+            return new(true, false, false, message.Id.Value, "suppressed");
+        }
+        if (alert.State is not (AlertState.DispatchQueued or AlertState.Active) || (escalation && alert.State != AlertState.Active))
+            throw new DispatchValidationException("alert-not-dispatchable", "The alert is not available for dispatch.");
         if (recipients.Length == 0)
         {
             throw new DispatchValidationException("recipients-missing", "The confirmed dispatch has no recipients.");
@@ -172,7 +238,7 @@ public sealed class OutboxDispatchProcessor(
         var correlationId = $"dispatch:{message.Id.Value:N}";
         var retryRequested = false;
         var retryAtUtc = now.Add(workerOptions.RetryDelay);
-        var maxAttempts = Math.Max(1, Math.Min(workerOptions.MaxAttempts, policy.RetryLimit + 1));
+        var maxAttempts = Math.Max(1, Math.Min(capturedMaxAttempts, Math.Min(workerOptions.MaxAttempts, policy.RetryLimit + 1)));
 
         foreach (var recipient in recipients)
         {
@@ -246,7 +312,7 @@ public sealed class OutboxDispatchProcessor(
             return new DispatchProcessingResult(true, false, false, message.Id.Value, "processed");
         }
 
-        if (alert.State is AlertState.DispatchQueued or AlertState.Active)
+        if (!escalation && alert.State is AlertState.DispatchQueued or AlertState.Active)
         {
             alert.MarkFailed(now, correlationId);
         }
@@ -559,7 +625,7 @@ public sealed class OutboxDispatchProcessor(
         string category,
         CancellationToken cancellationToken)
     {
-        if (alert is not null && alert.State is AlertState.DispatchQueued or AlertState.Active)
+        if (message.EventType == nameof(AlertDispatchRequested) && alert is not null && alert.State is AlertState.DispatchQueued or AlertState.Active)
         {
             alert.MarkFailed(now, $"dispatch:{message.Id.Value:N}");
         }
@@ -632,6 +698,9 @@ public sealed class OutboxDispatchProcessor(
 
     private static ParsedDispatchPayload ParsePayload(OutboxMessage message)
     {
+        var escalation = message.EventType == nameof(EscalationDispatchRequested);
+        if (!escalation && message.EventType != nameof(AlertDispatchRequested))
+            throw new DispatchValidationException("event-invalid", "The dispatch event type is unsupported.");
         try
         {
             using var document = JsonDocument.Parse(message.PayloadJson);
@@ -642,6 +711,9 @@ public sealed class OutboxDispatchProcessor(
 
             Guid? alertId = null;
             int? draftVersion = null;
+            Guid? runId = null;
+            int? step = null;
+            Guid[]? selectionIds = null;
             var names = new HashSet<string>(StringComparer.Ordinal);
             foreach (var property in document.RootElement.EnumerateObject())
             {
@@ -656,16 +728,36 @@ public sealed class OutboxDispatchProcessor(
                         && property.Value.TryGetGuid(out var parsedAlertId):
                         alertId = parsedAlertId;
                         break;
-                    case "draftVersion" when property.Value.ValueKind == JsonValueKind.Number
+                    case "draftVersion" when !escalation && property.Value.ValueKind == JsonValueKind.Number
                         && property.Value.TryGetInt32(out var parsedVersion):
                         draftVersion = parsedVersion;
+                        break;
+                    case "alertVersion" when escalation && property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var version):
+                        draftVersion = version;
+                        break;
+                    case "escalationRunId" when escalation && property.Value.ValueKind == JsonValueKind.String && property.Value.TryGetGuid(out var run):
+                        runId = run;
+                        break;
+                    case "stepSequence" when escalation && property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out var sequence):
+                        step = sequence;
+                        break;
+                    case "recipientSelectionIds" when escalation && property.Value.ValueKind == JsonValueKind.Array:
+                        var values = new List<Guid>();
+                        foreach (var value in property.Value.EnumerateArray())
+                        {
+                            if (value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out var id) || id == Guid.Empty || values.Contains(id))
+                                throw new DispatchValidationException("payload-invalid", "The dispatch recipient identifiers are invalid.");
+                            values.Add(id);
+                        }
+                        selectionIds = values.ToArray();
                         break;
                     default:
                         throw new DispatchValidationException("payload-invalid", "The dispatch payload contains an unsupported field.");
                 }
             }
 
-            if (names.Count != 2 || alertId is null || draftVersion is null || draftVersion <= 0)
+            if (names.Count != (escalation ? 5 : 2) || alertId is null || alertId == Guid.Empty || draftVersion is null || draftVersion <= 0
+                || (escalation && (runId is null || runId == Guid.Empty || step is null || step <= 0 || selectionIds is null || selectionIds.Length == 0)))
             {
                 throw new DispatchValidationException("payload-invalid", "The dispatch payload requires an alert ID and draft version.");
             }
@@ -675,12 +767,45 @@ public sealed class OutboxDispatchProcessor(
                 throw new DispatchValidationException("payload-mismatch", "The dispatch payload does not match its outbox aggregate.");
             }
 
-            return new ParsedDispatchPayload(new AlertId(alertId.Value), draftVersion.Value);
+            return new ParsedDispatchPayload(new AlertId(alertId.Value), draftVersion.Value, runId, step, selectionIds);
         }
         catch (JsonException)
         {
             throw new DispatchValidationException("payload-invalid", "The dispatch payload is not valid JSON.");
         }
+    }
+
+    private async Task<int> ValidateEscalationAsync(OutboxMessage message, ParsedDispatchPayload payload, Alert alert,
+        AlertRecipientSelection[] recipients, CancellationToken cancellationToken)
+    {
+        var run = await db.EscalationRuns.AsNoTracking().SingleOrDefaultAsync(x => x.OrganizationId == message.OrganizationId
+            && x.Id == new EscalationRunId(payload.EscalationRunId!.Value) && x.AlertId == alert.Id && x.AlertVersion == alert.DraftVersion, cancellationToken);
+        if (run is null || run.PlanId != alert.ExactEscalationPlanId || run.PlanRevision != alert.ExactEscalationPlanRevision
+            || run.PolicyId != alert.ExactEscalationPolicyId || run.PolicyVersion != alert.ExactEscalationPolicyVersion
+            || run.CurrentStep <= payload.StepSequence)
+            throw new DispatchValidationException("escalation-invalid", "The dispatch run binding is invalid.");
+        var plan = await db.AlertEscalationPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Id == run.PlanId && x.OrganizationId == run.OrganizationId
+            && x.AlertId == alert.Id && x.AlertVersion == payload.DraftVersion, cancellationToken);
+        var step = plan?.Definition.Steps.SingleOrDefault(x => x.Sequence == payload.StepSequence);
+        if (plan is null || step is null || plan.Revision != run.PlanRevision || !DemoEscalationSemantics.IsSupported(plan.Definition))
+            throw new DispatchValidationException("escalation-invalid", "The dispatch plan binding is invalid.");
+        var intent = new EscalationDispatchRequested(alert.Id, alert.DraftVersion, run.Id, step.Sequence, recipients.Select(x => x.Id).ToArray());
+        if (message.IdempotencyKey != intent.IdempotencyKey || recipients.Length != payload.RecipientSelectionIds!.Length
+            || recipients.Length != step.Recipients.Count || recipients.Any(x => x.SelectionSource != RecipientSelectionSource.EscalationPolicy
+                || x.SelectedByUserId != plan.ConfirmedByUserId || !step.Recipients.Any(r => r.PractitionerId == x.PractitionerId.Value
+                    && r.PractitionerRoleId == x.PractitionerRoleId?.Value && r.Channel == x.Channel.ToString()
+                    && r.DirectoryRevision == x.DirectoryRevision && r.DirectorySourceUpdatedAtUtc == x.DirectorySourceUpdatedAtUtc && r.OnCallSnapshot == x.OnCallSnapshot)))
+            throw new DispatchValidationException("escalation-invalid", "The dispatch recipient binding is invalid.");
+        var events = await db.EscalationEvents.AsNoTracking().Where(x => x.OrganizationId == run.OrganizationId && x.AlertId == alert.Id
+            && x.AlertVersion == alert.DraftVersion && x.RunId == run.Id && x.StepSequence == step.Sequence
+            && (x.EventType == EscalationEventType.RecipientActivated || x.EventType == EscalationEventType.DispatchQueued)).ToArrayAsync(cancellationToken);
+        var queued = events.SingleOrDefault(x => x.EventType == EscalationEventType.DispatchQueued);
+        var activated = events.Where(x => x.EventType == EscalationEventType.RecipientActivated).ToArray();
+        if (queued is null || queued.OccurredAtUtc != message.CreatedAtUtc || activated.Length != recipients.Length
+            || recipients.Any(x => !activated.Any(e => e.RecipientSelectionId == x.Id && e.OccurredAtUtc == x.SelectedAtUtc
+                && e.CorrelationId == queued.CorrelationId && e.OccurredAtUtc == queued.OccurredAtUtc)))
+            throw new DispatchValidationException("escalation-invalid", "The dispatch activation evidence is invalid.");
+        return step.MaxAttempts;
     }
 
     private void ApplyStatus(
@@ -835,7 +960,7 @@ public sealed class OutboxDispatchProcessor(
             ? value
             : throw new DispatchValidationException("clock-not-utc", $"The {name} must be UTC.");
 
-    private sealed record ParsedDispatchPayload(AlertId AlertId, int DraftVersion);
+    private sealed record ParsedDispatchPayload(AlertId AlertId, int DraftVersion, Guid? EscalationRunId, int? StepSequence, Guid[]? RecipientSelectionIds);
 
     private sealed record RecipientProcessingResult(bool RetryRequested, DateTimeOffset? RetryAtUtc)
     {

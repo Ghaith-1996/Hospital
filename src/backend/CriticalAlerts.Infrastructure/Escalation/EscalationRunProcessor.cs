@@ -12,10 +12,25 @@ public sealed record ActivatedEscalationStep(OrganizationId OrganizationId, Aler
     EscalationRunId EscalationRunId, int StepSequence, int MaxAttempts, IReadOnlyList<AlertRecipientSelectionId> RecipientSelectionIds,
     Guid CorrelationId, DateTimeOffset OccurredAtUtc);
 
-// Not registered with the worker until identifier-only outbox integration is supplied.
 // enqueueStep must stage its outbox/event/audit in this SAME DbContext transaction; a no-op is test-only.
 public sealed class EscalationRunProcessor(CriticalAlertsDbContext db)
 {
+    public Task<bool> ProcessClaimAsync(EscalationClaim claim, CancellationToken cancellationToken = default)
+        => ProcessClaimAsync(claim, EnqueueStepAsync, cancellationToken);
+
+    public async Task EnqueueStepAsync(ActivatedEscalationStep step, CancellationToken cancellationToken)
+    {
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Escalation dispatch must join the activation transaction.");
+        var run = await db.EscalationRuns.SingleAsync(x => x.Id == step.EscalationRunId && x.OrganizationId == step.OrganizationId, cancellationToken);
+        var intent = new EscalationDispatchRequested(step.AlertId, step.AlertVersion, step.EscalationRunId, step.StepSequence, step.RecipientSelectionIds);
+        db.OutboxMessages.Add(OutboxMessage.Create(OutboxMessageId.New(), step.OrganizationId, nameof(EscalationDispatchRequested),
+            step.AlertId.Value, intent.ToPayloadJson(), intent.IdempotencyKey, step.OccurredAtUtc));
+        db.EscalationEvents.Add(EscalationEvent.Record(run, EscalationEventType.DispatchQueued, step.StepSequence, null, step.CorrelationId, step.OccurredAtUtc));
+        db.AuditEvents.Add(AuditEvent.Record(AuditEventId.New(), step.OrganizationId, "SimulationWorker", null,
+            "escalation-dispatch-queued", "EscalationRun", run.Id.Value, "succeeded", step.CorrelationId.ToString("D"), "{}", step.OccurredAtUtc));
+    }
+
     public Task<bool> ProcessClaimAsync(EscalationClaim claim,
         Func<ActivatedEscalationStep, CancellationToken, Task> enqueueStep, CancellationToken cancellationToken = default)
     {
@@ -38,10 +53,12 @@ public sealed class EscalationRunProcessor(CriticalAlertsDbContext db)
                 return;
             }
             var responsibility = await db.ResponsibilityAssignments.AsNoTracking().Where(x => x.OrganizationId == run.OrganizationId
-                && x.AlertId == run.AlertId && x.AlertVersion == run.AlertVersion && x.ReleasedAtUtc == null && x.AcceptedAtUtc <= now)
+                && x.AlertId == run.AlertId && x.AlertVersion == run.AlertVersion && x.ReleasedAtUtc == null)
                 .OrderBy(x => x.AcceptedAtUtc).ThenBy(x => x.Id).FirstOrDefaultAsync(cancellation);
             if (responsibility is not null)
             {
+                // A committed assignment remains stop evidence across a backwards database clock adjustment.
+                if (responsibility.AcceptedAtUtc > now) return;
                 run.Stop(responsibility, claim.LeaseOwner, now);
                 Record(EscalationEventType.StoppedByResponsibility);
                 Audit("escalation-stopped", "ResponsibilityAccepted");

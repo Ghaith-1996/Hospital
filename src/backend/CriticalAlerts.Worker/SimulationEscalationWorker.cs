@@ -24,8 +24,25 @@ internal sealed class SimulationEscalationWorker(
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 using var scope = scopeFactory.CreateScope();
-                // Scheduling only until the atomic activation/outbox processor is integrated.
                 if (!await scope.ServiceProvider.GetRequiredService<EscalationScheduler>().ScheduleNextAsync(stoppingToken)) break;
+            }
+            for (var index = 0; index < configuration.BatchSize; index++)
+            {
+                stoppingToken.ThrowIfCancellationRequested();
+                // A failed activation scope is disposed; its rolled-back tracked graph must never be reused.
+                using var scope = scopeFactory.CreateScope();
+                try
+                {
+                    var claim = await scope.ServiceProvider.GetRequiredService<EscalationRunRepository>()
+                        .ClaimNextAsync(processOwner, configuration.LeaseDuration, stoppingToken);
+                    if (claim is null) break;
+                    await scope.ServiceProvider.GetRequiredService<EscalationRunProcessor>().ProcessClaimAsync(claim, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
+                catch (Exception)
+                {
+                    logger.LogWarning("DEMO escalation processing failed; durable lease recovery will retry the unchanged step.");
+                }
             }
             await Task.Delay(configuration.PollIntervalMilliseconds, stoppingToken);
         }
