@@ -229,6 +229,74 @@ export type AlertLiveRecipient = {
   callUnitRequestedAtUtc: string | null;
   lastResponseReasonCode: string | null;
   attempts: AlertLiveAttempt[];
+  selections: AlertLiveRecipientSelection[];
+};
+
+export type AlertLiveRecipientSelection = {
+  selectionId: string;
+  practitionerRoleId: string | null;
+  channel: string;
+  selectionSource: AlertRecipient["selectionSource"];
+  selectedAtUtc: string;
+  escalationRunId: string | null;
+  escalationStepSequence: number | null;
+  escalationPolicyId: string | null;
+  escalationPolicyVersion: string | null;
+  escalationPlanRevision: string | null;
+};
+
+export type EscalationTimelineEvent = {
+  eventId: string;
+  runId: string;
+  alertVersion: number;
+  policyId: string;
+  policyVersion: string;
+  planRevision: string;
+  stepSequence: number;
+  eventType: string;
+  occurredAtUtc: string;
+  recipientSelectionId: string | null;
+  failureCategory: string | null;
+  overrideReason: string | null;
+};
+
+export type AlertLiveEscalation = {
+  simulationOnly: boolean;
+  timingAuthority: string;
+  automaticEscalationEligible: boolean;
+  policyId: string | null;
+  policyVersion: string | null;
+  planRevision: string | null;
+  runId: string | null;
+  runState: string | null;
+  currentStep: number | null;
+  nextStepSequence: number | null;
+  totalSteps: number | null;
+  nextEvaluationAtUtc: string | null;
+  remainingPauseSeconds: number | null;
+  paused: boolean;
+  stopped: boolean;
+  exhausted: boolean;
+  terminalOutcome: string | null;
+  reasonCode: string | null;
+  failureCategory: string | null;
+  escalationOutboxState: string;
+  escalationOutboxFailureCategory: string | null;
+  manualFallbackRequired: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  timeline: EscalationTimelineEvent[];
+};
+
+export type EscalationPauseReason = "OperatorReview" | "ManualCoordination";
+export type EscalationOverrideResult = {
+  alertId: string;
+  confirmedVersion: number;
+  escalationRunId: string;
+  state: string;
+  reasonCode: string;
+  occurredAtUtc: string;
+  replayed: boolean;
 };
 
 export type AlertLive = {
@@ -241,6 +309,7 @@ export type AlertLive = {
   canCancel: boolean;
   manualFallbackRequired: boolean;
   recipients: AlertLiveRecipient[];
+  escalation: AlertLiveEscalation;
 };
 
 export type AlertLifecycleResult = {
@@ -420,6 +489,20 @@ export function recordMyAlertResponse(
 
 export function getAlertLive(alertId: string): Promise<AlertLive> {
   return requestJson<AlertLive>(`/api/v1/alerts/${alertId}/live`);
+}
+
+export function pauseEscalation(alertId: string, expectedVersion: number, reasonCode: EscalationPauseReason, idempotencyKey: string): Promise<EscalationOverrideResult> {
+  return requestJson<EscalationOverrideResult>(`/api/v1/alerts/${alertId}/escalation/pause`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ expectedVersion, reasonCode }),
+  });
+}
+
+export function resumeEscalation(alertId: string, expectedVersion: number, idempotencyKey: string): Promise<EscalationOverrideResult> {
+  return requestJson<EscalationOverrideResult>(`/api/v1/alerts/${alertId}/escalation/resume`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ expectedVersion, reasonCode: "ReadyToResume" }),
+  });
 }
 
 export function resolveAlert(

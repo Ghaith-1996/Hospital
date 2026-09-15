@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import * as api from "../lib/alerts";
 import { PractitionerAlert, PractitionerInbox } from "../features/connected/practitioner-alerts";
 import { LiveAlert } from "../features/connected/live-alert";
+import { escalationLive } from "./fixtures/escalation-live";
 vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlert: vi.fn(), getMyAlerts: vi.fn(), markMyAlertOpened: vi.fn(), recordMyAlertResponse: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn() }));
 afterEach(() => vi.clearAllMocks());
 test("live polling stops on unmount", async () => {
@@ -37,7 +38,7 @@ test("inbox authorization failure shows guidance instead of local fictional aler
   expect(await screen.findByRole("alert")).toHaveTextContent(/not authorized/);
 });
 test("durable live failure and response dimensions stay separate", async () => {
-  vi.mocked(api.getAlertLive).mockResolvedValue({ alertId: "sim", confirmedVersion: 9, alertState: "Active", outboxState: "Completed", refreshedAtUtc: "2026-09-05T12:00:00Z", canResolve: false, canCancel: true, manualFallbackRequired: true, recipients: [{ practitionerId: "p", simulationCode: "SIM-PRAC-1", displayName: "Fictional Doctor", specialty: "Emergency", onCallSnapshot: "Primary", acknowledgedAtUtc: null, terminalDisposition: null, responsibilityAcceptedAtUtc: null, callUnitRequestedAtUtc: null, lastResponseReasonCode: null, attempts: [{ channel: "Sms", attemptNumber: 1, status: "Failed", openedState: "NotApplicable", openedAtUtc: null, requestedAtUtc: "2026-09-05T12:00:00Z", submittedAtUtc: null, deliveredAtUtc: null, failedAtUtc: "2026-09-05T12:01:00Z", failureCategory: "provider-outage" }] }] });
+  vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", confirmedVersion: 9, alertState: "Active", outboxState: "Completed", refreshedAtUtc: "2026-09-05T12:00:00Z", canResolve: false, canCancel: true, manualFallbackRequired: true, recipients: [{ practitionerId: "p", simulationCode: "SIM-PRAC-1", displayName: "Fictional Doctor", specialty: "Emergency", onCallSnapshot: "Primary", acknowledgedAtUtc: null, terminalDisposition: null, responsibilityAcceptedAtUtc: null, callUnitRequestedAtUtc: null, lastResponseReasonCode: null, selections: [], attempts: [{ channel: "Sms", attemptNumber: 1, status: "Failed", openedState: "NotApplicable", openedAtUtc: null, requestedAtUtc: "2026-09-05T12:00:00Z", submittedAtUtc: null, deliveredAtUtc: null, failedAtUtc: "2026-09-05T12:01:00Z", failureCategory: "provider-outage" }] }] });
   render(<LiveAlert alertId="sim" pollMs={0} />);
   expect(await screen.findByText("provider-outage")).toBeVisible();
   expect(screen.getByText(/REQUIRES_HOSPITAL_DECISION/)).toBeVisible();

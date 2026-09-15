@@ -35,5 +35,9 @@ export function useIdempotentAction(afterSuccess: () => Promise<void>) {
       else setUncertain(label);
     } finally { lock.current = false; setBusy(false); }
   }
-  return { busy, error, uncertain, refreshRequired, refresh, execute };
+  function retry() {
+    const pending = attempt.current;
+    return pending ? execute(pending.label, pending.run) : Promise.resolve();
+  }
+  return { busy, error, uncertain, refreshRequired, refresh, execute, retry };
 }
