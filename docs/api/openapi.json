@@ -275,6 +275,325 @@
         ],
         "type": "object"
       },
+      "AlertLiveEscalationEventView": {
+        "properties": {
+          "alertVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "failureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "occurredAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "overrideReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planRevision": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "recipientSelectionId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stepSequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "alertVersion",
+          "eventId",
+          "eventType",
+          "failureCategory",
+          "occurredAtUtc",
+          "overrideReason",
+          "planRevision",
+          "policyId",
+          "policyVersion",
+          "recipientSelectionId",
+          "runId",
+          "stepSequence"
+        ],
+        "type": "object"
+      },
+      "AlertLiveEscalationView": {
+        "properties": {
+          "automaticEscalationEligible": {
+            "type": "boolean"
+          },
+          "canPause": {
+            "type": "boolean"
+          },
+          "canResume": {
+            "type": "boolean"
+          },
+          "currentStep": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          },
+          "escalationOutboxFailureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationOutboxState": {
+            "type": "string"
+          },
+          "exhausted": {
+            "type": "boolean"
+          },
+          "failureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "manualFallbackRequired": {
+            "type": "boolean"
+          },
+          "nextEvaluationAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nextStepSequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "planRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "policyVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reasonCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "remainingPauseSeconds": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          },
+          "runId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "runState": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "simulationOnly": {
+            "type": "boolean"
+          },
+          "stopped": {
+            "type": "boolean"
+          },
+          "terminalOutcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/AlertLiveEscalationEventView"
+            },
+            "type": "array"
+          },
+          "timingAuthority": {
+            "type": "string"
+          },
+          "totalSteps": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "automaticEscalationEligible",
+          "canPause",
+          "canResume",
+          "currentStep",
+          "escalationOutboxFailureCategory",
+          "escalationOutboxState",
+          "exhausted",
+          "failureCategory",
+          "manualFallbackRequired",
+          "nextEvaluationAtUtc",
+          "nextStepSequence",
+          "paused",
+          "planRevision",
+          "policyId",
+          "policyVersion",
+          "reasonCode",
+          "remainingPauseSeconds",
+          "runId",
+          "runState",
+          "simulationOnly",
+          "stopped",
+          "terminalOutcome",
+          "timeline",
+          "timingAuthority",
+          "totalSteps"
+        ],
+        "type": "object"
+      },
+      "AlertLiveRecipientSelectionView": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "escalationPlanRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationPolicyId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationPolicyVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationRunId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationStepSequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "selectedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "selectionSource": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "escalationPlanRevision",
+          "escalationPolicyId",
+          "escalationPolicyVersion",
+          "escalationRunId",
+          "escalationStepSequence",
+          "practitionerRoleId",
+          "selectedAtUtc",
+          "selectionId",
+          "selectionSource"
+        ],
+        "type": "object"
+      },
       "AlertLiveRecipientView": {
         "properties": {
           "acknowledgedAtUtc": {
@@ -323,6 +642,12 @@
               "string"
             ]
           },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/AlertLiveRecipientSelectionView"
+            },
+            "type": "array"
+          },
           "simulationCode": {
             "type": "string"
           },
@@ -345,6 +670,7 @@
           "onCallSnapshot",
           "practitionerId",
           "responsibilityAcceptedAtUtc",
+          "selections",
           "simulationCode",
           "specialty",
           "terminalDisposition"
@@ -374,6 +700,9 @@
               "string"
             ]
           },
+          "escalation": {
+            "$ref": "#/components/schemas/AlertLiveEscalationView"
+          },
           "manualFallbackRequired": {
             "type": "boolean"
           },
@@ -397,6 +726,7 @@
           "canCancel",
           "canResolve",
           "confirmedVersion",
+          "escalation",
           "manualFallbackRequired",
           "outboxState",
           "recipients",
@@ -3009,6 +3339,7 @@
     },
     "/api/v1/alerts/{alertId}/live": {
       "get": {
+        "description": "Returns a read-only, organization-scoped live simulation projection. PostgreSQL UTC owns escalation timing; polling never advances escalation.",
         "parameters": [
           {
             "in": "path",

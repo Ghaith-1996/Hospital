@@ -72,6 +72,9 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
             OpenedState = "Occurred",
         });
         riley.Attempts.Single(item => item.Channel == "SecureMessage").OpenedAtUtc.Should().NotBeNull();
+        riley.Selections.Should().HaveCount(2);
+        riley.Selections.Should().OnlyContain(item => item.SelectionSource == "Manual"
+            && item.EscalationRunId == null && item.EscalationStepSequence == null);
         riley.Attempts.Should().ContainEquivalentOf(new
         {
             Channel = "Sms",
@@ -273,7 +276,15 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
         DateTimeOffset? AcknowledgedAtUtc,
         string? TerminalDisposition,
         DateTimeOffset? ResponsibilityAcceptedAtUtc,
-        LiveAttemptDto[] Attempts);
+        LiveAttemptDto[] Attempts,
+        LiveSelectionDto[] Selections);
+
+    private sealed record LiveSelectionDto(
+        Guid SelectionId,
+        string Channel,
+        string SelectionSource,
+        Guid? EscalationRunId,
+        int? EscalationStepSequence);
 
     private sealed record LiveAttemptDto(
         string Channel,

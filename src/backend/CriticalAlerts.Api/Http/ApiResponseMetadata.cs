@@ -4,6 +4,15 @@ namespace CriticalAlerts.Api.Http;
 
 internal static class ApiResponseMetadata
 {
+    public static RouteHandlerBuilder WithReadOnlyProjection<TResponse>(
+        this RouteHandlerBuilder endpoint,
+        string description,
+        params int[] errorStatuses)
+    {
+        endpoint.WithDescription(description).Produces<TResponse>();
+        return endpoint.WithApiErrors(errorStatuses);
+    }
+
     public static RouteHandlerBuilder WithIdempotencyHeader(this RouteHandlerBuilder endpoint, int? maxLength = null)
         => endpoint.AddOpenApiOperationTransformer((operation, _, _) =>
         {

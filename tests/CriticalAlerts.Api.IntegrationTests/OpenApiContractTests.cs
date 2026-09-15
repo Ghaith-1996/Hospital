@@ -109,6 +109,8 @@ public sealed class OpenApiContractTests
     [InlineData("/api/v1/alerts/{alertId}/cancel")]
     [InlineData("/api/v1/my-alerts/{alertId}/opened")]
     [InlineData("/api/v1/my-alerts/{alertId}/responses")]
+    [InlineData("/api/v1/alerts/{alertId}/escalation/pause")]
+    [InlineData("/api/v1/alerts/{alertId}/escalation/resume")]
     public async Task IdempotentCommandsDeclareRequiredIdempotencyHeader(string path)
     {
         using var factory = CreateContractHost();
@@ -121,6 +123,53 @@ public sealed class OpenApiContractTests
         header["in"]!.GetValue<string>().Should().Be("header");
         header["required"]!.GetValue<bool>().Should().BeTrue();
         header["schema"]!["type"]!.GetValue<string>().Should().Be("string");
+        if (path.Contains("/escalation/", StringComparison.Ordinal))
+        {
+            header["schema"]!["maxLength"]!.GetValue<int>().Should().Be(100);
+        }
+    }
+
+    [Fact]
+    public async Task LiveContractDeclaresEscalationTimelineProvenanceAndSafeProblemResponses()
+    {
+        using var factory = CreateContractHost();
+        using var client = factory.CreateClient();
+        var runtime = JsonNode.Parse(await client.GetStringAsync("/openapi/v1.json"))!;
+        var operation = runtime["paths"]!["/api/v1/alerts/{alertId}"];
+        operation.Should().NotBeNull();
+        var liveOperation = runtime["paths"]!["/api/v1/alerts/{alertId}/live"]!["get"]!;
+        foreach (var status in new[] { "401", "403", "404" })
+        {
+            liveOperation["responses"]![status]!["content"]!["application/problem+json"]!["schema"]
+                .Should().NotBeNull();
+        }
+
+        var schemas = runtime["components"]!["schemas"]!;
+        schemas["AlertLiveView"]!["properties"]!["escalation"]!["$ref"]!.GetValue<string>()
+            .Should().Be("#/components/schemas/AlertLiveEscalationView");
+        var escalationProperties = schemas["AlertLiveEscalationView"]!["properties"]!;
+        foreach (var name in new[]
+        {
+            "automaticEscalationEligible", "policyId", "policyVersion", "planRevision", "runId", "runState",
+            "currentStep", "nextStepSequence", "totalSteps", "nextEvaluationAtUtc", "remainingPauseSeconds",
+            "terminalOutcome", "reasonCode", "failureCategory", "escalationOutboxState",
+            "escalationOutboxFailureCategory", "manualFallbackRequired", "canPause", "canResume", "timeline",
+        }) escalationProperties[name].Should().NotBeNull();
+        schemas["AlertLiveRecipientView"]!["properties"]!["selections"]!["items"]!["$ref"]!.GetValue<string>()
+            .Should().Be("#/components/schemas/AlertLiveRecipientSelectionView");
+        var selectionProperties = schemas["AlertLiveRecipientSelectionView"]!["properties"]!;
+        foreach (var name in new[]
+        {
+            "channel", "selectionSource", "escalationRunId", "escalationStepSequence", "escalationPolicyId",
+            "escalationPolicyVersion", "escalationPlanRevision",
+        }) selectionProperties[name].Should().NotBeNull();
+        var liveSchemas = string.Join(string.Empty, new[]
+        {
+            schemas["AlertLiveView"], schemas["AlertLiveEscalationView"], schemas["AlertLiveEscalationEventView"],
+            schemas["AlertLiveRecipientView"], schemas["AlertLiveRecipientSelectionView"], schemas["AlertLiveAttemptView"],
+        }.Select(schema => schema!.ToJsonString())).ToLowerInvariant();
+        foreach (var excluded in new[] { "patientreference", "approvedmessage", "phone", "providerreference", "ciphertext" })
+            liveSchemas.Should().NotContain(excluded);
     }
 
     [Theory]

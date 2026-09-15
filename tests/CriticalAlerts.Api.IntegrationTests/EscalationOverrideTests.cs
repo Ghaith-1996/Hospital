@@ -103,8 +103,8 @@ public sealed class EscalationOverrideTests(SeededPostgresApiFixture fixture)
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
         var pauseKey = Guid.NewGuid().ToString();
         var resumeKey = Guid.NewGuid().ToString();
-        using var pause = await Send(client, alert, "pause", pauseKey);
-        using var resume = await Send(client, alert, "resume", resumeKey);
+        using var pause = await SendAfterClockRecovery(client, alert, "pause", pauseKey);
+        using var resume = await SendAfterClockRecovery(client, alert, "resume", resumeKey);
         pause.StatusCode.Should().Be(HttpStatusCode.OK, await pause.Content.ReadAsStringAsync());
         resume.StatusCode.Should().Be(HttpStatusCode.OK, await resume.Content.ReadAsStringAsync());
         await using (var db = fixture.CreateContext())
@@ -187,6 +187,31 @@ public sealed class EscalationOverrideTests(SeededPostgresApiFixture fixture)
         { Content = JsonContent.Create(new { expectedVersion = version ?? alert.DraftVersion.Value, reasonCode = action == "resume" && reason == "OperatorReview" ? "ReadyToResume" : reason }) };
         if (key is not null) request.Headers.TryAddWithoutValidation("Idempotency-Key", key);
         return await client.SendAsync(request);
+    }
+
+    private static async Task<HttpResponseMessage> SendAfterClockRecovery(
+        HttpClient client,
+        Alert alert,
+        string action,
+        string key)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (true)
+        {
+            var response = await Send(client, alert, action, key);
+            if (response.StatusCode != HttpStatusCode.Conflict
+                || !string.Equals(
+                    (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString(),
+                    "escalation-clock-conflict",
+                    StringComparison.Ordinal)
+                || DateTimeOffset.UtcNow >= deadline)
+            {
+                return response;
+            }
+
+            response.Dispose();
+            await Task.Delay(25);
+        }
     }
 
     private async Task<Alert> CreateAlert(bool eligible = true, bool schedule = true)
