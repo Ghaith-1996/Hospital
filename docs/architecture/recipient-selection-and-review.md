@@ -127,6 +127,8 @@ Synthetic sentinel tests scan captured API logs, RFC 7807 responses, audit metad
 
 ## API surface
 
+Phase 9 extends exact review with policy ID/version, plan revision, supported trigger/stop rules, ordered steps with delay/attempt caps, and all future backup practitioner/role/channel and directory/on-call evidence. Confirmation requires `expectedEscalationPlanRevision` alongside `expectedVersion` and `Idempotency-Key`. Revalidation under the alert and shared directory locks rejects changed evidence with 409 and no partial approval/outbox. Persisted full snapshots remain authoritative after mutable policy edits. A future backup is not an active selection and gains no inbox access until its preconfirmed step activates. Legacy approvals without these bindings remain ineligible.
+
 - `GET /api/v1/directory/practitioners`: extend safe filters and selection metadata.
 - `PUT /api/v1/alerts/{alertId}/approved-message`: protect a manual approved message using `expectedVersion`.
 - `PUT /api/v1/alerts/{alertId}/recipients`: replace the complete current recipient set using `expectedVersion`.

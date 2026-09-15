@@ -14,6 +14,9 @@ Reviewed on 2026-09-05 for Phase 8.5. Repository statements are evidence of a re
 | 7 | `45f4024`; checklist records owner review and separate authorization to push; verification evidence dated 2026-08-29. No `phase-7` tag. | Review/publication authorization is recorded; tag creation was separate. Do not invent a tag or broader hospital approval. |
 | 8 | `46d4ff2` compliance record dated 2026-09-05 records authorization to correct findings and publish after verification; earlier text leaves human Phase 8 approval external. | Implementation/correction/publication authorization exists. Final integrated baseline acceptance is not established by that authorization. |
 | 8.5 | Current explicit user request; spec/plan introduced in `cb936fb`. | Corrective implementation and verification authorized. Final technical results and human acceptance must be recorded separately. |
+| 9 | Owner supplied the September 7 plan and authorized implementation; September 14 continuation and instruction to finish without subagents. [Verification package](../superpowers/phase9-verification.md) records completed local technical checks. | Implementation and continuation are authorized. Technical closure is recorded; final owner acceptance, publication, merge, tag and Phase 10 authorization remain separate and are not inferred. |
+
+The Phase 9 row was added on 2026-09-14 from the current task's explicit requests and verification results. The September 5 review and historical conclusions above are preserved.
 
 Evidence was inspected with `git log -- docs/product/definition-of-done.md`, focused `git log -S`, `git show`, and `git tag -n`. Tags present locally are `phase-2`, `phase-3`, `phase-4`, and `phase-5`. No repository settings or visibility were changed. The direct Phase 8.5 request requires the repository to remain public and supersedes the master plan's private-repository recommendation.
 

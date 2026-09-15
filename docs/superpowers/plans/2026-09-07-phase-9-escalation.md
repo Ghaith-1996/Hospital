@@ -1,6 +1,6 @@
 # Phase 9 — Escalation Implementation Plan
 
-Status: authorized 2026-09-07; Task 1 is documentation only. Specification: [exact confirmed DEMO escalation](../specs/2026-09-07-phase-9-escalation-design.md). Implement one task at a time and commit isolated slices. No Phase 10. Historical Phase 8.5 acceptance records remain unchanged.
+Status: authorized 2026-09-07; all twelve implementation/technical verification tasks complete on 2026-09-14; final owner acceptance remains pending. Specification: [exact confirmed DEMO escalation](../specs/2026-09-07-phase-9-escalation-design.md). Implement one task at a time and commit isolated slices. No Phase 10. Historical Phase 8.5 acceptance records remain unchanged.
 
 ## Sources and working rules
 
@@ -33,7 +33,7 @@ Files:
 - [x] Keep this a complete runnable vertical slice: also modify `src/backend/CriticalAlerts.Infrastructure/Persistence/CriticalAlertsDbContext.cs`, `src/backend/CriticalAlerts.Infrastructure/Persistence/Configurations/AlertConfigurations.cs`, `src/backend/CriticalAlerts.Infrastructure/Persistence/Configurations/PolicyConfigurations.cs`, `src/backend/CriticalAlerts.Infrastructure/Persistence/DemoDataSeeder.cs` and create `src/backend/CriticalAlerts.Infrastructure/Persistence/Configurations/EscalationConfigurations.cs` for snapshot persistence. Generate a minimal additive `src/backend/CriticalAlerts.Infrastructure/Persistence/Migrations/<timestamp>_Phase9EscalationSnapshots.cs` plus Designer and model snapshot; record exact generated paths before commit. Run fresh/legacy PostgreSQL snapshot tests and full domain, infrastructure and API regression. Task 4 adds the separate run/event/signal migration; no knowingly failing continuation is committed.
 - [x] Commit `feat: bind exact escalation policy snapshots`.
 
-Task 2 execution evidence (2026-09-07): exact snapshot slice implemented; human Phase 9 acceptance remains pending. The fixed synthetic backup is Jules Martin through explicit `DEMO-role:11111111-1111-4111-8111-111111110705`, SecureMessage, DEMO 60-second first step, one attempt. The domain accepts 1�10 maximum attempts, matching the existing simulation worker configuration ceiling; this is a simulation bound, not hospital policy. No worker/scheduler/activation code is included here.
+Task 2 execution evidence (2026-09-07): exact snapshot slice implemented; human Phase 9 acceptance remains pending. The fixed synthetic backup is Jules Martin through explicit `DEMO-role:11111111-1111-4111-8111-111111110705`, SecureMessage, DEMO 60-second first step, one attempt. The domain accepts 1 to 10 maximum attempts, matching the existing simulation worker configuration ceiling; this is a simulation bound, not hospital policy. No worker/scheduler/activation code is included here.
 
 Confirmation takes the existing alert row lock, then stable SHARE table locks over directory/policy evidence through commit. This prevents both updates and inserted phantom evidence; it intentionally trades cross-organization directory-write throughput for simple DEMO correctness. Runtime review/confirmation now includes the exact policy ID/version, steps, future recipient/channel evidence and required plan revision. The connected review request/display and canonical OpenAPI were updated in this slice so the current workflow remains usable. Future snapshots grant no active selection or inbox access. Existing policy configuration already had organization-scoped keys, so no redundant `PolicyConfigurations.cs` change was necessary.
 
@@ -47,10 +47,10 @@ The local detailed handoff is `.superpowers/sdd/2026-09-07-phase-9-escalation/ta
 
 Files: modify `src/backend/CriticalAlerts.Domain/Delivery/EscalationRun.cs`, `src/backend/CriticalAlerts.Domain/Enums.cs`; create `src/backend/CriticalAlerts.Domain/Escalation/EscalationEvent.cs`, `src/backend/CriticalAlerts.Domain/Escalation/EscalationConsumedSignal.cs`; test `tests/CriticalAlerts.Domain.Tests/EscalationRunTests.cs`.
 
-- [ ] RED exact alert/policy version, illegal/repeated advances, completed/stopped processing, UTC validation, lease ownership, paused-not-due, remaining-delay resume including zero, accepted responsibility versus acknowledgement/call-unit, lifecycle stop, decline/unavailable once per response.
-- [ ] Add explicit Schedule/BeginProcessing/Advance/Pause/Resume/Stop/Complete/ReleaseLease behavior and sanitized event/signal records. Infrastructure never sets domain properties directly.
-- [ ] Keep existing PostgreSQL behavior green: explicitly ignore new run properties in `src/backend/CriticalAlerts.Infrastructure/Persistence/Configurations/DeliveryConfigurations.cs` until Task 4 maps them, so EF convention does not query nonexistent columns. GREEN focused/full domain project and full backend regression.
-- [ ] Commit `feat: complete escalation run domain`.
+- [x] RED exact alert/policy version, illegal/repeated advances, completed/stopped processing, UTC validation, lease ownership, paused-not-due, remaining-delay resume including zero, accepted responsibility versus acknowledgement/call-unit, lifecycle stop, decline/unavailable once per response.
+- [x] Add explicit Schedule/BeginProcessing/Advance/Pause/Resume/Stop/Complete/ReleaseLease behavior and sanitized event/signal records. Infrastructure never sets domain properties directly.
+- [x] Keep existing PostgreSQL behavior green: explicitly ignore new run properties in `src/backend/CriticalAlerts.Infrastructure/Persistence/Configurations/DeliveryConfigurations.cs` until Task 4 maps them, so EF convention does not query nonexistent columns. GREEN focused/full domain project and full backend regression.
+- [x] Commit `feat: complete escalation run domain`.
 
 ## Task 4 — PostgreSQL persistence and additive migration
 
@@ -58,11 +58,11 @@ Files: modify `src/backend/CriticalAlerts.Infrastructure/Persistence/CriticalAle
 
 EF generates `src/backend/CriticalAlerts.Infrastructure/Persistence/Migrations/<timestamp>_Phase9Escalation.cs` and matching `.Designer.cs`; record the exact generated timestamp paths before commit. Never rename/edit old migrations. Tests: create `tests/CriticalAlerts.Infrastructure.Tests/EscalationPersistenceTests.cs`; retain Task 2 snapshot/API integration assertions and extend them for the run schema.
 
-- [ ] RED run uniqueness, composite organization scope, immutable exact plan/steps, future snapshot not active recipient, consumed-signal uniqueness, append-only timeline update/delete rejection, nullable legacy references/no backfill, atomic confirmation rollback and immutable policy execution after current-policy edits.
-- [ ] Map exact plan/recipient evidence, run version/lease/pause/reason/time fields, consumed response IDs, events and unique activation/outbox identities. Update synthetic DEMO seed explicitly; never relabel legacy confirmation as approved.
-- [ ] Generate migration with `dotnet ef migrations add Phase9Escalation --project src/backend/CriticalAlerts.Infrastructure --startup-project src/backend/CriticalAlerts.Api --output-dir Persistence/Migrations`; inspect SQL and apply to fresh empty PostgreSQL and retained pre-Phase-9 data in tests.
-- [ ] GREEN full infrastructure and API integration projects, then full backend solution regression.
-- [ ] Commit `feat: persist phase 9 escalation state`.
+- [x] RED run uniqueness, composite organization scope, immutable exact plan/steps, future snapshot not active recipient, consumed-signal uniqueness, append-only timeline update/delete rejection, nullable legacy references/no backfill, atomic confirmation rollback and immutable policy execution after current-policy edits.
+- [x] Map exact plan/recipient evidence, run version/lease/pause/reason/time fields, consumed response IDs, events and unique activation/outbox identities. Update synthetic DEMO seed explicitly; never relabel legacy confirmation as approved.
+- [x] Generate migration with `dotnet ef migrations add Phase9Escalation --project src/backend/CriticalAlerts.Infrastructure --startup-project src/backend/CriticalAlerts.Api --output-dir Persistence/Migrations`; inspect SQL and apply to fresh empty PostgreSQL and retained pre-Phase-9 data in tests.
+- [x] GREEN full infrastructure and API integration projects, then full backend solution regression.
+- [x] Commit `feat: persist phase 9 escalation state`.
 
 ## Task 5 — Database-clock scheduler and guarded worker
 
@@ -70,10 +70,10 @@ Files: create `src/backend/CriticalAlerts.Infrastructure/Escalation/DatabaseCloc
 
 Modify `src/backend/CriticalAlerts.Infrastructure/Persistence/AlertMutationLock.cs`, `src/backend/CriticalAlerts.Worker/Program.cs`, `src/backend/CriticalAlerts.Worker/appsettings.json`, `src/backend/CriticalAlerts.Worker/appsettings.Development.json` only where required. Tests: create `tests/CriticalAlerts.Infrastructure.Tests/EscalationSchedulerTests.cs`, `tests/CriticalAlerts.Application.Tests/SimulationEscalationEnvironmentGuardTests.cs`; modify `tests/CriticalAlerts.Application.Tests/WorkerConfigurationTests.cs`.
 
-- [ ] RED only Active eligible exact-version alerts scheduled, one run under concurrent schedulers, PostgreSQL due query, stored deadline across restart, two claimers, lease expiry recovery, stale owner refusal; Development/Test allowed, enabled Staging/Production fail startup.
-- [ ] Implement bounded polling with stable worker owner and separate enabled/batch/poll/lease settings. Disabled by default outside explicit simulation configuration. Claim alert lock before run lock; no run-then-alert inversion. Add no recipient effects until next slices.
-- [ ] GREEN application/infrastructure projects and backend regression. Record query plans/index rationale if new due indexes are needed.
-- [ ] Commit `feat: schedule deterministic escalation runs`.
+- [x] RED only Active eligible exact-version alerts scheduled, one run under concurrent schedulers, PostgreSQL due query, stored deadline across restart, two claimers, lease expiry recovery, stale owner refusal; Development/Test allowed, enabled Staging/Production fail startup.
+- [x] Implement bounded polling with stable worker owner and separate enabled/batch/poll/lease settings. Disabled by default outside explicit simulation configuration. Claim alert lock before run lock; no run-then-alert inversion. Add no recipient effects until next slices.
+- [x] GREEN application/infrastructure projects and backend regression. Record query plans/index rationale if new due indexes are needed.
+- [x] Commit `feat: schedule deterministic escalation runs`.
 
 ## Task 6 — Confirmed backup activation
 
@@ -99,50 +99,56 @@ Files: modify `src/backend/CriticalAlerts.Infrastructure/Escalation/EscalationRu
 
 Create `src/backend/CriticalAlerts.Application/Escalation/EscalationOverrideContracts.cs`, `src/backend/CriticalAlerts.Infrastructure/Escalation/EscalationOverrideService.cs`, `src/backend/CriticalAlerts.Api/Http/EscalationEndpoints.cs`; locate and reuse the existing lifecycle authorization constant instead of adding production permissions. Tests: create `tests/CriticalAlerts.Infrastructure.Tests/EscalationConcurrencyTests.cs`, `tests/CriticalAlerts.Api.IntegrationTests/EscalationOverrideTests.cs`; extend `tests/CriticalAlerts.Infrastructure.Tests/ResponseLifecycleConcurrencyTests.cs`.
 
-- [ ] RED lifecycle/responsibility wins under shared alert lock, opposite lock ordering is correctly serialized, acknowledgement does not stop; decline/unavailable response consumed once across multiple steps, polls, restart and two workers; pause retains pending signals; rollback does not consume signals.
-- [ ] RED authenticated roles/401/403/cross-org 404/exact-version 409, invalid state, mandatory key/reason, repeated pause/resume replay, same key/different operation or body conflict, audit/timeline cardinality and protected-value exclusion.
-- [ ] Implement stop precedence, durable signal consumption and remaining-delay controls with database time and the common lock protocol. Resume of stopped/completed runs is rejected. Do not add permanent stop or responsibility transfer.
-- [ ] GREEN infrastructure/API projects and backend regression. Generate concrete endpoint OpenAPI through existing tooling; complete contract verification in Task 9.
-- [ ] Commit `feat: add escalation stop and override commands`.
+- [x] RED lifecycle/responsibility wins under shared alert lock, opposite lock ordering is correctly serialized, acknowledgement does not stop; decline/unavailable response consumed once across multiple steps, polls, restart and two workers; pause retains pending signals; rollback does not consume signals.
+- [x] RED authenticated roles/401/403/cross-org 404/exact-version 409, invalid state, mandatory key/reason, repeated pause/resume replay, same key/different operation or body conflict, audit/timeline cardinality and protected-value exclusion.
+- [x] Implement stop precedence, durable signal consumption and remaining-delay controls with database time and the common lock protocol. Resume of stopped/completed runs is rejected. Do not add permanent stop or responsibility transfer.
+- [x] GREEN infrastructure/API projects and backend regression. Generate concrete endpoint OpenAPI through existing tooling; complete contract verification in Task 9.
+- [x] Commit `feat: add escalation stop and override commands`.
 
 ## Task 9 — Live projection and API contract
 
 Files: modify `src/backend/CriticalAlerts.Application/Responses/AlertLiveContracts.cs`, `src/backend/CriticalAlerts.Infrastructure/Responses/AlertLiveQueryService.cs`, `src/backend/CriticalAlerts.Api/Http/ApiResponseMetadata.cs`, `src/backend/CriticalAlerts.Api/Program.cs`, `docs/api/openapi.json`; tests: modify `tests/CriticalAlerts.Api.IntegrationTests/AlertLiveAuthorizationTests.cs`, create `tests/CriticalAlerts.Api.IntegrationTests/EscalationContractTests.cs`.
 
-- [ ] RED exact policy/version/eligibility/state/step/time/paused/stopped/exhausted timeline; recipient selection source and run/step provenance; legacy ineligible; failure/exhaustion fallback; no patientReference, approvedMessage, phone, providerReference or ciphertext; deterministic timeline ordering and existing role boundaries.
-- [ ] Project only safe durable data and allowed actions. Generate OpenAPI using `scripts/verify-openapi.ps1` supported update workflow, inspecting its parameters first; do not hand-maintain mismatching JSON. Include concrete success/RFC 7807 and mandatory key metadata.
-- [ ] GREEN full API integration project and `./scripts/verify-openapi.ps1`.
-- [ ] Commit `feat: expose escalation live timeline`.
+- [x] RED exact policy/version/eligibility/state/step/time/paused/stopped/exhausted timeline; recipient selection source and run/step provenance; legacy ineligible; failure/exhaustion fallback; no patientReference, approvedMessage, phone, providerReference or ciphertext; deterministic timeline ordering and existing role boundaries.
+- [x] Project only safe durable data and allowed actions. Generate OpenAPI using `scripts/verify-openapi.ps1` supported update workflow, inspecting its parameters first; do not hand-maintain mismatching JSON. Include concrete success/RFC 7807 and mandatory key metadata.
+- [x] GREEN full API integration project and `./scripts/verify-openapi.ps1`.
+- [x] Commit `feat: expose escalation live timeline`.
 
 ## Task 10 — Connected frontend review/live
 
 Files: modify `src/web/lib/alerts.ts`, `src/web/features/connected/review-alert.tsx`, `src/web/features/connected/live-alert.tsx`, `src/web/tests/connected-review-directory.test.tsx`, `src/web/tests/connected-responses.test.tsx`; create `src/web/tests/connected-escalation.test.tsx`.
 
-- [ ] RED exact future backup plan/policy/revision visible before confirmation and submitted unchanged; mismatch recovery; DEMO state/timeline/source; acknowledgement distinct from acceptance; pause/resume double click sends once; uncertain retries preserve key/body; failed read retains last durable state; polling cleanup; no browser storage or zero-countdown mutation.
-- [ ] Extend connected components and typed client, preserving current layout/accessibility and five-second read-only polling. Controls use server-authorized actions; legacy alerts show ineligible status. No retired prototype state/store imports.
-- [ ] GREEN `npm --prefix src/web test -- --run`, `npm --prefix src/web run typecheck`, `npm --prefix src/web run lint`, `npm --prefix src/web run build`, `./scripts/verify-web-storage-safety.ps1`.
-- [ ] Commit `feat(web): connect escalation status and controls`.
+- [x] RED exact future backup plan/policy/revision visible before confirmation and submitted unchanged; mismatch recovery; DEMO state/timeline/source; acknowledgement distinct from acceptance; pause/resume double click sends once; uncertain retries preserve key/body; failed read retains last durable state; polling cleanup; no browser storage or zero-countdown mutation.
+- [x] Extend connected components and typed client, preserving current layout/accessibility and five-second read-only polling. Controls use server-authorized actions; legacy alerts show ineligible status. No retired prototype state/store imports.
+- [x] GREEN `npm --prefix src/web test -- --run`, `npm --prefix src/web run typecheck`, `npm --prefix src/web run lint`, `npm --prefix src/web run build`, `./scripts/verify-web-storage-safety.ps1`.
+- [x] Commit `feat(web): connect escalation status and controls`.
 
 ## Task 11 — Connected restart/concurrency proof
 
 Files: modify `tests/e2e/closed-loop-system.spec.ts`, `scripts/system-e2e.ps1`; create `tests/e2e/escalation-system.spec.ts`; modify `tests/CriticalAlerts.Infrastructure.Tests/EscalationConcurrencyTests.cs` and harness configuration only as required.
 
-- [ ] RED D: exact human confirmation → initial dispatch → PostgreSQL timeout → preconfirmed backup → one escalation outbox → simulated delivery → visible timeline.
-- [ ] RED E: acknowledgement only still escalates. F: acceptance before deadline then worker restart/past deadline yields stopped run and zero backup selection/outbox/delivery.
-- [ ] RED G: test decline and unavailable immediate eligibility and later polls do not reuse the signal. H: pause/restart/past original deadline yields no activation; resume restores remaining delay and executes once.
-- [ ] RED I: two independent worker processes on one DB produce one backup selection, one logical RecipientActivated event, one step outbox, one logical attempt. Assert other required timeline event types also exist once each.
-- [ ] Add inactive-backup visible failure/no-replacement and changed-review/legacy scenarios across real backend. Manipulate test-only persisted timestamps/DEMO fixture durations safely rather than expose a production clock-control endpoint. Preserve A/B/C and teardown guarantees.
-- [ ] GREEN `npm run web:e2e`, `npm run web:e2e:system`, infrastructure concurrency project. Record exact counts, process restarts, direct PostgreSQL assertions and zero leftover owned processes/containers.
-- [ ] Commit `test: add phase 9 restart and concurrency scenarios`.
+- [x] RED D: exact human confirmation → initial dispatch → PostgreSQL timeout → preconfirmed backup → one escalation outbox → simulated delivery → visible timeline.
+- [x] RED E: acknowledgement only still escalates. F: acceptance before deadline then worker restart/past deadline yields stopped run and zero backup selection/outbox/delivery.
+- [x] RED G: test decline and unavailable immediate eligibility and later polls do not reuse the signal. H: pause/restart/past original deadline yields no activation; resume restores remaining delay and executes once.
+- [x] RED I: two independent worker processes on one DB produce one backup selection, one logical RecipientActivated event, one step outbox, one logical attempt. Assert other required timeline event types also exist once each.
+- [x] Add inactive-backup visible failure/no-replacement and changed-review/legacy scenarios across real backend. Manipulate test-only persisted timestamps/DEMO fixture durations safely rather than expose a production clock-control endpoint. Preserve A/B/C and teardown guarantees.
+- [x] GREEN `npm run web:e2e`, `npm run web:e2e:system`, infrastructure concurrency project. Record exact counts, process restarts, direct PostgreSQL assertions and zero leftover owned processes/containers.
+- [x] Commit `test: add phase 9 restart and concurrency scenarios`.
 
 ## Task 12 — Full verification and review package
 
 Files: modify `AGENTS.md`, `README.md`, `docs/product/workflow.md`, `docs/product/definition-of-done.md`, `docs/architecture/escalation.md`, `docs/architecture/alert-state-machine.md`, `docs/architecture/data-model.md`, `docs/architecture/recipient-selection-and-review.md`, `docs/architecture/simulated-dispatch.md`, `docs/security/threat-model.md`, `docs/security/logging-policy.md`, this plan; create `docs/superpowers/phase9-verification.md`. Update `docs/product/phase-approval-evidence.md` only with actual dated authorization/evidence, never inferred acceptance.
 
-- [ ] Run `./scripts/test-all.ps1`: pinned locked restore; format; Release build; all backend projects including PostgreSQL/Testcontainers; full web tests/typecheck/lint/production build; OpenAPI; dependency scans; sensitive-data/storage checks; standalone Playwright and connected system E2E; API/worker/web container builds and web proxy check.
-- [ ] Explicitly verify `dotnet restore src/backend/CriticalAlerts.sln --locked-mode --nologo`, `dotnet format src/backend/CriticalAlerts.sln --verify-no-changes --no-restore --verbosity minimal`, `dotnet build src/backend/CriticalAlerts.sln --configuration Release --no-restore --nologo`, `dotnet test src/backend/CriticalAlerts.sln --configuration Release --no-build --nologo --logger trx` and retain exact counts per project. Avoid rerunning unchanged passing checks without reason; the recorded test-all stages can supply this evidence.
-- [ ] Dependency evidence: `dotnet list src/backend/CriticalAlerts.sln package --vulnerable --include-transitive --no-restore`, `npm audit --prefix src/web --audit-level=high --omit=dev`; record any unavailable/failed check without claiming success.
-- [ ] Fresh empty PostgreSQL migration and explicitly confirmed fictional demo reset through `scripts/db-migrate.ps1` / `scripts/db-reset-demo.ps1 -ConfirmDemoReset` against a verified isolated loopback simulation database, or the equivalent fully recorded system harness stages. Verify legacy data upgrade without policy fabrication and restart/concurrency independently.
-- [ ] Inspect full diff, protected-value sentinel evidence, no real provider/AI/Phase 10, no historical migration edits and no weakened tests. Run `git diff --check`, `./scripts/verify-no-sensitive-data.ps1`, `./scripts/verify-web-storage-safety.ps1` and OpenAPI verification on final source.
-- [ ] Record files, decisions, exact migration names, commands, exact test counts, security scope, limitations, all `REQUIRES_HOSPITAL_DECISION` items, proposed commit/tag and human review gate. Preserve earlier historical reports. Do not claim final Phase 9 acceptance or create a tag by inference.
-- [ ] Commit `docs: complete phase 9 verification package`; stop for human review before Phase 10.
+- [x] Run `./scripts/test-all.ps1`: pinned locked restore; format; Release build; all backend projects including PostgreSQL/Testcontainers; full web tests/typecheck/lint/production build; OpenAPI; dependency scans; sensitive-data/storage checks; standalone Playwright and connected system E2E; API/worker/web container builds and web proxy check.
+- [x] Explicitly verify `dotnet restore src/backend/CriticalAlerts.sln --locked-mode --nologo`, `dotnet format src/backend/CriticalAlerts.sln --verify-no-changes --no-restore --verbosity minimal`, `dotnet build src/backend/CriticalAlerts.sln --configuration Release --no-restore --nologo`, `dotnet test src/backend/CriticalAlerts.sln --configuration Release --no-build --nologo --logger trx` and retain exact counts per project. Avoid rerunning unchanged passing checks without reason; the recorded test-all stages can supply this evidence.
+- [x] Dependency evidence: `dotnet list src/backend/CriticalAlerts.sln package --vulnerable --include-transitive --no-restore`, `npm audit --prefix src/web --audit-level=high --omit=dev`; record any unavailable/failed check without claiming success.
+- [x] Fresh empty PostgreSQL migration and explicitly confirmed fictional demo reset through `scripts/db-migrate.ps1` / `scripts/db-reset-demo.ps1 -ConfirmDemoReset` against a verified isolated loopback simulation database, or the equivalent fully recorded system harness stages. Verify legacy data upgrade without policy fabrication and restart/concurrency independently.
+- [x] Inspect full diff, protected-value sentinel evidence, no real provider/AI/Phase 10, no historical migration edits and no weakened tests. Run `git diff --check`, `./scripts/verify-no-sensitive-data.ps1`, `./scripts/verify-web-storage-safety.ps1` and OpenAPI verification on final source.
+- [x] Record files, decisions, exact migration names, commands, exact test counts, security scope, limitations, all `REQUIRES_HOSPITAL_DECISION` items, proposed commit/tag and human review gate. Preserve earlier historical reports. Do not claim final Phase 9 acceptance or create a tag by inference.
+- [x] Commit `docs: complete phase 9 verification package`; stop for human review before Phase 10.
+
+## Final execution evidence
+
+All twelve tasks were implemented. Task 10 used commit `07ff005` (`feat: show durable escalation status and controls`); Task 11 used `610e8f3`. Final verification discovered and resolved database-clock rollback (`33d3900`) and web dependency audit (`5913982`) failures. Task 12 completed the full gate in recorded stages: the final backend run passed 491/491; after the dependency fix, all remaining web/browser/container stages passed and exited 0. This does not claim the earlier interrupted script invocation succeeded.
+
+The [committed verification package](../phase9-verification.md) contains exact commands, project counts, migrations, connected process evidence, limitations and the human gate. The primary completed Tasks 10–12 and final review without further subagents, following the owner's explicit instruction. No tag, push, merge, production deployment or Phase 10 work was performed. Human acceptance is intentionally unchecked in the definition of done.

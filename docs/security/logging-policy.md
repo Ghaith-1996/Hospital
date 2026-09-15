@@ -91,6 +91,10 @@ Phase 7 worker audit metadata is limited to organization, alert/attempt identifi
 
 Phase 8 response and lifecycle audit metadata is limited to opaque organization, actor, practitioner, alert, version, response, lifecycle action, and optional assignment identifiers; response category; allowlisted reason code; outcome; UTC timestamp; and correlation ID. It must not include practitioner display names, approved/source/SBAR content, patient references, contact values, provider references, request bodies, or arbitrary reason text. The operator live projection exposes only allowlisted operational delivery/response/lifecycle fields and safe failure categories. Manual-fallback display is a safe category only and never contains a route or contact value. Authorization and environment failures return non-disclosing problem details and do not reveal whether a foreign or unaddressed alert exists.
 
+## Phase 9 boundary
+
+Escalation audit and timeline contain opaque organization/alert/version/run/step/selection/actor/correlation identifiers, typed event/outcome/failure categories, allowlisted override reasons and UTC timestamps. No arbitrary reason or metadata text is accepted. The step outbox has exactly five fields: `alertId`, `alertVersion`, `escalationRunId`, `stepSequence`, `recipientSelectionIds`. Override replay storage references only the immutable event ID. Live excludes patient references, approved/source/SBAR messages, endpoint values, ciphertext and provider references. Protected-value sentinel and payload-allowlist tests remain mandatory. The test-only worker supervisor keeps local owned-process logs/PID control files; it exposes no application endpoint and carries no case data or credentials in its control messages.
+
 ## Access, retention, and incident response
 
 Log access, centralized storage, cross-border transfer, retention, deletion, legal hold, SIEM integration, alert thresholds, and incident-response ownership are `REQUIRES_HOSPITAL_DECISION`. Until approved, keep simulation logs local, minimize retention, and do not send them to external services.

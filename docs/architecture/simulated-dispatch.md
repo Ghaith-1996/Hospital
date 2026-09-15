@@ -1,5 +1,7 @@
 # Phase 7 Simulated Dispatch
 
+Phase 9 extends this dispatch path with `EscalationDispatchRequested`: exactly `alertId`, `alertVersion`, `escalationRunId`, `stepSequence`, and `recipientSelectionIds`. Activation, timeline, consumed signal and outbox commit together. The existing dispatcher verifies exact run/step/snapshot membership, applies the captured attempt cap and dispatches only those new selections. Initial-dispatch retries exclude policy-added selections. Responsibility/lifecycle stop facts suppress pending escalation delivery under the shared alert lock; exhausted runs can still finish already queued delivery. Failure remains visible without regressing successful alert lifecycle or responsibility. See [escalation architecture](escalation.md).
+
 ## Status and boundary
 
 Phase 7 is a local, simulation-only dispatch worker for the fictional alert workflow. It is not a hospital communications system and does not authorize clinical escalation, provider use, or production deployment. The worker is allowed only when `SimulationDispatch:Enabled` is true in `Development` or `Test`; startup fails closed in `Staging` and `Production`.

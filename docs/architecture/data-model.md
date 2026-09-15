@@ -84,7 +84,7 @@ Every source edit creates a new draft version. The typed source and exact transc
 
 ### 006 — deliveries and responses
 
-Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `responsibility_assignments`, and future `escalation_runs`.
+Concepts: `delivery_attempts`, `delivery_events`, `recipient_responses`, `responsibility_assignments`, and `escalation_runs`.
 
 Delivery, provider submission, delivery, opening, acknowledgement, responsibility acceptance, decline, unavailable, and escalation are separate records or state dimensions. Each channel declares whether a state is supported; unsupported states are recorded as `NotApplicable`, while supported but unseen states remain pending/not observed. Provider event IDs are unique and callbacks are idempotent.
 
@@ -124,6 +124,10 @@ erDiagram
 ```
 
 ## Protection and retention
+
+Phase 9 adds immutable `alert_escalation_plans` and `alert_escalation_recipient_snapshots` bound to organization, alert, version, policy, confirming actor and revision. `escalation_runs` holds the nullable legacy binding, current step, due time, remaining pause interval, acquisition lease and terminal outcome. `escalation_events` stores append-only typed timeline evidence and optional allowlisted override reason. `escalation_consumed_signals` uniquely binds a durable response to a run/step. Future snapshots do not grant inbox access; only activation creates `EscalationPolicy` selections. Unique keys and scoped foreign keys enforce one run, one signal per step and one logical activation/outbox. Legacy null bindings stay null.
+
+Additive migrations are `20260907215641_Phase9EscalationSnapshots`, `20260907224148_Phase9Escalation`, and `20260908002524_Phase9EscalationOverrideReason`. Earlier migrations remain unchanged. The full transaction and provenance contract is in [escalation architecture](escalation.md).
 
 Formal classification, retention, deletion, legal hold, export, access review, encryption algorithms, key custody, and residency are `REQUIRES_HOSPITAL_DECISION`. Until approved, keep the simulation synthetic, minimize payloads, exclude clinical bodies from logs, and do not enable retention jobs.
 

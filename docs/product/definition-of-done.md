@@ -2,7 +2,7 @@
 
 ## Phase 0: specification and repository rules
 
-Historical phase checklists record their original scope and verification dates, including the now-retired frontend prototype. They are not claims that those screens remain active. The implemented baseline is Phase 8.5 and Phase 9 is now authorized; [phase approval evidence](phase-approval-evidence.md) distinguishes technical closure, continuation/publication authorization, tags, and final acceptance. No blanket Phase 0–8 approval is claimed.
+Historical phase checklists record their original scope and verification dates, including the now-retired frontend prototype. They are not claims that those screens remain active. The implemented simulation now includes locally verified Phase 9 over the Phase 8.5 baseline; [phase approval evidence](phase-approval-evidence.md) distinguishes technical closure, continuation/publication authorization, tags, and final acceptance. No blanket Phase 0–8 approval is claimed.
 
 Phase 0 is done only when all of the following are true:
 
@@ -327,24 +327,24 @@ At the Phase 8.5 gate, Phase 9 was not authorized. The dated Phase 9 authorizati
 
 ## Phase 9: exact confirmed DEMO escalation
 
-Implementation authorized by the owner's 2026-09-07 request. Specification and safety boundary are documented in the [Phase 9 design](../superpowers/specs/2026-09-07-phase-9-escalation-design.md) and [plan](../superpowers/plans/2026-09-07-phase-9-escalation.md). These unchecked gates are requirements, not completion claims. Historical checklists and missing acceptance evidence above remain unchanged.
+Implementation authorized by the owner's 2026-09-07 request. Specification and safety boundary are documented in the [Phase 9 design](../superpowers/specs/2026-09-07-phase-9-escalation-design.md) and [plan](../superpowers/plans/2026-09-07-phase-9-escalation.md). The technical gates below passed locally on 2026-09-14; the [verification package](../superpowers/phase9-verification.md) records commands, counts and limitations. Human acceptance remains pending. Historical checklists and missing acceptance evidence above remain unchanged.
 
-- [ ] Exact policy ID/version, immutable steps/rules, plan revision and all future backup/channel evidence are visible before confirmation and persisted atomically with audit/idempotency/initial outbox.
-- [ ] Changed policy/directory/on-call evidence rejects confirmation with safe 409 and no side effects; policy edits after confirmation cannot alter execution.
-- [ ] Legacy confirmations without exact snapshots remain explicitly ineligible; no fabricated backfill.
-- [ ] PostgreSQL UTC determines due work, leases and remaining pause/resume delay; browser timers cannot execute escalation.
-- [ ] One exact-version run and shared alert-before-run lock order serialize acceptance, lifecycle, overrides and escalation; committed responsibility wins before activation.
-- [ ] Delivered/opened/acknowledged/call-unit are distinct from responsibility; active assignment, Resolve and Cancel stop DEMO escalation.
-- [ ] Each declined/unavailable response signal is consumed once transactionally, including multiple steps, rollback, pause, restart and two-worker tests.
-- [ ] Only exact preconfirmed backup snapshots activate, with EscalationPolicy/run/step provenance, unchanged content/version and exactly-once activation/outbox/logical delivery.
-- [ ] Inactive/missing/ineligible backup fails visibly with manual fallback, zero partial activation and no replacement search.
-- [ ] Pause/Resume use existing lifecycle-role authority, organization/exact version, required idempotency key, allowlisted reason, audit/timeline and safe replay/conflicts.
-- [ ] SimulationEscalation fails closed outside Development/Test; no real provider, external callback, AI, hospital integration, clinical selection or production timing.
-- [ ] Live displays DEMO policy/version/state/step/time/provenance and append-only timeline; API failure retains last durable state, polling cleans up and double clicks send once.
-- [ ] Exhaustion and provider/processing failures retain visible non-routing manual fallback; all production choices remain REQUIRES_HOSPITAL_DECISION.
-- [ ] Identifier-only outbox routes new recipients through existing Phase 7 dispatch; protected-value sentinel tests cover API/errors/logs/audit/events/idempotency/outbox.
-- [ ] Additive migrations apply to fresh empty PostgreSQL and preserve legacy data; no historical migrations or safety tests are weakened.
-- [ ] Full pinned backend/PostgreSQL/frontend/typecheck/lint/production build/OpenAPI/dependency/sensitive-data/storage/Playwright/container checks pass with exact counts and commands recorded.
-- [ ] Connected scenarios D–I prove timeout, acknowledgement, acceptance/restart, decline/unavailable, pause/restart/resume and two-worker exactly-once behavior alongside retained A/B/C.
-- [ ] Final verification package records files, decisions, migrations, results, limitations, hospital decisions and proposed commit/tag; no Phase 10 work is added.
+- [x] Exact policy ID/version, immutable steps/rules, plan revision and all future backup/channel evidence are visible before confirmation and persisted atomically with audit/idempotency/initial outbox.
+- [x] Changed policy/directory/on-call evidence rejects confirmation with safe 409 and no side effects; policy edits after confirmation cannot alter execution.
+- [x] Legacy confirmations without exact snapshots remain explicitly ineligible; no fabricated backfill.
+- [x] PostgreSQL UTC determines due work, leases and remaining pause/resume delay; browser timers cannot execute escalation.
+- [x] One exact-version run and shared alert-before-run lock order serialize acceptance, lifecycle, overrides and escalation; committed responsibility wins before activation.
+- [x] Delivered/opened/acknowledged/call-unit are distinct from responsibility; active assignment, Resolve and Cancel stop DEMO escalation.
+- [x] Each declined/unavailable response signal is consumed once transactionally, including multiple steps, rollback, pause, restart and two-worker tests.
+- [x] Only exact preconfirmed backup snapshots activate, with EscalationPolicy/run/step provenance, unchanged content/version and exactly-once activation/outbox/logical delivery.
+- [x] Inactive/missing/ineligible backup fails visibly with manual fallback, zero partial activation and no replacement search.
+- [x] Pause/Resume use existing lifecycle-role authority, organization/exact version, required idempotency key, allowlisted reason, audit/timeline and safe replay/conflicts.
+- [x] SimulationEscalation fails closed outside Development/Test; no real provider, external callback, AI, hospital integration, clinical selection or production timing.
+- [x] Live displays DEMO policy/version/state/step/time/provenance and append-only timeline; API failure retains last durable state, polling cleans up and double clicks send once.
+- [x] Exhaustion and provider/processing failures retain visible non-routing manual fallback; all production choices remain REQUIRES_HOSPITAL_DECISION.
+- [x] Identifier-only outbox routes new recipients through existing Phase 7 dispatch; protected-value sentinel tests cover API/errors/logs/audit/events/idempotency/outbox.
+- [x] Additive migrations apply to fresh empty PostgreSQL and preserve legacy data; no historical migrations or safety tests are weakened.
+- [x] Full pinned backend/PostgreSQL/frontend/typecheck/lint/production build/OpenAPI/dependency/sensitive-data/storage/Playwright/container checks pass with exact counts and commands recorded.
+- [x] Connected scenarios D–I prove timeout, acknowledgement, acceptance/restart, decline/unavailable, pause/restart/resume and two-worker exactly-once behavior alongside retained A/B/C.
+- [x] Final verification package records files, decisions, migrations, results, limitations, hospital decisions and proposed commit/tag; no Phase 10 work is added.
 - [ ] Project owner reviews and accepts Phase 9. Implementation cannot self-approve this gate.

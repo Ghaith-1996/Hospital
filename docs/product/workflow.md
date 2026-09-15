@@ -1,6 +1,6 @@
 # Workflow Specification
 
-Status: Phase 9 simulation workflow specification authorized 2026-09-07 over the connected Phase 8.5 baseline; Phase 9 implementation/verification remain in progress. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
+Status: Phase 9 simulation workflow implemented and locally verified on 2026-09-14 over the connected Phase 8.5 baseline. Project-owner acceptance remains pending; see the [verification package](../superpowers/phase9-verification.md). It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
@@ -173,7 +173,7 @@ If the alert or any delivery attempt has a durable failure, the live projection 
 
 ## Phase 9 exact confirmed DEMO escalation
 
-This is the authorized target behavior, tracked by the [Phase 9 plan](../superpowers/plans/2026-09-07-phase-9-escalation.md), not a claim of completed implementation. The [design](../superpowers/specs/2026-09-07-phase-9-escalation-design.md) and [architecture](../architecture/escalation.md) define the full contract.
+This implemented DEMO behavior is tracked by the [Phase 9 plan](../superpowers/plans/2026-09-07-phase-9-escalation.md) and [verification package](../superpowers/phase9-verification.md). The [design](../superpowers/specs/2026-09-07-phase-9-escalation-design.md) and [architecture](../architecture/escalation.md) define the full contract.
 
 Before initial dispatch, review shows the exact policy ID/version, plan revision, ordered DEMO steps/delays and every future backup practitioner/role/channel with directory/on-call evidence. Human confirmation supplies exact alert version and expected plan revision. A policy/directory/on-call change returns 409 `escalation-plan-changed` with no confirmation or dispatch, requiring refreshed review. The transaction persists immutable plan/rules/recipient snapshots with confirmation evidence. Legacy confirmations without those snapshots are ineligible; no policy is guessed or backfilled.
 

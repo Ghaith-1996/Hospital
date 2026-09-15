@@ -1,6 +1,6 @@
 # Security Threat Model
 
-Status: Phase 8 repository-scoped review model. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch, practitioner response, safe operator lifecycle actions, and manual-fallback display boundaries; this is not hospital approval or a production security conclusion.
+Status: Repository-scoped review model extended through Phase 9 DEMO escalation. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch, practitioner response, safe operator lifecycle actions, escalation controls and manual-fallback display boundaries; this is not hospital approval or a production security conclusion.
 
 ## Overview
 
@@ -164,6 +164,14 @@ Examples:
 - A UI warning is visually ambiguous but the server still blocks unsafe confirmation and provides an accessible text error.
 
 Severity must be reassessed when real data, identity, hospital integrations, or production communications are introduced. The hospital security owner must approve the final risk treatment.
+
+## Phase 9 implemented simulation boundary
+
+Phase 9 supersedes the earlier phase-specific absence of escalation. A human confirms the exact immutable policy, plan revision, steps and future backup/channel evidence. Changed review evidence fails atomically. Activation never looks up a substitute; inactive or invalid confirmed members produce visible failure and manual fallback. Scoped foreign keys, append-only records, unique signal/step/outbox keys, alert-before-run locks and acquisition-specific leases prevent cross-organization activation, reused signals and duplicate logical effects. Acceptance/lifecycle facts are reloaded before activation and pending delivery. PostgreSQL owns runtime time; a backward clock adjustment defers work or returns a safe conflict rather than inventing timestamps.
+
+Pause/Resume use the existing lifecycle-operator policy (Operator, Administrator, ClinicalSupervisor and SystemAdministrator; Auditor has live read access only) with exact version, bounded idempotency keys and allowlisted reasons. Live flags are masked by authorization, and uncertain browser retries retain their original key/body. New actions remain blocked until the uncertain result is resolved. Legacy alerts receive no fabricated snapshot or inbox authority. Real-process restart/two-worker tests supplement relational lock/rollback/expiry tests; neither approves production SLAs or provider semantics. All hospital timing, authority, fallback, directory validity, retention and integration decisions remain `REQUIRES_HOSPITAL_DECISION`. No real provider, external callback, AI or Phase 10 is introduced.
+
+Historical Phase 8 security snapshot (before the Phase 9 extension above):
 
 Repository: local-workspace:Hospital
 Version: codex-security-snapshot/v1:sha256:25c00f63c5b43fe3578885c04c824290231ae71d8b3290a110d337333bf49d50

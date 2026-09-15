@@ -15,7 +15,7 @@ dotnet restore $solution --locked-mode --nologo
 dotnet format $solution --verify-no-changes --no-restore --verbosity minimal
 dotnet list $solution package --vulnerable --include-transitive --no-restore
 dotnet build $solution --configuration Release --no-restore --nologo
-dotnet test $solution --configuration Release --no-build --nologo
+dotnet test $solution --configuration Release --no-build --nologo --logger trx
 
 npm.cmd ci --no-audit --no-fund
 if ($LASTEXITCODE -ne 0) { throw "npm ci failed with exit $LASTEXITCODE" }

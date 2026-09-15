@@ -1,6 +1,6 @@
 # Alert State Machine
 
-Status: Phase 8 simulation response/lifecycle implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical responsibility, escalation, cancellation, fallback, or resolution policy.
+Status: Phase 9 simulation escalation and response/lifecycle implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical responsibility, escalation, cancellation, fallback, or resolution policy.
 
 ## Alert lifecycle states
 
@@ -105,7 +105,9 @@ These are not interchangeable:
 
 Escalation evaluates the approved policy version captured at confirmation using durable UTC/database time. It may create further work only according to that policy. AI output, a browser timer, provider callback text, or an unreviewed directory change cannot change or stop escalation.
 
-The trigger, delay, retry limit, stop condition, backup hierarchy, override, and manual fallback are `REQUIRES_HOSPITAL_DECISION`. Simulation timing must be labelled `DEMO` and driven by a deterministic fake clock.
+The trigger, delay, retry limit, stop condition, backup hierarchy, override, and manual fallback are `REQUIRES_HOSPITAL_DECISION`. Runtime simulation timing is labelled `DEMO` and uses PostgreSQL UTC after locks. Explicit/fake instants belong only to pure domain tests.
+
+Phase 9 supersedes the earlier Phase 8 absence of escalation: declined/unavailable signals expedite one exact preconfirmed step and are consumed transactionally once. Acknowledgement, opening, delivery and call-unit requests do not stop the run. Active exact-version responsibility or terminal alert lifecycle stops it. A Scheduled/Running run can pause with its remaining delay persisted and lease invalidated; Resume restores that delay. Completed exhaustion means approved steps are queued, while their delivery and clinical responsibility remain separate. Stopped/Completed runs cannot resume. These run transitions never rewrite approved content or advance the alert draft version.
 
 ## Illegal transitions and required tests
 
