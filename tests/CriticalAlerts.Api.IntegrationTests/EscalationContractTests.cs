@@ -316,7 +316,10 @@ public sealed class EscalationContractTests(SeededPostgresApiFixture fixture)
         var runId = await db.EscalationRuns.Where(item => item.AlertId == new AlertId(alertId)).Select(item => item.Id).SingleAsync();
         var claim = await new EscalationRunRepository(db).TryClaimAsync(runId, "live-contract", TimeSpan.FromMinutes(1));
         claim.Should().NotBeNull();
-        return await new EscalationRunProcessor(db).ProcessClaimAsync(claim!);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!await new EscalationRunProcessor(db).ProcessClaimAsync(claim!, timeout.Token))
+            await Task.Delay(20, timeout.Token);
+        return true;
     }
 
     private async Task EnsureRileySmsEndpointAsync()

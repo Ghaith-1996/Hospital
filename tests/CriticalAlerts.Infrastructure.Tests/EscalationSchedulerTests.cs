@@ -4,6 +4,7 @@ using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Escalation;
+using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Persistence;
 using FluentAssertions;
@@ -277,6 +278,49 @@ public sealed class EscalationSchedulerTests(MigratedPostgresFixture fixture)
         await using var reload = fixture.CreateContext();
         (await reload.EscalationEvents.CountAsync(x => x.RunId == run.Id && x.EventType == EscalationEventType.StepDue)).Should().Be(0);
         (await reload.EscalationRuns.SingleAsync(x => x.Id == run.Id)).State.Should().Be(EscalationRunState.Scheduled);
+    }
+
+    [Fact]
+    public async Task ClockBehindStagedMutationRollsBackSavedEffectsAndRetainsAcquisitionForRetry()
+    {
+        var id = await CreateAlert();
+        await using var db = fixture.CreateContext();
+        await new EscalationScheduler(db).ScheduleAsync(DemoDataSeeder.OrganizationId, id);
+        var run = await db.EscalationRuns.SingleAsync(x => x.AlertId == id);
+        await MakeDue(db, run.Id);
+        var repository = new EscalationRunRepository(db);
+        EscalationClaim? claim = null;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (claim is null)
+        {
+            claim = await repository.TryClaimAsync(run.Id, "clock-rollback", TimeSpan.FromSeconds(30), timeout.Token);
+            if (claim is null) await Task.Delay(20, timeout.Token);
+        }
+        var invoked = false;
+        var completed = await repository.ExecuteClaimAsync(claim, async (locked, cancellation) =>
+        {
+            invoked = true;
+            // Deterministic reproduction: final database time precedes a staged operation instant.
+            var operationTime = locked.Now.AddSeconds(10);
+            locked.Run.BeginProcessing(claim.LeaseOwner, operationTime);
+            db.EscalationEvents.Add(EscalationEvent.Record(locked.Run, EscalationEventType.StepDue, 1, null, Guid.NewGuid(), operationTime));
+            db.OutboxMessages.Add(OutboxMessage.Create(OutboxMessageId.New(), locked.Run.OrganizationId,
+                "EscalationDispatchRequested", id.Value, "{}", $"SIM-clock-{id.Value:N}", operationTime));
+            await db.SaveChangesAsync(cancellation);
+        });
+        invoked.Should().BeTrue();
+        completed.Should().BeFalse();
+        db.ChangeTracker.Entries().Should().BeEmpty();
+        await using var verify = fixture.CreateContext();
+        (await verify.EscalationEvents.CountAsync(x => x.RunId == run.Id && x.EventType == EscalationEventType.StepDue)).Should().Be(0);
+        (await verify.OutboxMessages.CountAsync(x => x.AggregateId == id.Value)).Should().Be(0);
+        var retained = await verify.EscalationRuns.SingleAsync(x => x.Id == run.Id);
+        retained.State.Should().Be(EscalationRunState.Scheduled);
+        retained.LeaseOwner.Should().Be(claim.LeaseOwner);
+        while (!await repository.ExecuteClaimAsync(claim, (_, _) => Task.CompletedTask, timeout.Token))
+            await Task.Delay(20, timeout.Token);
+        await verify.Entry(retained).ReloadAsync();
+        retained.LeaseOwner.Should().BeNull();
     }
 
     private static Task MakeDue(CriticalAlertsDbContext db, EscalationRunId id)

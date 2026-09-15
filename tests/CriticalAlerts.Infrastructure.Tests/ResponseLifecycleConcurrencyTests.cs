@@ -134,9 +134,25 @@ public sealed class ResponseLifecycleConcurrencyTests(MigratedPostgresFixture fi
         var responseTask = response.RecordAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-race", alert.Id,
             new RecordRecipientResponseRequest(alert.DraftVersion.Value, "Accepted"), "SIM-accept-race", default);
         await gate.Saved.Task.WaitAsync(TimeSpan.FromSeconds(15));
-        var lifecycleTask = new AlertLifecycleService(lifecycleDb).ResolveAsync(
-            alert.OrganizationId, DemoDataSeeder.JordanUserId, "SIM-race", alert.Id,
-            new AlertLifecycleActionRequest(alert.DraftVersion.Value), "SIM-resolve-race", default);
+        async Task<AlertLifecycleResult?> ResolveWithClockRetryAsync()
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (true)
+            {
+                try
+                {
+                    return await new AlertLifecycleService(lifecycleDb).ResolveAsync(
+                        alert.OrganizationId, DemoDataSeeder.JordanUserId, "SIM-race", alert.Id,
+                        new AlertLifecycleActionRequest(alert.DraftVersion.Value), "SIM-resolve-race", timeout.Token);
+                }
+                catch (AlertLifecycleValidationException exception) when (exception.Code == "lifecycle-conflict"
+                    && exception.Message == "The database clock precedes saved evidence. Retry safely.")
+                {
+                    await Task.Delay(20, timeout.Token);
+                }
+            }
+        }
+        var lifecycleTask = ResolveWithClockRetryAsync();
         try
         {
             await WaitForCompletionOrLockAsync(lifecycleTask, lifecyclePid);

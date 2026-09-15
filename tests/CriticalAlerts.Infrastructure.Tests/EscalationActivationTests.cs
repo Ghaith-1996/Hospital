@@ -133,9 +133,19 @@ public sealed class EscalationActivationTests(MigratedPostgresFixture fixture)
         (await read.EscalationConsumedSignals.CountAsync(x => x.AlertId == id)).Should().Be(0);
         (await read.EscalationEvents.CountAsync(x => x.AlertId == id && x.EventType != EscalationEventType.Scheduled)).Should().Be(0);
         await read.Database.ExecuteSqlInterpolatedAsync($"UPDATE escalation_runs SET lease_expires_at_utc = clock_timestamp() - interval '1 second' WHERE id = {failedClaim.RunId.Value}");
-        var recovered = (await new EscalationRunRepository(read).TryClaimAsync(failedClaim.RunId, "restart", TimeSpan.FromSeconds(30)))!;
         (await new EscalationRunProcessor(read).ProcessClaimAsync(failedClaim, (_, _) => throw new InvalidOperationException("stale claim"))).Should().BeFalse();
-        await new EscalationRunProcessor(read).ProcessClaimAsync(recovered, (_, _) => Task.CompletedTask);
+        using var recoveryTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        // Candidate eligibility can safely defer during a backwards PostgreSQL clock adjustment.
+        // Preserve all exactly-once assertions; emulate later worker polls with fresh scopes.
+        EscalationClaim? recovered = null;
+        while (await read.EscalationConsumedSignals.CountAsync(x => x.AlertId == id, recoveryTimeout.Token) == 0)
+        {
+            await using var restart = fixture.CreateContext();
+            recovered ??= await new EscalationRunRepository(restart).TryClaimAsync(failedClaim.RunId, "restart", TimeSpan.FromSeconds(30), recoveryTimeout.Token);
+            if (recovered is not null && await new EscalationRunProcessor(restart).ProcessClaimAsync(recovered, (_, _) => Task.CompletedTask, recoveryTimeout.Token))
+                recovered = null;
+            await Task.Delay(20, recoveryTimeout.Token);
+        }
         (await read.EscalationConsumedSignals.CountAsync(x => x.AlertId == id)).Should().Be(1);
         (await read.AlertRecipientSelections.CountAsync(x => x.AlertId == id)).Should().Be(2);
         var next = await new EscalationRunRepository(read).TryClaimAsync(failedClaim.RunId, "later", TimeSpan.FromSeconds(30));

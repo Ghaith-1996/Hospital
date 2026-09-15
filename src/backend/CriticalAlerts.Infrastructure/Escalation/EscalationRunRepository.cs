@@ -97,6 +97,14 @@ public sealed class EscalationRunRepository(CriticalAlertsDbContext db)
         // A callback may perform database work. Reject an expired acquisition even if it already cleared its lease in memory.
         var commitNow = await new DatabaseClock(db).GetUtcNowAsync(cancellationToken);
         if (acquiredDeadline <= commitNow) throw new DomainException("The escalation claim expired before commit.");
+        if (commitNow < (locked.Run.UpdatedAtUtc ?? locked.Run.StartedAtUtc))
+        {
+            // A backwards wall-clock adjustment after the callback is a deferral, not a partial success.
+            // Retain the persisted acquisition so a fresh scope may retry it while it is still valid.
+            await transaction.RollbackAsync(cancellationToken);
+            db.ChangeTracker.Clear();
+            return false;
+        }
         if (locked.Run.LeaseOwner == claim.LeaseOwner) locked.Run.ReleaseLease(claim.LeaseOwner, commitNow);
         await db.SaveChangesAsync(cancellationToken);
         if (acquiredDeadline <= await new DatabaseClock(db).GetUtcNowAsync(cancellationToken))
