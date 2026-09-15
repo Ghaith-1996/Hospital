@@ -20,6 +20,106 @@ public sealed class ResponseLifecycleConcurrencyTests(MigratedPostgresFixture fi
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-05T12:00:00Z");
 
     [Fact]
+    public async Task LifecycleRejectsBackwardEvidenceButSuccessfulReplaySurvivesLaterFutureEvidence()
+    {
+        await fixture.ResetAsync();
+        var alert = await CreateActiveAlertAsync(true);
+        await using var db = fixture.CreateContext();
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE alerts SET updated_at_utc = clock_timestamp() + interval '1 hour' WHERE id = {alert.Id.Value}");
+        var service = new AlertLifecycleService(db);
+        var request = new AlertLifecycleActionRequest(alert.DraftVersion.Value);
+        var action = () => service.ResolveAsync(alert.OrganizationId, DemoDataSeeder.JordanUserId, "SIM-clock", alert.Id, request, "SIM-clock", default);
+        await action.Should().ThrowAsync<AlertLifecycleValidationException>().Where(x => x.Code == "lifecycle-conflict");
+        await using (var verify = fixture.CreateContext())
+        {
+            (await verify.Alerts.SingleAsync()).State.Should().Be(AlertState.Active);
+            (await verify.IdempotencyRecords.CountAsync()).Should().Be(0);
+        }
+        db.ChangeTracker.Clear();
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE alerts SET updated_at_utc = clock_timestamp() - interval '1 minute' WHERE id = {alert.Id.Value}");
+        (await action())!.State.Should().Be("Resolved");
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE alerts SET updated_at_utc = clock_timestamp() + interval '1 hour' WHERE id = {alert.Id.Value}");
+        (await action())!.Replayed.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WaitingRecipientMutationUsesTimeAfterCommittedSelection(bool opened)
+    {
+        await fixture.ResetAsync();
+        var alert = await CreateActiveAlertAsync(false);
+        await using var activationDb = fixture.CreateContext();
+        await using var transaction = await activationDb.Database.BeginTransactionAsync();
+        await activationDb.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM alerts WHERE id = {alert.Id.Value} FOR UPDATE");
+        await using var responseDb = fixture.CreateContext();
+        await responseDb.Database.OpenConnectionAsync();
+        var pid = ((NpgsqlConnection)responseDb.Database.GetDbConnection()).ProcessID;
+        var service = new RecipientResponseService(responseDb, new PractitionerIdentityResolver(responseDb));
+        Task action = opened
+            ? service.MarkOpenedAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-order", alert.Id,
+                new OpenRecipientAlertRequest(alert.DraftVersion.Value), "SIM-order-open", default)
+            : service.RecordAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-order", alert.Id,
+                new RecordRecipientResponseRequest(alert.DraftVersion.Value, "Declined"), "SIM-order-response", default);
+        await WaitForCompletionOrLockAsync(action, pid);
+        await activationDb.Database.ExecuteSqlInterpolatedAsync($"UPDATE alert_recipient_selections SET selected_at_utc = clock_timestamp() WHERE alert_id = {alert.Id.Value}");
+        var selectedAt = await activationDb.AlertRecipientSelections.Where(x => x.AlertId == alert.Id).Select(x => x.SelectedAtUtc).SingleAsync();
+        await transaction.CommitAsync();
+        await action;
+        await using var verify = fixture.CreateContext();
+        var occurredAt = opened ? (await verify.DeliveryAttempts.SingleAsync()).OpenedAtUtc!.Value
+            : (await verify.RecipientResponses.SingleAsync()).OccurredAtUtc;
+        occurredAt.Should().BeOnOrAfter(selectedAt, "the selection transaction won the shared lock before the recipient mutation");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DatabaseTimeBeforeSelectionReturnsSafeConflictWithoutMutations(bool opened)
+    {
+        await fixture.ResetAsync();
+        var alert = await CreateActiveAlertAsync(false);
+        await using var db = fixture.CreateContext();
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE alert_recipient_selections SET selected_at_utc = clock_timestamp() + interval '1 hour' WHERE alert_id = {alert.Id.Value}");
+        var service = new RecipientResponseService(db, new PractitionerIdentityResolver(db));
+        Func<Task> action = () => opened
+            ? service.MarkOpenedAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-clock", alert.Id,
+                new OpenRecipientAlertRequest(alert.DraftVersion.Value), "SIM-clock-open", default)
+            : service.RecordAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-clock", alert.Id,
+                new RecordRecipientResponseRequest(alert.DraftVersion.Value, "Accepted"), "SIM-clock-response", default);
+        await action.Should().ThrowAsync<RecipientResponseValidationException>().Where(x => x.Code == "response-conflict");
+        await using var verify = fixture.CreateContext();
+        (await verify.RecipientResponses.CountAsync()).Should().Be(0);
+        (await verify.ResponsibilityAssignments.CountAsync()).Should().Be(0);
+        (await verify.IdempotencyRecords.CountAsync()).Should().Be(0);
+        (await verify.DeliveryAttempts.SingleAsync()).OpenedAtUtc.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetainedRecipientReplaySurvivesLaterFutureSelection(bool opened)
+    {
+        await fixture.ResetAsync();
+        var alert = await CreateActiveAlertAsync(false);
+        await using var db = fixture.CreateContext();
+        var service = new RecipientResponseService(db, new PractitionerIdentityResolver(db));
+        async Task<bool> Replay()
+            => opened
+                ? (await service.MarkOpenedAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-replay", alert.Id,
+                    new OpenRecipientAlertRequest(alert.DraftVersion.Value), "SIM-replay-open", default))!.Replayed
+                : (await service.RecordAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-replay", alert.Id,
+                    new RecordRecipientResponseRequest(alert.DraftVersion.Value, "Accepted"), "SIM-replay-response", default))!.Replayed;
+        (await Replay()).Should().BeFalse();
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE alert_recipient_selections SET selected_at_utc = clock_timestamp() + interval '1 hour' WHERE alert_id = {alert.Id.Value}");
+        (await Replay()).Should().BeTrue();
+        await using var verify = fixture.CreateContext();
+        (await verify.IdempotencyRecords.CountAsync()).Should().Be(1);
+        (await verify.RecipientResponses.CountAsync()).Should().Be(opened ? 0 : 1);
+        (await verify.ResponsibilityAssignments.CountAsync()).Should().Be(opened ? 0 : 1);
+    }
+
+    [Fact]
     public async Task ResolutionWaitsForConcurrentAcceptanceBeforeCheckingResponsibility()
     {
         await fixture.ResetAsync();
@@ -30,11 +130,11 @@ public sealed class ResponseLifecycleConcurrencyTests(MigratedPostgresFixture fi
         await using var lifecycleDb = fixture.CreateContext();
         await lifecycleDb.Database.OpenConnectionAsync();
         var lifecyclePid = ((NpgsqlConnection)lifecycleDb.Database.GetDbConnection()).ProcessID;
-        var response = new RecipientResponseService(responseDb, new PractitionerIdentityResolver(responseDb), TimeProvider.System);
+        var response = new RecipientResponseService(responseDb, new PractitionerIdentityResolver(responseDb));
         var responseTask = response.RecordAsync(alert.OrganizationId, DemoDataSeeder.RileyUserId, "SIM-race", alert.Id,
             new RecordRecipientResponseRequest(alert.DraftVersion.Value, "Accepted"), "SIM-accept-race", default);
         await gate.Saved.Task.WaitAsync(TimeSpan.FromSeconds(15));
-        var lifecycleTask = new AlertLifecycleService(lifecycleDb, TimeProvider.System).ResolveAsync(
+        var lifecycleTask = new AlertLifecycleService(lifecycleDb).ResolveAsync(
             alert.OrganizationId, DemoDataSeeder.JordanUserId, "SIM-race", alert.Id,
             new AlertLifecycleActionRequest(alert.DraftVersion.Value), "SIM-resolve-race", default);
         try
@@ -68,8 +168,8 @@ public sealed class ResponseLifecycleConcurrencyTests(MigratedPostgresFixture fi
         await using var responseDb = fixture.CreateContext();
         await responseDb.Database.OpenConnectionAsync();
         var responsePid = ((NpgsqlConnection)responseDb.Database.GetDbConnection()).ProcessID;
-        var lifecycle = new AlertLifecycleService(lifecycleDb, TimeProvider.System);
-        var response = new RecipientResponseService(responseDb, new PractitionerIdentityResolver(responseDb), TimeProvider.System);
+        var lifecycle = new AlertLifecycleService(lifecycleDb);
+        var response = new RecipientResponseService(responseDb, new PractitionerIdentityResolver(responseDb));
         var lifecycleTask = resolve
             ? lifecycle.ResolveAsync(alert.OrganizationId, DemoDataSeeder.JordanUserId, "SIM-race", alert.Id,
                 new AlertLifecycleActionRequest(alert.DraftVersion.Value), "SIM-resolve-race", default)

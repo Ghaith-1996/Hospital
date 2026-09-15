@@ -167,8 +167,8 @@ public sealed class EscalationPersistenceTests(MigratedPostgresFixture fixture)
         await using var db = fixture.CreateContext();
         var (_, run, _, _) = await CreateRun(db);
         db.Set<EscalationEvent>().AddRange(
-            EscalationEvent.Record(run, EscalationEventType.Paused, 1, DemoDataSeeder.JordanUserId, Guid.NewGuid(), Now),
-            EscalationEvent.Record(run, EscalationEventType.Paused, 1, DemoDataSeeder.JordanUserId, Guid.NewGuid(), Now.AddSeconds(1)),
+            EscalationEvent.Record(run, EscalationEventType.Paused, 1, DemoDataSeeder.JordanUserId, Guid.NewGuid(), Now, overrideReason: EscalationOverrideReason.OperatorReview),
+            EscalationEvent.Record(run, EscalationEventType.Paused, 1, DemoDataSeeder.JordanUserId, Guid.NewGuid(), Now.AddSeconds(1), overrideReason: EscalationOverrideReason.ManualCoordination),
             EscalationEvent.Record(run, EscalationEventType.StepDue, 1, null, Guid.NewGuid(), Now));
         await db.SaveChangesAsync();
         db.Set<EscalationEvent>().Add(EscalationEvent.Record(run, EscalationEventType.StepDue, 1, null, Guid.NewGuid(), Now));

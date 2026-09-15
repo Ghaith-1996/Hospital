@@ -332,7 +332,7 @@ public sealed class EscalationActivationTests(MigratedPostgresFixture fixture)
         return (await new EscalationRunRepository(db).TryClaimAsync(run.Id, "activation-test", TimeSpan.FromSeconds(30)))!;
     }
 
-    private async Task<AlertId> CreateAlert(bool snapshots = true, bool twoSteps = false, bool twoPrimaries = false)
+    internal async Task<AlertId> CreateAlert(bool snapshots = true, bool twoSteps = false, bool twoPrimaries = false)
     {
         await using var db = fixture.CreateContext();
         var now = (await new DatabaseClock(db).GetUtcNowAsync()).AddMinutes(-5);

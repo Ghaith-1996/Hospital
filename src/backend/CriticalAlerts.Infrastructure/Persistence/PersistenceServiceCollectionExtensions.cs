@@ -1,10 +1,12 @@
 using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Directory;
+using CriticalAlerts.Application.Escalation;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Infrastructure.Alerts;
 using CriticalAlerts.Infrastructure.Directory;
+using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Identity;
 using CriticalAlerts.Infrastructure.Persistence;
 using CriticalAlerts.Infrastructure.Protection;
@@ -35,6 +37,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IRecipientResponseService, RecipientResponseService>();
         services.AddScoped<IAlertLiveQueryService, AlertLiveQueryService>();
         services.AddScoped<IAlertLifecycleService, AlertLifecycleService>();
+        services.AddScoped<IEscalationOverrideService, EscalationOverrideService>();
         services.AddSingleton<ISensitiveDataProtector>(_ => AesGcmSensitiveDataProtector.FromBase64(dataProtectionKey));
         return services;
     }

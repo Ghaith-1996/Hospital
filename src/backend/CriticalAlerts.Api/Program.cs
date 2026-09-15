@@ -133,6 +133,7 @@ app.MapDeliveryStatusEndpoints();
 app.MapRecipientResponseEndpoints(builder.Environment.EnvironmentName, simulationResponsesEnabled);
 app.MapAlertLiveEndpoints(builder.Environment.EnvironmentName, simulationResponsesEnabled);
 app.MapAlertLifecycleEndpoints(builder.Environment.EnvironmentName);
+app.MapEscalationEndpoints(builder.Environment.EnvironmentName);
 app.MapDirectoryEndpoints();
 app.MapAlertDraftEndpoints();
 

@@ -254,7 +254,7 @@ public sealed class EscalationRunTests
         var run = Schedule(Plan());
         var nonUtc = () => EscalationEvent.Record(run, EscalationEventType.Scheduled, 1, null, Guid.NewGuid(), Now.ToOffset(TimeSpan.FromHours(1)));
         nonUtc.Should().Throw<NonUtcTimestampException>();
-        var noActor = () => EscalationEvent.Record(run, EscalationEventType.Paused, 1, null, Guid.NewGuid(), Now);
+        var noActor = () => EscalationEvent.Record(run, EscalationEventType.Paused, 1, null, Guid.NewGuid(), Now, overrideReason: EscalationOverrideReason.OperatorReview);
         noActor.Should().Throw<DomainException>();
         var noRecipient = () => EscalationEvent.Record(run, EscalationEventType.RecipientActivated, 1, null, Guid.NewGuid(), Now);
         noRecipient.Should().Throw<DomainException>();
@@ -268,6 +268,20 @@ public sealed class EscalationRunTests
         activation.OrganizationId.Should().Be(run.OrganizationId);
         activation.AlertId.Should().Be(run.AlertId);
     }
+    [Theory]
+    [InlineData(EscalationEventType.Paused, null)]
+    [InlineData(EscalationEventType.Resumed, null)]
+    [InlineData(EscalationEventType.Paused, EscalationOverrideReason.ReadyToResume)]
+    [InlineData(EscalationEventType.Resumed, EscalationOverrideReason.OperatorReview)]
+    [InlineData(EscalationEventType.Scheduled, EscalationOverrideReason.OperatorReview)]
+    [InlineData(EscalationEventType.Paused, (EscalationOverrideReason)999)]
+    public void OverrideEventsRequireActionAppropriateTypedReason(EscalationEventType type, EscalationOverrideReason? reason)
+    {
+        var run = Schedule(Plan());
+        var record = () => EscalationEvent.Record(run, type, 1, UserId.New(), Guid.NewGuid(), Now, overrideReason: reason);
+        record.Should().Throw<DomainException>();
+    }
+
     private static void Claim(EscalationRun run) => run.AcquireLease(Owner, Now, TimeSpan.FromMinutes(10));
     private static EscalationRun Schedule(AlertEscalationPlan plan) => EscalationRun.Schedule(EscalationRunId.New(), plan, new(3), Now);
     private static AlertRecipientSelection Selection(EscalationRun run) => new(AlertRecipientSelectionId.New(), run.OrganizationId, run.AlertId, new(3), PractitionerId.New(), null, NotificationChannel.SecureMessage, UserId.New(), Now, "DEMO-revision", null, null);

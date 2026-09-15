@@ -14,8 +14,7 @@ namespace CriticalAlerts.Infrastructure.Responses;
 
 public sealed class RecipientResponseService(
     CriticalAlertsDbContext db,
-    PractitionerIdentityResolver identities,
-    TimeProvider time) : IRecipientResponseService
+    PractitionerIdentityResolver identities) : IRecipientResponseService
 {
     public async Task<OpenedRecipientAlertResult?> MarkOpenedAsync(
         OrganizationId organizationId,
@@ -28,7 +27,6 @@ public sealed class RecipientResponseService(
     {
         var key = RequireIdempotencyKey(idempotencyKey);
         var requestHash = Hash($"recipient-open|{organizationId.Value:D}|{userId.Value:D}|{alertId.Value:D}|{request.ExpectedVersion}");
-        var now = RequireUtc(time.GetUtcNow());
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
@@ -46,6 +44,8 @@ public sealed class RecipientResponseService(
             }
 
             RequireExactVersion(context.Alert, request.ExpectedVersion);
+            var now = await AlertMutationLock.TryGetMutationTimeAsync(db, organizationId, alertId, cancellationToken)
+                ?? throw Conflict("response-conflict", "The database clock precedes saved evidence. Retry safely.");
             var selectionIds = context.Selections
                 .Where(selection => selection.Channel == NotificationChannel.SecureMessage)
                 .Select(selection => selection.Id)
@@ -137,7 +137,6 @@ public sealed class RecipientResponseService(
         var reasonCode = ParseReasonCode(responseType, request.ReasonCode);
         var key = RequireIdempotencyKey(idempotencyKey);
         var requestHash = Hash($"recipient-response|{organizationId.Value:D}|{userId.Value:D}|{alertId.Value:D}|{request.ExpectedVersion}|{responseType}|{reasonCode}");
-        var now = RequireUtc(time.GetUtcNow());
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
@@ -168,6 +167,8 @@ public sealed class RecipientResponseService(
             }
 
             RequireExactVersion(context.Alert, request.ExpectedVersion);
+            var now = await AlertMutationLock.TryGetMutationTimeAsync(db, organizationId, alertId, cancellationToken)
+                ?? throw Conflict("response-conflict", "The database clock precedes saved evidence. Retry safely.");
             var category = RecipientResponse.CategoryFor(responseType);
             var existing = await db.RecipientResponses.SingleOrDefaultAsync(response =>
                     response.OrganizationId == organizationId
@@ -525,11 +526,6 @@ public sealed class RecipientResponseService(
 
         return normalized;
     }
-
-    private static DateTimeOffset RequireUtc(DateTimeOffset value)
-        => value.Offset == TimeSpan.Zero
-            ? value
-            : throw new InvalidOperationException("The simulation response clock must be UTC.");
 
     private static string Hash(string value)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

@@ -115,6 +115,7 @@ internal sealed class EscalationEventConfiguration : IEntityTypeConfiguration<Es
         builder.Property(e => e.StepSequence).HasColumnName("step_sequence");
         builder.Property(e => e.EventType).HasColumnName("event_type").HasConversion<string>().HasMaxLength(32);
         builder.Property(e => e.FailureCategory).HasColumnName("failure_category").HasConversion<string>().HasMaxLength(64);
+        builder.Property(e => e.OverrideReason).HasColumnName("override_reason").HasConversion<string>().HasMaxLength(32);
         builder.Property(e => e.CorrelationId).HasColumnName("correlation_id");
         builder.Property(e => e.OccurredAtUtc).HasColumnName("occurred_at_utc");
         builder.HasIndex(e => new { e.OrganizationId, e.RunId, e.OccurredAtUtc });

@@ -4,7 +4,7 @@ namespace CriticalAlerts.Api.Http;
 
 internal static class ApiResponseMetadata
 {
-    public static RouteHandlerBuilder WithIdempotencyHeader(this RouteHandlerBuilder endpoint)
+    public static RouteHandlerBuilder WithIdempotencyHeader(this RouteHandlerBuilder endpoint, int? maxLength = null)
         => endpoint.AddOpenApiOperationTransformer((operation, _, _) =>
         {
             operation.Parameters ??= [];
@@ -13,7 +13,7 @@ internal static class ApiResponseMetadata
                 Name = "Idempotency-Key",
                 In = ParameterLocation.Header,
                 Required = true,
-                Schema = new OpenApiSchema { Type = JsonSchemaType.String },
+                Schema = new OpenApiSchema { Type = JsonSchemaType.String, MaxLength = maxLength },
             });
             return Task.CompletedTask;
         });

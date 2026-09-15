@@ -12,8 +12,7 @@ using Npgsql;
 namespace CriticalAlerts.Infrastructure.Alerts;
 
 public sealed class AlertLifecycleService(
-    CriticalAlertsDbContext db,
-    TimeProvider time) : IAlertLifecycleService
+    CriticalAlertsDbContext db) : IAlertLifecycleService
 {
     public Task<AlertLifecycleResult?> ResolveAsync(
         OrganizationId organizationId,
@@ -67,7 +66,6 @@ public sealed class AlertLifecycleService(
         ArgumentNullException.ThrowIfNull(request);
         var key = RequireIdempotencyKey(idempotencyKey);
         var requestHash = ComputeRequestHash(operation, organizationId, alertId, request.ExpectedVersion);
-        var now = RequireUtc(time.GetUtcNow());
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
@@ -97,6 +95,9 @@ public sealed class AlertLifecycleService(
             {
                 throw Conflict("alert-state-conflict", "Only an active simulation alert can be resolved or cancelled.");
             }
+
+            var now = await AlertMutationLock.TryGetMutationTimeAsync(db, organizationId, alertId, cancellationToken)
+                ?? throw Conflict("lifecycle-conflict", "The database clock precedes saved evidence. Retry safely.");
 
             if (expectedState == AlertState.Resolved)
             {
@@ -281,11 +282,6 @@ public sealed class AlertLifecycleService(
 
         return new AlertLifecycleResult(alertId, version, parts[2], replayed);
     }
-
-    private static DateTimeOffset RequireUtc(DateTimeOffset value)
-        => value.Offset == TimeSpan.Zero
-            ? value
-            : throw new InvalidOperationException("The lifecycle clock must be UTC.");
 
     private static bool FixedEquals(string left, string right)
         => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left), Encoding.UTF8.GetBytes(right));
