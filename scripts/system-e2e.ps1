@@ -1,5 +1,6 @@
 param(
-    [switch]$SkipWebBuild
+    [switch]$SkipWebBuild,
+    [string]$TestPattern
 )
 
 Set-StrictMode -Version Latest
@@ -31,6 +32,8 @@ $password = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerat
 $dataProtectionKey = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 $logRoot = Join-Path ([IO.Path]::GetTempPath()) "critical-alerts-system-$runId"
 $ownedProcesses = [Collections.Generic.List[Diagnostics.Process]]::new()
+$supervisor = $null
+$workerControl = Join-Path $logRoot "worker-control"
 
 function Get-EphemeralPort {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -87,6 +90,7 @@ $exitCode = 1
 
 New-Item -ItemType Directory -Path $logRoot | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $logRoot "screenshots") | Out-Null
+New-Item -ItemType Directory -Path $workerControl | Out-Null
 Set-Location -LiteralPath $repositoryRoot
 if ([string]::IsNullOrWhiteSpace($env:PLAYWRIGHT_BROWSERS_PATH)) {
     $localBrowsers = Join-Path $repositoryRoot ".playwright-browsers"
@@ -111,6 +115,8 @@ try {
     $env:DevelopmentAuthentication__Enabled = "true"
     $env:SimulationResponses__Enabled = "true"
     $env:SimulationDispatch__Enabled = "true"
+    $env:SimulationEscalation__Enabled = "true"
+    $env:SimulationEscalation__PollIntervalMilliseconds = "200"
 
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database migrate
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database reset-demo --confirm-demo-reset
@@ -120,7 +126,15 @@ try {
     $api = Start-OwnedProcess $dotnet @($apiDll) $repositoryRoot "api"
     Wait-Http "http://127.0.0.1:$apiPort/health/ready" $api
 
-    $worker = Start-OwnedProcess $dotnet @($workerDll) $repositoryRoot "worker"
+    $supervisorScript = Join-Path $PSScriptRoot "system-worker-supervisor.mjs"
+    $supervisor = Start-OwnedProcess $node @($supervisorScript, $workerControl, $dotnet, $workerDll) $repositoryRoot "worker-supervisor"
+    $deadline = (Get-Date).AddSeconds(30)
+    while (-not (Test-Path -LiteralPath (Join-Path $workerControl "status.json"))) {
+        if ($supervisor.HasExited -or (Get-Date) -gt $deadline) { throw "Worker supervisor startup failed." }
+        Start-Sleep -Milliseconds 100
+    }
+    $workerStatus = Get-Content -Raw (Join-Path $workerControl "status.json") | ConvertFrom-Json
+    if ($workerStatus.id -ne "ready" -or $workerStatus.pids.Count -ne 1) { throw "Worker supervisor is not ready." }
     $env:CRITICAL_ALERTS_API_URL = "http://127.0.0.1:$apiPort"
     if (-not $SkipWebBuild) {
         & $npm --prefix $webRoot run build
@@ -128,6 +142,8 @@ try {
 
     $web = Start-OwnedProcess $node @($nextBin, "start", "--hostname", "127.0.0.1", "--port", "$webPort") $webRoot "web"
     Wait-Http "http://127.0.0.1:$webPort" $web
+    $proxyProbe = Invoke-WebRequest -Uri "http://127.0.0.1:$webPort/api/v1/dev/identities" -TimeoutSec 10 -SkipHttpErrorCheck
+    if ($proxyProbe.StatusCode -ne 200) { throw "Web API proxy is not connected to this Test API. Rebuild without -SkipWebBuild." }
 
     $env:SYSTEM_E2E_API_URL = "http://127.0.0.1:$apiPort"
     $env:SYSTEM_E2E_WEB_PORT = "$webPort"
@@ -135,9 +151,26 @@ try {
     $env:SYSTEM_E2E_POSTGRES_DATABASE = $database
     $env:SYSTEM_E2E_POSTGRES_USER = $username
     $env:SYSTEM_E2E_SCREENSHOT_DIR = Join-Path $logRoot "screenshots"
-    & $npx playwright test --config playwright.system.config.ts
+    $env:SYSTEM_E2E_WORKER_CONTROL = $workerControl
+    $testArguments = @("playwright", "test", "--config", "playwright.system.config.ts")
+    if ($TestPattern) { $testArguments += @("--grep", $TestPattern) }
+    & $npx @testArguments
     $exitCode = $LASTEXITCODE
 } finally {
+    if ($null -ne $supervisor -and -not $supervisor.HasExited) {
+        @{ id = [Guid]::NewGuid().ToString("N"); command = "shutdown" } | ConvertTo-Json -Compress | Set-Content -Encoding utf8NoBOM (Join-Path $workerControl "request.tmp")
+        $renameDeadline = (Get-Date).AddSeconds(5)
+        while ($true) {
+            try {
+                Move-Item -LiteralPath (Join-Path $workerControl "request.tmp") -Destination (Join-Path $workerControl "request.json") -Force
+                break
+            } catch {
+                if ((Get-Date) -ge $renameDeadline) { break } # Owned tree cleanup below remains authoritative.
+                Start-Sleep -Milliseconds 20
+            }
+        }
+        try { Wait-Process -Id $supervisor.Id -Timeout 20 -ErrorAction SilentlyContinue } catch { }
+    }
     for ($index = $ownedProcesses.Count - 1; $index -ge 0; $index--) {
         $process = $ownedProcesses[$index]
         Stop-OwnedProcess $process
@@ -145,9 +178,22 @@ try {
     docker rm --force $containerName 2>$null | Out-Null
     $containerRemaining = docker ps --all --quiet --filter "name=^/${containerName}$"
     $liveOwnedProcesses = @($ownedProcesses | Where-Object { -not $_.HasExited }).Count
+    $workerPids = @()
+    $pidLedger = Join-Path $workerControl "owned-pids.txt"
+    if (Test-Path -LiteralPath $pidLedger) { $workerPids = @(Get-Content -LiteralPath $pidLedger | ForEach-Object { [int]$_ }) }
+    if ($IsWindows -and $null -ne $supervisor) {
+        foreach ($workerPid in $workerPids) {
+            $ownedWorker = Get-CimInstance Win32_Process -Filter "ProcessId = $workerPid" -ErrorAction SilentlyContinue
+            if ($null -ne $ownedWorker -and $ownedWorker.ParentProcessId -eq $supervisor.Id -and $ownedWorker.CommandLine.Contains($workerDll)) {
+                Stop-OwnedProcess (Get-Process -Id $workerPid)
+            }
+        }
+    }
+    # Supervisor normally stops workers. Its owned process tree is the failure fallback.
+    $liveWorkerProcesses = @($workerPids | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count
     $portsClosed = [int]((Test-PortClosed $postgresPort) -and (Test-PortClosed $apiPort) -and (Test-PortClosed $webPort))
-    Write-Output "SYSTEM_E2E_TEARDOWN container_remaining=$([int](-not [string]::IsNullOrWhiteSpace($containerRemaining))) live_owned_processes=$liveOwnedProcesses ports_closed=$portsClosed logs=$logRoot"
-    if (-not [string]::IsNullOrWhiteSpace($containerRemaining) -or $liveOwnedProcesses -ne 0 -or $portsClosed -ne 1) {
+    Write-Output "SYSTEM_E2E_TEARDOWN container_remaining=$([int](-not [string]::IsNullOrWhiteSpace($containerRemaining))) live_owned_processes=$liveOwnedProcesses live_worker_processes=$liveWorkerProcesses owned_worker_starts=$($workerPids.Count) ports_closed=$portsClosed logs=$logRoot"
+    if (-not [string]::IsNullOrWhiteSpace($containerRemaining) -or $liveOwnedProcesses -ne 0 -or $liveWorkerProcesses -ne 0 -or $portsClosed -ne 1) {
         throw "System E2E teardown verification failed."
     }
 }

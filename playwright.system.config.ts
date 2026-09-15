@@ -4,7 +4,7 @@ const port = process.env.SYSTEM_E2E_WEB_PORT ?? "3111";
 
 export default defineConfig({
   testDir: "tests/e2e",
-  testMatch: "closed-loop-system.spec.ts",
+  testMatch: ["closed-loop-system.spec.ts", "escalation-system.spec.ts"],
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
