@@ -15,6 +15,11 @@ node_modules
 playwright-report
 test-results
 **/test-results
+**/TestResults
+**/*.trx
+**/*.log
+**/*.dump
+**/*.backup
 .local-db
 postgres-data
 **/postgres-data

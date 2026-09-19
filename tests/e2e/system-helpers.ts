@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { setTimeout as delay } from "node:timers/promises";
+import { expect, type APIRequestContext, type Page, type Response } from "@playwright/test";
 export const jordan = "Jordan Lee";
 export const riley = "Riley Sato";
 export const source = "SIMULATION: fictional patient has critical pulse 118 beats/min.";
@@ -16,9 +17,29 @@ export async function signIn(page: Page, displayName: string) {
 }
 
 export async function switchIdentity(page: Page, displayName: string) {
-  await page.getByRole("button", { name: /Select simulation identity|Jordan Lee|Riley Sato|Morgan Ellis|Avery Auditor/ }).click();
-  await page.getByRole("menuitem", { name: new RegExp(displayName) }).click();
-  await expect(page.getByRole("button", { name: new RegExp(displayName) })).toBeVisible();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let throttled: number | null = null;
+    const observe = (response: Response) => {
+      if (response.status() === 429 && new URL(response.url()).pathname.startsWith("/api/v1/"))
+        throttled = retryDelay(response.headers()["retry-after"]);
+    };
+    page.on("response", observe);
+    try {
+      await page.getByRole("button", { name: /Select simulation identity|Jordan Lee|Riley Sato|Morgan Ellis|Avery Auditor/ }).click();
+      await page.getByRole("menuitem", { name: new RegExp(displayName) }).click();
+      const selected = page.getByRole("button", { name: new RegExp(displayName) });
+      await expect.poll(async () => await selected.isVisible() || throttled !== null).toBe(true);
+      if (await selected.isVisible()) return;
+    } finally { page.off("response", observe); }
+    // Only explicit throttling retries this idempotent identity action; do not disable real request limits.
+    if (throttled !== null) await delay(throttled);
+  }
+  throw new Error("Connected identity selection remained throttled after bounded retries.");
+}
+
+function retryDelay(header: string | undefined) {
+  const seconds = Number(header);
+  return (Number.isFinite(seconds) && seconds >= 1 && seconds <= 60 ? seconds : 60) * 1000 + 50;
 }
 
 export function draftInput(patient: string) {
@@ -35,9 +56,16 @@ export function draftInput(patient: string) {
 }
 
 export async function apiJson(request: APIRequestContext, method: "get" | "post" | "put" | "patch", path: string, data?: unknown) {
-  const response = await request[method](path, data === undefined ? undefined : { data });
-  if (!response.ok()) throw new Error(`Connected operation failed with status ${response.status()}.`);
-  return response.json();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await request[method](path, data === undefined ? undefined : { data });
+    if (response.status() === 429 && attempt < 2) {
+      await delay(retryDelay(response.headers()["retry-after"]));
+      continue;
+    }
+    if (!response.ok()) throw new Error(`Connected operation failed with status ${response.status()}.`);
+    return response.json();
+  }
+  throw new Error("Connected operation remained throttled after bounded retries.");
 }
 
 export async function createDraft(request: APIRequestContext, patient: string) {

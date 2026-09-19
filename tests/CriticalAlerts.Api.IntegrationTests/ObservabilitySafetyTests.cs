@@ -12,6 +12,26 @@ namespace CriticalAlerts.Api.IntegrationTests;
 
 public sealed class ObservabilitySafetyTests
 {
+    [Fact]
+    public async Task AuditRateLimitReturnsSafeCorrelatedProblemDetails()
+    {
+        using var factory = Factory();
+        using var client = factory.CreateClient();
+        for (var index = 0; index < 120; index++)
+        {
+            using var attempt = await client.GetAsync("/api/v1/admin/audit");
+            attempt.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        }
+        using var response = await client.GetAsync("/api/v1/admin/audit");
+        response.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        (response.Content.Headers.ContentType?.MediaType).Should().Be("application/problem+json");
+        (response.Headers.RetryAfter?.Delta).Should().NotBeNull();
+        response.Headers.RetryAfter!.Delta!.Value.Should().BeGreaterThan(TimeSpan.Zero);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("status").GetInt32().Should().Be(429);
+        problem.RootElement.GetProperty("correlationId").GetString().Should().Be(response.Headers.GetValues("X-Correlation-ID").Single());
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("SIM-PATIENT-PHASE10-SENTINEL")]

@@ -47,6 +47,18 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (rejection, _) =>
+    {
+        if (rejection.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            rejection.HttpContext.Response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retryAfter.TotalSeconds))
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await Results.Problem(statusCode: 429, title: "Request limit reached",
+            detail: "Wait for the request window to reset before retrying.",
+            extensions: new Dictionary<string, object?>
+            {
+                ["correlationId"] = rejection.HttpContext.Response.Headers["X-Correlation-ID"].ToString(),
+            }).ExecuteAsync(rejection.HttpContext);
+    };
     options.AddPolicy("api", context =>
     {
         var organizationId = context.User.FindFirstValue(AuthenticationClaimTypes.OrganizationId);

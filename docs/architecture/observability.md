@@ -14,6 +14,8 @@ AuditEventView exposes opaque event/resource/actor identifiers, fixed action/res
 
 Successful reads append `audit.read` containing only pageSize, filter names and resultCount, after reading the requested page. Filter values are excluded. Failure to persist access returns safe 503. Reads disable caching and do not recursively query their own access event. OpenAPI declares 200/400/401/403/429/503. Responses and problems carry the effective correlation header.
 
+The existing API rate limiter retains its per-user/organization budget. A rejected request returns fixed RFC 7807 429 with the effective correlation and Retry-After derived from the limiter lease. The connected test harness respects that header with bounded retries only for explicit 429 responses; it does not disable or enlarge the application budget.
+
 ## Append-only storage
 
 Additive migration `20260919150045_Phase10AuditProtection` installs a statement trigger rejecting UPDATE, DELETE and TRUNCATE using constant SQLSTATE 23514. INSERT remains functional, including under a restricted non-login role with table DML grants. There is no runtime bypass. The migration Down explicitly drops the trigger/function; schema-owner authority is outside ordinary application DML. Production recovery authority remains REQUIRES_HOSPITAL_DECISION. No retention deletion is implemented.
