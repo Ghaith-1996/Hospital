@@ -26,7 +26,10 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
         builder.Property(entity => entity.CorrelationId).HasColumnName("correlation_id").HasMaxLength(96).IsRequired();
         builder.Property(entity => entity.SanitizedMetadata).HasColumnName("sanitized_metadata").HasColumnType("jsonb").IsRequired();
         builder.Property(entity => entity.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
-        builder.HasIndex(entity => new { entity.OrganizationId, entity.OccurredAtUtc });
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.OccurredAtUtc, entity.Id });
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.Action, entity.OccurredAtUtc, entity.Id });
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.ResourceType, entity.OccurredAtUtc, entity.Id });
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.CorrelationId, entity.OccurredAtUtc, entity.Id });
         builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 }

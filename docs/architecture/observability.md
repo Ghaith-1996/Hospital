@@ -30,6 +30,12 @@ The application Audit module now defines a default 50/maximum 100 query, UTC inc
 
 GET `/api/v1/admin/audit` now requires AuditReader (Auditor or SystemAdministrator) and derives organization/actor from authenticated claims. It rejects unknown or repeated parameters; UTC filters use inclusive from/exclusive to; exact action/outcome/resource/correlation filters compose with PostgreSQL timestamp/UUID cursor comparison. Every page reads at most pageSize+1, returns at most 100 events, disables caching, then appends audit.read with pageSize, filter names and resultCount. Failed audit persistence yields safe 503 rather than an unaudited success. No recursion or raw query logging is added. Invalid query uses a constant RFC 7807 400 with the effective correlation ID. Runtime-generated OpenAPI declares 200/400/401/403/429/503. Verified: 21 focused PostgreSQL/API cases and 190 API regression tests. UI, database mutation protection and runtime log hardening remain separate pending slices.
 
+## Append-only PostgreSQL storage
+
+Migration `20260919150045_Phase10AuditProtection` installs a statement trigger rejecting UPDATE/DELETE/TRUNCATE with constant SQLSTATE 23514 and no row contents. INSERT remains permitted, including with a non-login restricted role granted table DML. There is no runtime escape setting. Administrative schema rollback explicitly drops the trigger/function; only schema authority can perform that operation, and production recovery authority remains REQUIRES_HOSPITAL_DECISION. Empty-database pg_restore can insert before restoring post-data triggers; no retention deletion is implemented.
+
+The prior organization/time index is replaced by organization/time/ID. Additional organization/action/time/ID, organization/resource-type/time/ID and organization/correlation/time/ID indexes match implemented exact filters plus stable traversal. PostgreSQL can scan each B-tree backward for descending pages. No unimplemented resource-ID query index is added. Verified: five focused storage cases (RED then GREEN), full infrastructure 180/180; fresh test databases apply all migrations.
+
 ## Audit coverage source
 The existing Phase 9 producers are AlertDraftService, AlertReviewService, DirectoryImportService, OutboxDispatchProcessor, RecipientResponseService, AlertLifecycleService, EscalationScheduler, EscalationRunProcessor and EscalationOverrideService. Implementation will document exact action names from those producers and add audit.read; this inventory does not claim any new event already exists.
 

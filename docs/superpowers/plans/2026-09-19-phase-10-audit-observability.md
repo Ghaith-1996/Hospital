@@ -46,6 +46,8 @@ Task 2 API complete: AuditQueryTests initially failed 21/21 with missing-route 4
 
 Docker recovered without reset by preserving only inspected zero-length runtime sockets in local directories `Docker/run.phase10-stale`, `Docker/run.phase10-retry2`, and `docker-secrets-engine.phase10-retry2`. These host recovery artifacts are outside the repository. Engine 29.1.3 responds. Recovered backend baseline plus contract tests passed 514/514 (Domain 92, Application 69, Architecture 9, Infrastructure 175, API 169). Earlier dependency failures remain recorded above and are superseded by this executed pass.
 
+Task 3 complete: `20260919150045_Phase10AuditProtection.cs`, generated Designer/model snapshot, ReliabilityConfigurations.cs, AuditStorageTests.cs. RED 5/5: existing direct UPDATE/DELETE/TRUNCATE permitted and expected indexes absent. GREEN 5/5 and full Infrastructure 180/180. Restricted role INSERT succeeds while mutation fails; no application bypass. Historical migrations unchanged. Retained audit query cases also run against the new migration. Schema rollback is explicit migration authority, not runtime retention.
+
 ## Interface preflight
 Tasks 2/3 share descending timestamp/UUID cursor order and indexes. Task 4 consumes only Task 2 projected fields/cursor. Task 5 restricts correlation used by Task 2 and runtime logs; use one opaque syntax. Task 6 adds warnings without replacing Phase 9 escalation. Task 7 includes every Phase 9 table and Phase 10 migration; no append-only bypass needed for empty-database restore. Task 8 uses the existing worker control/teardown harness. No conflicting interface was found; exact types will be checked in each slice.
 
