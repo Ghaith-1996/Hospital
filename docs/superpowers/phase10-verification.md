@@ -1,6 +1,6 @@
 # Phase 10 verification and owner review package
 
-Status: Phase 10 implementation and complete local technical gate passed on 2026-09-19. Owner acceptance remains pending. Phase 11 is not authorized.
+Status: Phase 10 implementation and complete local technical gate passed on 2026-09-19. Owner explicitly accepted documentation closure `8117d26f38419f352cc824441cb076ce3e325288` on 2026-09-19 and authorized recording acceptance before implementing the supplied Phase 11 plan.
 
 ## Baseline and branch
 
@@ -152,7 +152,7 @@ Historical failures are preserved in the plan: initial Docker unavailability, on
 - [x] OpenAPI, backend/PostgreSQL regression, frontend/typecheck/lint/production build, standalone and connected browser checks passed.
 - [x] Dependency/security/storage scans, all container builds and fresh migration/seed/readiness passed.
 - [x] No tracked secrets, environment file, dump/backup, runtime log, TRX or screenshot artifact introduced.
-- [ ] Project-owner review and acceptance. Technical verification cannot approve this item.
+- [x] Project-owner review and acceptance explicitly supplied on 2026-09-19 for documentation closure `8117d26f38419f352cc824441cb076ce3e325288`. This approval is separate from technical verification.
 
 ## Known limitations and open authority
 
@@ -185,7 +185,7 @@ Every following production item remains **REQUIRES_HOSPITAL_DECISION**:
 | Production backup retention | REQUIRES_HOSPITAL_DECISION |
 | Disaster recovery authority | REQUIRES_HOSPITAL_DECISION |
 
-Proposed final documentation commit: `docs: complete phase 10 verification`. Proposed owner-approved tag: `phase-10` (not created). Return this package for owner review; do not start Phase 11.
+Proposed final documentation commit: `docs: complete phase 10 verification`. Proposed owner-approved tag: `phase-10` (not created). Owner approval was subsequently supplied on 2026-09-19; Phase 11 may start from the acceptance-record closure commit. No tag, merge or publication is performed by this record.
 
 ## Changed files
 

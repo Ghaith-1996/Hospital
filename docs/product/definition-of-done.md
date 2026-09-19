@@ -1,6 +1,6 @@
 # Phase Definition of Done
 
-## Phase 10 technical gate — passed; owner review pending
+## Phase 10 technical gate — passed; owner approved
 
 The [Phase 10 design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) and [plan](../superpowers/plans/2026-09-19-phase-10-audit-observability.md) implement the owner's September 19 request on completed Phase 9.
 
@@ -8,9 +8,9 @@ The [Phase 10 design](../superpowers/specs/2026-09-19-phase-10-audit-observabili
 - [x] Runtime sentinel and metric-tag tests; structured local observability; truthful non-disclosing health.
 - [x] Safe actionable warnings preserving all Phase 9 state and unresolved hospital fallback.
 - [x] Four repo-specific runbooks; actual pg_dump/pg_restore exercise with source protection and success/failure cleanup.
-- [x] Complete backend/PostgreSQL/web/OpenAPI/security/dependency/browser/system/container/fresh-migration checks recorded in the [verification package](../superpowers/phase10-verification.md).
+- [x] Complete backend/PostgreSQL/web/OpenAPI/security/dependency/browser/system/container/fresh-migration checks with exact results in the [verification package](../superpowers/phase10-verification.md).
 - [x] No protected telemetry, persistent browser state, invented policy, or real providers. Phase 11 AI assistance is governed by its separate explicit authorization and safety boundary.
-- [ ] Owner review and acceptance; implementation cannot self-approve.
+- [x] Owner explicitly approved Phase 10 at documentation closure `8117d26f38419f352cc824441cb076ce3e325288` on 2026-09-19, authorizing this acceptance record before Phase 11.
 
 ## Phase 0: specification and repository rules
 
