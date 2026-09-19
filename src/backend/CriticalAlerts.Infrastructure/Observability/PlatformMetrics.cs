@@ -13,6 +13,14 @@ public sealed class PlatformMetrics : IDisposable
     {
         var names = new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["transcription.requested"] = "criticalalerts.transcription.requests",
+            ["transcription.failed"] = "criticalalerts.transcription.failures",
+            ["structuring.requested"] = "criticalalerts.structuring.requests",
+            ["structuring.failed"] = "criticalalerts.structuring.failures",
+            ["transcription.applied"] = "criticalalerts.suggestions.applied",
+            ["structuring.applied"] = "criticalalerts.suggestions.applied",
+            ["transcription.stale"] = "criticalalerts.suggestions.stale",
+            ["structuring.stale"] = "criticalalerts.suggestions.stale",
             ["alert.confirmed"] = "criticalalerts.alert.confirmations",
             ["dispatch.completed"] = "criticalalerts.outbox.processed",
             ["dispatch.failed"] = "criticalalerts.dispatch.failures",

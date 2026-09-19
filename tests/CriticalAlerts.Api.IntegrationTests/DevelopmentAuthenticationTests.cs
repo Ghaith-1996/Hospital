@@ -268,6 +268,14 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
     public HttpClient CreateClient()
         => factory!.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
 
+    internal WebApplicationFactory<Program> WithAssistance(bool enabled) => factory!.WithWebHostBuilder(builder =>
+    {
+        builder.UseSetting("Features:SpeechTranscription", enabled.ToString());
+        builder.UseSetting("Features:AlertStructuringSuggestions", enabled.ToString());
+        builder.UseSetting("Speech:Provider", "Simulated");
+        builder.UseSetting("AlertStructuring:Provider", "Simulated");
+    });
+
     internal IServiceScope CreateServiceScope() => factory!.Services.CreateScope();
 
     public async Task<HttpClient> CreateSignedInClientAsync(string simulationHandle)

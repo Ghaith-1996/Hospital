@@ -35,9 +35,16 @@ public sealed class AssistanceResult
             || payload.Purpose != PurposeFor(kind)) throw new DomainException("Invalid assistance provenance.");
         return new AssistanceResult
         {
-            Id = id, OrganizationId = organizationId, AlertId = alertId, AlertVersion = version,
-            SourceRevisionId = sourceRevisionId, RequestedByUserId = actor, Kind = kind, Provider = provider,
-            ProviderVersion = providerVersion, ConfigurationVersion = configurationVersion,
+            Id = id,
+            OrganizationId = organizationId,
+            AlertId = alertId,
+            AlertVersion = version,
+            SourceRevisionId = sourceRevisionId,
+            RequestedByUserId = actor,
+            Kind = kind,
+            Provider = provider,
+            ProviderVersion = providerVersion,
+            ConfigurationVersion = configurationVersion,
             Payload = new ProtectedValue(payload.Ciphertext.ToArray(), payload.KeyVersion, payload.Purpose),
             CreatedAtUtc = UtcInstant.Require(createdAtUtc, nameof(createdAtUtc)),
         };

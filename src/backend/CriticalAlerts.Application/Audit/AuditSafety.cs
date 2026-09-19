@@ -40,6 +40,8 @@ public static class AuditSafety
 {
     public static IReadOnlySet<string> Actions { get; } = new[]
     {
+        "transcription.requested", "transcription.completed", "transcription.failed", "transcription.applied", "transcription.stale",
+        "structuring.requested", "structuring.completed", "structuring.failed", "structuring.applied", "structuring.stale",
         "alert.draft.created", "alert.draft.updated", "alert.critical-field.confirmed",
         "alert.draft.submitted", "alert.approved-message.updated", "alert.recipients.replaced",
         "alert.confirmed", "alert.resolved", "alert.cancelled", "recipient.opened",

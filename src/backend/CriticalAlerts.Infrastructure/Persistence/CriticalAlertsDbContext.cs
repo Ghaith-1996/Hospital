@@ -1,5 +1,5 @@
-using CriticalAlerts.Domain.Assistance;
 using CriticalAlerts.Domain.Alerts;
+using CriticalAlerts.Domain.Assistance;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Identity;

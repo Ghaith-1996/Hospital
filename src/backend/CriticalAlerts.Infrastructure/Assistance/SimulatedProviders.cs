@@ -44,8 +44,10 @@ public sealed class SimulatedAlertStructuringProvider : IAlertStructuringProvide
             var match = matches[i];
             var path = match.Groups[1].Value.ToLowerInvariant() switch
             {
-                "situation" => "situation", "background" or "contexte" => "background",
-                "assessment" or "évaluation" or "evaluation" => "assessment", _ => "recommendation",
+                "situation" => "situation",
+                "background" or "contexte" => "background",
+                "assessment" or "évaluation" or "evaluation" => "assessment",
+                _ => "recommendation",
             };
             var start = match.Index + match.Length;
             var end = i + 1 < matches.Count ? matches[i + 1].Index : input.SourceText.Length;

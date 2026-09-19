@@ -8,6 +8,7 @@ using CriticalAlerts.Application.Audit;
 using CriticalAlerts.Application.Dispatch;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Responses;
+using CriticalAlerts.Infrastructure.Assistance;
 using CriticalAlerts.Infrastructure.Dispatch;
 using CriticalAlerts.Infrastructure.Observability;
 using CriticalAlerts.Infrastructure.Persistence;
@@ -87,6 +88,7 @@ builder.Services.AddCriticalAlertsPersistence(
     builder.Configuration.GetConnectionString("CriticalAlerts"),
     builder.Configuration["DataProtection:Key"] ?? builder.Configuration["CRITICAL_ALERTS_DATA_PROTECTION_KEY"]);
 builder.Services.AddSimulationDispatch();
+builder.Services.AddAssistance(builder.Configuration, builder.Environment.EnvironmentName);
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
     context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.Response.Headers["X-Correlation-ID"].ToString());
 builder.Services.AddHealthChecks()
@@ -166,6 +168,7 @@ app.MapAlertLifecycleEndpoints(builder.Environment.EnvironmentName);
 app.MapDirectoryEndpoints();
 app.MapAuditEndpoints();
 app.MapAlertDraftEndpoints();
+app.MapAssistanceEndpoints();
 
 await app.RunAsync();
 
