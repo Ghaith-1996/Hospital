@@ -22,9 +22,12 @@ Each row defines application guidance, never clinical interpretation. Exact dura
 
 All fallback routes are REQUIRES_HOSPITAL_DECISION. No contact, timing SLA, clinical severity or production threshold is invented. Failed reads retain the last known projection visibly marked stale; they do not fabricate current database facts.
 
+## Implemented application projection
+
+The application Audit module now defines a default 50/maximum 100 query, UTC inclusive lower/exclusive upper bounds, finite exact filters, a timestamp/UUID-only cursor, and explicit AuditEventView projection. Metadata is limited to bounded integer counts, simulationOnly boolean, finite channel/response values and filter-name arrays. Malformed, oversized, duplicate-key and unsupported nested data fail closed. Arbitrary policy/reason strings are omitted. Unknown top-level action/resource/outcome/actor strings become unknown; unsafe legacy correlation strings become null. Opaque actor/resource IDs remain available in the contract for the future authorized endpoint. Unit verification: 23 focused cases; API/storage integration is still pending.
+
 ## Audit coverage source
 The existing Phase 9 producers are AlertDraftService, AlertReviewService, DirectoryImportService, OutboxDispatchProcessor, RecipientResponseService, AlertLifecycleService, EscalationScheduler, EscalationRunProcessor and EscalationOverrideService. Implementation will document exact action names from those producers and add audit.read; this inventory does not claim any new event already exists.
 
 ## Production decisions
 Audit retention/export/legal hold/review audience, central logs/log retention/SIEM, exporter/thresholds, incident severity/ownership, provider/directory fallback, database RPO/RTO/backup retention/recovery authority: REQUIRES_HOSPITAL_DECISION. Simulation exercise timings are measurements only.
-
