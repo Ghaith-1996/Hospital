@@ -88,3 +88,7 @@ The web Dockerfile installs both root and web build dependencies. Its API rewrit
 - PostgreSQL development/test image: `postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636`.
 
 These are local development/test pins selected for this scaffold. They do not approve hospital identity, privacy, retention, security, clinical, escalation, communications, hosting, or production integration decisions; those remain `REQUIRES_HOSPITAL_DECISION` where documented.
+
+## Operations and recovery
+
+Use the repository-specific [local development](docs/runbooks/local-development.md), [notification provider outage](docs/runbooks/notification-provider-outage.md), [directory synchronization failure](docs/runbooks/directory-sync-failure.md), and [database restore test](docs/runbooks/database-restore-test.md) runbooks. The restore exercise is real PostgreSQL tooling against an isolated fictional source and unique target, with success/failure cleanup. It does not configure production backups or approve recovery objectives.
