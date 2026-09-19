@@ -11,6 +11,7 @@ Set-Location -LiteralPath $repositoryRoot
 dotnet restore $solution --locked-mode --nologo
 & (Join-Path $repositoryRoot "scripts\verify-no-sensitive-data.ps1")
 & (Join-Path $repositoryRoot "scripts\verify-web-storage-safety.ps1")
+& (Join-Path $repositoryRoot "scripts\verify-observability-safety.ps1")
 & (Join-Path $repositoryRoot "scripts\verify-openapi.ps1")
 dotnet format $solution --verify-no-changes --no-restore --verbosity minimal
 dotnet list $solution package --vulnerable --include-transitive --no-restore
@@ -34,6 +35,13 @@ if ($LASTEXITCODE -ne 0) { throw "web production build failed with exit $LASTEXI
 npm.cmd run web:e2e
 if ($LASTEXITCODE -ne 0) { throw "web e2e failed with exit $LASTEXITCODE" }
 & (Join-Path $repositoryRoot "scripts\system-e2e.ps1")
+
+$restoreEnvironment = $env:ASPNETCORE_ENVIRONMENT
+try {
+    $env:ASPNETCORE_ENVIRONMENT = "Test"
+    & (Join-Path $repositoryRoot "scripts\db-restore-test.ps1") -ConfirmRestoreTest
+    & (Join-Path $repositoryRoot "scripts\test-db-restore-safety.ps1") -ExerciseCleanup
+} finally { $env:ASPNETCORE_ENVIRONMENT = $restoreEnvironment }
 
 docker build --file (Join-Path $repositoryRoot "src\backend\CriticalAlerts.Api\Dockerfile") --tag critical-alerts-api:verification $repositoryRoot
 if ($LASTEXITCODE -ne 0) { throw "API container build failed with exit $LASTEXITCODE" }

@@ -1,5 +1,7 @@
 param(
-    [switch]$SkipWebBuild
+    [switch]$SkipWebBuild,
+    [string]$TestPattern,
+    [ValidateRange(0, 60)][int]$ReviewPauseSeconds = 0
 )
 
 Set-StrictMode -Version Latest
@@ -141,8 +143,11 @@ try {
     $env:SYSTEM_E2E_POSTGRES_DATABASE = $database
     $env:SYSTEM_E2E_POSTGRES_USER = $username
     $env:SYSTEM_E2E_SCREENSHOT_DIR = Join-Path $logRoot "screenshots"
-    & $npx playwright test --config playwright.system.config.ts
+    $testArguments = @("playwright", "test", "--config", "playwright.system.config.ts")
+    if ($TestPattern) { $testArguments += @("--grep", $TestPattern) }
+    & $npx @testArguments
     $exitCode = $LASTEXITCODE
+    if ($ReviewPauseSeconds -gt 0) { Start-Sleep -Seconds $ReviewPauseSeconds }
 } finally {
     if ($env:SYSTEM_E2E_WORKER_LEDGER -and (Test-Path -LiteralPath $env:SYSTEM_E2E_WORKER_LEDGER)) {
         foreach ($ownedId in Get-Content -LiteralPath $env:SYSTEM_E2E_WORKER_LEDGER) {

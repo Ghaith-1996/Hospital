@@ -50,6 +50,18 @@ jobs:
       - name: Run backend tests
         run: dotnet test src/backend/CriticalAlerts.sln --configuration Release --no-build --nologo
 
+      - name: Verify runtime observability safety
+        shell: pwsh
+        run: ./scripts/verify-observability-safety.ps1
+
+      - name: Verify real PostgreSQL restore and failure cleanup
+        shell: pwsh
+        env:
+          ASPNETCORE_ENVIRONMENT: Test
+        run: |
+          ./scripts/db-restore-test.ps1 -ConfirmRestoreTest
+          ./scripts/test-db-restore-safety.ps1 -ExerciseCleanup
+
       - name: Install root test dependencies
         run: npm ci --no-audit --no-fund
 

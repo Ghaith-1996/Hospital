@@ -383,7 +383,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         }
     }
 
-    internal static async Task<HttpResponseMessage> ConfirmAsync(
+    internal async Task<HttpResponseMessage> ConfirmAsync(
         HttpClient client,
         Guid alertId,
         int expectedVersion,
