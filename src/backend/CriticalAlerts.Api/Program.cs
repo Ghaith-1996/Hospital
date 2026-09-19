@@ -4,10 +4,12 @@ using System.Threading.RateLimiting;
 using CriticalAlerts.Api.Authentication;
 using CriticalAlerts.Api.Health;
 using CriticalAlerts.Api.Http;
+using CriticalAlerts.Application.Audit;
 using CriticalAlerts.Application.Dispatch;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Infrastructure.Dispatch;
+using CriticalAlerts.Infrastructure.Observability;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
@@ -25,6 +27,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
+CriticalAlertsOperationalLog.Configure(builder.Logging);
 
 var developmentAuthenticationEnabled = builder.Configuration.GetValue("DevelopmentAuthentication:Enabled", false);
 var simulationResponsesEnabled = builder.Configuration.GetValue("SimulationResponses:Enabled", false);
@@ -72,11 +75,36 @@ builder.Services.AddCriticalAlertsPersistence(
     builder.Configuration.GetConnectionString("CriticalAlerts"),
     builder.Configuration["DataProtection:Key"] ?? builder.Configuration["CRITICAL_ALERTS_DATA_PROTECTION_KEY"]);
 builder.Services.AddSimulationDispatch();
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+    context.ProblemDetails.Extensions["correlationId"] = context.HttpContext.Response.Headers["X-Correlation-ID"].ToString());
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    const string headerName = "X-Correlation-ID";
+    var supplied = context.Request.Headers[headerName].ToString();
+    var correlationId = AuditSafety.IsSafeCorrelationId(supplied) ? supplied : Guid.NewGuid().ToString("N");
+    context.Response.Headers[headerName] = correlationId;
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(CriticalAlertsOperationalLog.Category);
+    try
+    {
+        await next(context);
+    }
+    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { throw; }
+    catch (Exception)
+    {
+        if (context.Response.HasStarted) { context.Abort(); return; }
+        context.Response.Clear();
+        context.Response.Headers[headerName] = correlationId;
+        await Results.Problem(statusCode: 500, title: "Operation unavailable", detail: "Refresh the status before retrying.",
+            extensions: new Dictionary<string, object?> { ["correlationId"] = correlationId }).ExecuteAsync(context);
+    }
+    if (context.Response.StatusCode >= 400)
+        CriticalAlertsOperationalLog.Rejected(logger, context.Response.StatusCode, correlationId);
+});
 
 app.Use(async (context, next) =>
 {
@@ -95,16 +123,6 @@ app.Use(async (context, next) =>
         }
     }
 
-    await next(context);
-});
-
-app.Use(async (context, next) =>
-{
-    const string headerName = "X-Correlation-ID";
-    var supplied = context.Request.Headers[headerName].ToString();
-    var correlationId = IsSafeCorrelationId(supplied) ? supplied : Guid.NewGuid().ToString("N");
-
-    context.Response.Headers[headerName] = correlationId;
     await next(context);
 });
 
@@ -139,16 +157,13 @@ app.MapAlertDraftEndpoints();
 
 await app.RunAsync();
 
-static bool IsSafeCorrelationId(string value)
-{
-    return value.Length is > 0 and <= 96 && value.All(character =>
-        char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.');
-}
-
 static Task WriteSafeHealthResponse(HttpContext context, HealthReport report)
 {
     context.Response.ContentType = "application/json";
     context.Response.StatusCode = report.Status == HealthStatus.Healthy ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable;
+    if (report.Status != HealthStatus.Healthy)
+        CriticalAlertsOperationalLog.ReadinessFailed(context.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger(CriticalAlertsOperationalLog.Category), context.Response.Headers["X-Correlation-ID"].ToString());
 
     var checks = report.Entries.ToDictionary(
         entry => entry.Key,

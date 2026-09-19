@@ -6,11 +6,13 @@ using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Infrastructure.Alerts;
 using CriticalAlerts.Infrastructure.Directory;
 using CriticalAlerts.Infrastructure.Identity;
+using CriticalAlerts.Infrastructure.Observability;
 using CriticalAlerts.Infrastructure.Persistence;
 using CriticalAlerts.Infrastructure.Protection;
 using CriticalAlerts.Infrastructure.Responses;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CriticalAlerts.Infrastructure.Persistence;
 
@@ -21,7 +23,11 @@ public static class PersistenceServiceCollectionExtensions
         string? connectionString,
         string? dataProtectionKey = null)
     {
-        services.AddDbContext<CriticalAlertsDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddScoped(provider => new CommittedOperations(provider.GetRequiredService<ILoggerFactory>().CreateLogger(CriticalAlertsOperationalLog.Category)));
+        services.AddScoped<OperationSaveInterceptor>();
+        services.AddScoped<OperationTransactionInterceptor>();
+        services.AddDbContext<CriticalAlertsDbContext>((provider, options) => options.UseNpgsql(connectionString)
+            .AddInterceptors(provider.GetRequiredService<OperationSaveInterceptor>(), provider.GetRequiredService<OperationTransactionInterceptor>()));
         services.AddScoped<IDevelopmentIdentityDirectory, DevelopmentIdentityDirectory>();
         services.AddScoped<CriticalAlerts.Application.Audit.IAuditQueryService, CriticalAlerts.Infrastructure.Audit.AuditQueryService>();
         services.AddSingleton(TimeProvider.System);

@@ -95,6 +95,13 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
     {
         response.StatusCode = statusCode;
         response.ContentType = "application/problem+json";
-        await response.WriteAsJsonAsync(new { type = "about:blank", title, status = statusCode, detail });
+        await response.WriteAsJsonAsync(new
+        {
+            type = "about:blank",
+            title,
+            status = statusCode,
+            detail,
+            correlationId = response.Headers["X-Correlation-ID"].ToString()
+        });
     }
 }

@@ -1,5 +1,6 @@
 using CriticalAlerts.Application.Dispatch;
 using CriticalAlerts.Infrastructure.Dispatch;
+using CriticalAlerts.Infrastructure.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.Options;
 internal sealed class SimulationDispatchWorker(
     IServiceScopeFactory scopeFactory,
     IOptions<DispatchWorkerOptions> options,
-    ILogger<SimulationDispatchWorker> logger) : BackgroundService
+    ILoggerFactory loggerFactory) : BackgroundService
 {
     private readonly string leaseOwner = $"simulation-worker-{Environment.ProcessId}-{Guid.NewGuid():N}";
 
@@ -16,7 +17,8 @@ internal sealed class SimulationDispatchWorker(
     {
         var workerOptions = options.Value;
         workerOptions.Validate();
-        logger.LogInformation("Simulation dispatch worker started with lease owner {LeaseOwner}.", leaseOwner);
+        var logger = loggerFactory.CreateLogger(CriticalAlertsOperationalLog.Category);
+        CriticalAlertsOperationalLog.WorkerState(logger, "dispatch", false);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -33,11 +35,18 @@ internal sealed class SimulationDispatchWorker(
                     catch (Exception) when (!stoppingToken.IsCancellationRequested)
                     {
                         scope.ServiceProvider.GetRequiredService<CriticalAlerts.Infrastructure.Persistence.CriticalAlertsDbContext>().ChangeTracker.Clear();
-                        logger.LogWarning("Simulation escalation processing failed; durable leases permit recovery.");
+                        CriticalAlertsOperationalLog.WorkerState(logger, "escalation", true);
                     }
                 }
                 var processor = scope.ServiceProvider.GetRequiredService<IOutboxDispatchProcessor>();
-                var result = await processor.ProcessNextAsync(leaseOwner, stoppingToken);
+                DispatchProcessingResult result;
+                try { result = await processor.ProcessNextAsync(leaseOwner, stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
+                catch (Exception)
+                {
+                    CriticalAlertsOperationalLog.WorkerState(logger, "dispatch", true);
+                    break;
+                }
                 if (!escalated && !result.Processed && !result.Rescheduled && !result.PermanentlyFailed)
                 {
                     break;

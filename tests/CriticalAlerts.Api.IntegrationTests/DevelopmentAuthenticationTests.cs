@@ -406,6 +406,8 @@ internal sealed class CapturingLoggerProvider : ILoggerProvider
             Func<TState, Exception?, string> formatter)
         {
             var message = $"{categoryName} {logLevel} {eventId.Id} {formatter(state, exception)}";
+            if (state is IEnumerable<KeyValuePair<string, object?>> properties)
+                message += " " + string.Join(" ", properties.Select(property => property.Key + "=" + property.Value));
             if (exception is not null)
             {
                 message += $" {exception.GetType().Name}: {exception.Message}";
