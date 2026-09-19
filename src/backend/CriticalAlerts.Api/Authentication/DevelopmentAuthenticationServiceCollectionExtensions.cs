@@ -26,6 +26,8 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
 
         services.AddAuthorization(options =>
         {
+            options.AddPolicy(AuthorizationPolicies.AuditReader, policy => policy.RequireAuthenticatedUser()
+                .RequireRole(AuthorizationRoles.Auditor, AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(AuthorizationPolicies.Operator, policy => policy.RequireRole(AuthorizationRoles.Operator));
             options.AddPolicy(AuthorizationPolicies.Physician, policy => policy.RequireRole(AuthorizationRoles.Physician));
             options.AddPolicy(AuthorizationPolicies.ClinicalSupervisor, policy => policy.RequireRole(AuthorizationRoles.ClinicalSupervisor));

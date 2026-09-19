@@ -23,6 +23,7 @@ public static class PersistenceServiceCollectionExtensions
     {
         services.AddDbContext<CriticalAlertsDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IDevelopmentIdentityDirectory, DevelopmentIdentityDirectory>();
+        services.AddScoped<CriticalAlerts.Application.Audit.IAuditQueryService, CriticalAlerts.Infrastructure.Audit.AuditQueryService>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<CsvDirectorySourceAdapter>();
         services.AddScoped<IDirectoryImportService, DirectoryImportService>();

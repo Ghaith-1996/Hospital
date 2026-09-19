@@ -40,6 +40,12 @@ Run focused runtime safety checks, add Scenario J to existing PostgreSQL/API/wor
 Files: docs/superpowers/phase10-verification.md; this plan and governance/observability docs as results become available.
 Run every applicable owner gate, record commands/exact counts, migrations, containers, connected evidence, restore and failure cleanup, known limitations and production decisions. Inspect tracked artifacts and complete diff. Commit docs: complete phase 10 verification only after all gates pass. Propose a tag without creating one. Stop for owner review.
 
+## Completed slice evidence
+
+Task 2 API complete: AuditQueryTests initially failed 21/21 with missing-route 404; all 21 passed after endpoint/scoped service implementation. Full API regression 190/190 passed. OpenAPI generated and verified against runtime; sensitive-data scan and diff check passed. Contract/projection commit is `427bea8`. Audit service rejects unknown/repeated query keys and failure to append audit.read yields 503. No database mutation protection is claimed yet.
+
+Docker recovered without reset by preserving only inspected zero-length runtime sockets in local directories `Docker/run.phase10-stale`, `Docker/run.phase10-retry2`, and `docker-secrets-engine.phase10-retry2`. These host recovery artifacts are outside the repository. Engine 29.1.3 responds. Recovered backend baseline plus contract tests passed 514/514 (Domain 92, Application 69, Architecture 9, Infrastructure 175, API 169). Earlier dependency failures remain recorded above and are superseded by this executed pass.
+
 ## Interface preflight
 Tasks 2/3 share descending timestamp/UUID cursor order and indexes. Task 4 consumes only Task 2 projected fields/cursor. Task 5 restricts correlation used by Task 2 and runtime logs; use one opaque syntax. Task 6 adds warnings without replacing Phase 9 escalation. Task 7 includes every Phase 9 table and Phase 10 migration; no append-only bypass needed for empty-database restore. Task 8 uses the existing worker control/teardown harness. No conflicting interface was found; exact types will be checked in each slice.
 

@@ -134,6 +134,7 @@ app.MapRecipientResponseEndpoints(builder.Environment.EnvironmentName, simulatio
 app.MapAlertLiveEndpoints(builder.Environment.EnvironmentName, simulationResponsesEnabled);
 app.MapAlertLifecycleEndpoints(builder.Environment.EnvironmentName);
 app.MapDirectoryEndpoints();
+app.MapAuditEndpoints();
 app.MapAlertDraftEndpoints();
 
 await app.RunAsync();

@@ -862,6 +862,84 @@
         ],
         "type": "object"
       },
+      "AuditEventView": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorType": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "correlationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "occurredAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "actorType",
+          "actorUserId",
+          "correlationId",
+          "id",
+          "metadata",
+          "occurredAtUtc",
+          "outcome",
+          "resourceId",
+          "resourceType"
+        ],
+        "type": "object"
+      },
+      "AuditPage": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventView"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "events",
+          "nextCursor"
+        ],
+        "type": "object"
+      },
       "ConfirmAlertCriticalFieldRequest": {
         "properties": {
           "expectedVersion": {
@@ -2308,6 +2386,137 @@
   },
   "openapi": "3.1.1",
   "paths": {
+    "/api/v1/admin/audit": {
+      "get": {
+        "description": "Read bounded safe audit events for the authenticated organization. Audit access is itself recorded.",
+        "parameters": [
+          {
+            "description": "Inclusive UTC timestamp.",
+            "in": "query",
+            "name": "occurredFromUtc",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exclusive UTC timestamp.",
+            "in": "query",
+            "name": "occurredToUtc",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact allowlisted technical value.",
+            "in": "query",
+            "name": "action",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact allowlisted technical value.",
+            "in": "query",
+            "name": "outcome",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact allowlisted technical value.",
+            "in": "query",
+            "name": "resourceType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact allowlisted technical value.",
+            "in": "query",
+            "name": "correlationId",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque server-provided timestamp/event cursor.",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default 50; minimum 1; maximum 100.",
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "tags": [
+          "AuditEndpoints"
+        ]
+      }
+    },
     "/api/v1/alerts/{alertId}": {
       "get": {
         "parameters": [
@@ -4825,6 +5034,9 @@
     },
     {
       "name": "AlertLiveEndpoints"
+    },
+    {
+      "name": "AuditEndpoints"
     },
     {
       "name": "CriticalAlerts.Api"
