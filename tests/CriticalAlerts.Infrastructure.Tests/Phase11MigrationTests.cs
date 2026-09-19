@@ -47,5 +47,3 @@ public sealed class Phase11MigrationTests(PostgresFixture fixture) : IClassFixtu
         failure.InnerException.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
     }
 }
-
-

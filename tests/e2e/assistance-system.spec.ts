@@ -71,5 +71,3 @@ if (process.env.SYSTEM_E2E_ASSISTANCE !== "true") {
     expect(dbScalar(`select count(*) from outbox_messages where aggregate_id='${draft.alertId}'`)).toBe("0");
   });
 }
-
-

@@ -42,4 +42,3 @@ try {
 } catch {
     throw 'Local speech evaluation failed. Check local configuration and bounded fictional WAV input; no payload or provider diagnostics are printed.'
 }
-

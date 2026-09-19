@@ -156,4 +156,3 @@ public sealed class AssistanceSafetyTests(SeededPostgresApiFixture fixture)
                 : Task.FromResult(new TranscriptionResult("SIMULATION: Situation: " + sentinel, [], null, null, "Simulated", "DEMO-1"));
     }
 }
-

@@ -107,5 +107,3 @@ public sealed class AssistanceEvaluationHarnessTests
     private sealed record Observation(string Group, bool Failure, int WordErrors, int Words, int NumberMatches, int Numbers, int PairMatches, int Pairs,
         int Unsupported, int Fields, int Omitted, int ExpectedFields, int Corrected, int Missing, int Ambiguous, bool Speech = false);
 }
-
-
