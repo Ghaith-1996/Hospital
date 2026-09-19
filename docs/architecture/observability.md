@@ -41,3 +41,5 @@ The existing Phase 9 producers are AlertDraftService, AlertReviewService, Direct
 
 ## Production decisions
 Audit retention/export/legal hold/review audience, central logs/log retention/SIEM, exporter/thresholds, incident severity/ownership, provider/directory fallback, database RPO/RTO/backup retention/recovery authority: REQUIRES_HOSPITAL_DECISION. Simulation exercise timings are measurements only.
+
+The connected `/admin/audit` viewer uses transient component state and server cursors. Only Auditor/SystemAdministrator see its navigation link; server authorization remains authoritative. Fictional development handle `sim-auditor-avery` has only Auditor access. Response decoding independently rejects unexpected top-level vocabulary and projects metadata through the same finite technical types. Errors use fixed recovery text, with no server payload reflection.

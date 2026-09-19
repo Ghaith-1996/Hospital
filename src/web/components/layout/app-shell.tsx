@@ -73,7 +73,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const sidebarRef = React.useRef<HTMLElement | null>(null);
   const isDoctor = user?.roles.some(role => role === "Practitioner" || role === "Physician");
-  const navigation = isDoctor ? doctorNavigation : operatorNavigation;
+  const canReadAudit = user?.roles.some(role => role === "Auditor" || role === "SystemAdministrator");
+  const navigation = [...(isDoctor ? doctorNavigation : operatorNavigation),
+    ...(canReadAudit ? [{ label: "Audit", href: "/admin/audit", icon: ReportIcon }] : [])];
   const navigationLabel = isDoctor ? "Doctor navigation" : "Operator navigation";
   const activeHref = activeNavigationHref(pathname, navigation);
   const roleNavigationReady = !!user && !pending;

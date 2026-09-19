@@ -42,6 +42,18 @@ public sealed class AuditQueryTests(SeededPostgresApiFixture fixture)
     }
 
     [Fact]
+    public async Task FictionalAuditorCanUseTheExistingDevelopmentIdentitySwitcher()
+    {
+        using var client = fixture.CreateClient();
+        using var signIn = await client.PostAsJsonAsync("/api/v1/dev/session", new { simulationHandle = "sim-auditor-avery" });
+        signIn.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        using var audit = await client.GetAsync("/api/v1/admin/audit");
+        audit.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var lifecycle = await client.GetAsync("/api/v1/authorization/operator");
+        lifecycle.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task AuditPagesUseStablePostgresOrderWithoutDuplicatesAndNeverIncludeForeignEvents()
     {
         var correlation = Guid.NewGuid().ToString("N");
