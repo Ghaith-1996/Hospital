@@ -36,23 +36,23 @@ public sealed class AssistanceSettings
     public const int MaxAudioBytes = 2 * 1024 * 1024;
     public const string ConfigurationVersion = "DEMO-1";
     public const string WaveContentType = "audio/wav";
-    public string? AzureRegion { get; }
+    public string? AzureResourceName { get; }
     public string? AzureKey { get; }
     public bool EnvironmentAllowed { get; }
     public bool SpeechRequested { get; }
     public bool StructuringRequested { get; }
     public AssistanceCapabilities Capabilities { get; }
     public AssistanceSettings(string environment, bool speech, bool structuring, string speechProvider,
-        string structuringProvider, string? azureRegion = null, string? azureKey = null)
+        string structuringProvider, string? azureResourceName = null, string? azureKey = null)
     {
         EnvironmentAllowed = environment is "Development" or "Test";
         SpeechRequested = speech && EnvironmentAllowed;
         StructuringRequested = structuring && EnvironmentAllowed;
-        AzureRegion = azureRegion;
+        AzureResourceName = azureResourceName;
         AzureKey = azureKey;
         var configured = !string.IsNullOrWhiteSpace(azureKey) && azureKey.Length <= 256
-            && azureKey.All(char.IsAsciiLetterOrDigit) && azureRegion is not null
-            && Regex.IsMatch(azureRegion, "^[a-z]{2,30}[0-9]?$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+            && azureKey.All(char.IsAsciiLetterOrDigit) && azureResourceName is not null
+            && Regex.IsMatch(azureResourceName, "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         var speechOn = SpeechRequested && (speechProvider == "Simulated" || speechProvider == "AzureSpeech" && configured);
         Capabilities = new(speechOn, StructuringRequested && structuringProvider == "Simulated",
             speechOn ? speechProvider : "Disabled",
