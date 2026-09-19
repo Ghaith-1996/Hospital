@@ -50,3 +50,11 @@ Thumbs.db
 *.dump
 *.backup
 *.log
+
+# Phase 11 local evaluation and transient media
+artifacts/ai-evaluation/
+*.wav
+*.mp3
+*.ogg
+*.webm
+*.m4a

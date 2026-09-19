@@ -1,5 +1,6 @@
 param(
     [switch]$SkipWebBuild,
+    [switch]$EnableAssistance,
     [string]$TestPattern,
     [ValidateRange(0, 60)][int]$ReviewPauseSeconds = 0
 )
@@ -114,6 +115,12 @@ try {
     $env:SimulationResponses__Enabled = "true"
     $env:SimulationDispatch__Enabled = "true"
     $env:SimulationEscalation__Enabled = "true"
+    $env:Features__SpeechTranscription = $EnableAssistance.ToString().ToLowerInvariant()
+    $env:Features__AlertStructuringSuggestions = $EnableAssistance.ToString().ToLowerInvariant()
+    $env:Speech__Provider = if ($EnableAssistance) { 'Simulated' } else { 'Disabled' }
+    $env:AlertStructuring__Provider = if ($EnableAssistance) { 'Simulated' } else { 'Disabled' }
+    $env:SYSTEM_E2E_ASSISTANCE = $EnableAssistance.ToString().ToLowerInvariant()
+    $env:SimulationEscalation__PollIntervalMilliseconds = "200"
 
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database migrate
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database reset-demo --confirm-demo-reset

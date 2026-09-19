@@ -5,7 +5,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $log = Join-Path ([IO.Path]::GetTempPath()) ("critical-alerts-observability-" + [Guid]::NewGuid().ToString("N") + ".log")
 try {
     $checks = @(
-        @("tests/CriticalAlerts.Api.IntegrationTests", "FullyQualifiedName~Observability|FullyQualifiedName~AuditQueryTests|FullyQualifiedName~HealthEndpointsTests|FullyQualifiedName~OperationalWarning|FullyQualifiedName~LatestSyncStatus"),
+        @("tests/CriticalAlerts.Api.IntegrationTests", "FullyQualifiedName~Observability|FullyQualifiedName~AssistanceSafetyTests|FullyQualifiedName~AuditQueryTests|FullyQualifiedName~HealthEndpointsTests|FullyQualifiedName~OperationalWarning|FullyQualifiedName~LatestSyncStatus"),
         @("tests/CriticalAlerts.Infrastructure.Tests", "FullyQualifiedName~OperationalLoggingTests|FullyQualifiedName~PlatformMetricsTests|FullyQualifiedName~AuditStorageTests|FullyQualifiedName~OperationalWarningProjectionTests")
     )
     foreach ($check in $checks) {
@@ -17,7 +17,7 @@ try {
     }
     $tracked = & git -c "safe.directory=$($repositoryRoot.Replace('\', '/'))" -C $repositoryRoot ls-files
     if ($LASTEXITCODE -ne 0) { throw "Tracked artifact verification failed." }
-    $unsafe = @($tracked | Where-Object { $_ -match '(^|/)(\.env|TestResults|test-results|playwright-report)(/|$)|\.(dump|backup|log|trx)$' })
+    $unsafe = @($tracked | Where-Object { $_ -match '(^|/)(\.env|TestResults|test-results|playwright-report|ai-evaluation-output)(/|$)|\.(dump|backup|log|trx|wav|mp3|ogg|webm|m4a)$|^artifacts/ai-evaluation/' })
     if ($unsafe.Count -gt 0) { throw "An excluded operational artifact is tracked." }
     $systemConfig = Get-Content (Join-Path $repositoryRoot "playwright.system.config.ts") -Raw
     if ($systemConfig -match 'retain-on-failure|on-first-retry') { throw "Payload-bearing browser traces must be disabled for connected workflows." }

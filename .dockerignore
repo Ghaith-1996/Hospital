@@ -29,3 +29,9 @@ postgres-data
 *.user
 *.suo
 *.tsbuildinfo
+artifacts/ai-evaluation
+**/*.wav
+**/*.mp3
+**/*.ogg
+**/*.webm
+**/*.m4a
