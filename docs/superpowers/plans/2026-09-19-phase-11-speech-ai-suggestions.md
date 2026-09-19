@@ -25,3 +25,4 @@ Ruling: Azure adapter accepts validated WAV PCM only — documented short-audio 
 
 - Baseline inspection: main 9e312b2, implementation 162a10b, documentation 8117d26, no phase-10 tag/PR/merge. Owner accepted; approval commit da7f444. Clean linked worktree reused.
 - Baseline first backend run could not access Docker from sandbox; elevated rerun in progress. No failure counted as a pass.
+- Task 2: contract RED missing Assistance namespace; GREEN application 84/84 (15 new), simulated provider 11/11. Baseline elevated run passed 589/589. Provider infrastructure regression recorded in local phase11-provider-regression.log. Documentation whitespace check corrected.

@@ -179,4 +179,3 @@ Version: codex-security-snapshot/v1:sha256:25c00f63c5b43fe3578885c04c824290231ae
 ## Phase 11 authorized work
 
 The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and verification are in progress, not complete. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
-
