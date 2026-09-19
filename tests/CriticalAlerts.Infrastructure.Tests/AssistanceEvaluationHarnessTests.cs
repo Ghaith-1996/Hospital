@@ -37,19 +37,18 @@ public sealed class AssistanceEvaluationHarnessTests
             suggestion.Ambiguities.Order().Should().Equal(item.Ambiguous.Order());
             // Score provider output against independently authored fixtures, not against the same extractor.
             var fields = suggestion.Fields.Where(field => !field.Ambiguous).ToArray();
-            var values = string.Join("\n", fields.Select(field => field.Value));
-            var numberTokens = Regex.Matches(transcript, @"(?<![\p{L}\d])[-+]?\d+(?:[.,:/-]\d+)*", RegexOptions.CultureInvariant).Select(match => match.Value).ToArray();
-            var actualPairs = Regex.Matches(transcript, @"(?<n>[-+]?\d+(?:[.,:/-]\d+)*)\s+(?<u>mmHg|mmol/L|mg|bpm)\b", RegexOptions.CultureInvariant)
+            var numberTokens = EvaluationMetrics.NumericTokens(transcript);
+            var actualPairs = Regex.Matches(transcript, @"(?<![\p{L}\d.,+-])(?<n>[-+]?(?:\d+(?:[.,:/-]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?)\s*(?<u>mmHg|mmol/L|mg|bpm|%)(?![\p{L}\d/])", RegexOptions.CultureInvariant)
                 .Select(match => match.Groups["n"].Value + "|" + match.Groups["u"].Value).ToArray();
             var unsupported = suggestion.Fields.Count(field => !field.Evidence.Any() ||
                 field.Value != string.Join("\n", field.Evidence.Select(span => transcript[span.Start..span.EndExclusive])));
-            var omitted = item.ExpectedFields.Count(path => fields.All(field => field.Path != path));
+            var omitted = EvaluationMetrics.OmittedFacts(item.ExpectedFacts, fields);
             var errors = EvaluationMetrics.WordErrors(item.Reference, transcript);
             var corrected = suggestion.Fields.Count(field => !item.ApprovedFields.TryGetValue(field.Path, out var approved) || approved != field.Value);
             observations.Add(new(item.Group, false, errors, EvaluationMetrics.Words(item.Reference).Length,
                 EvaluationMetrics.ExactMatches(item.Numbers, numberTokens), item.Numbers.Length,
                 EvaluationMetrics.ExactMatches(item.Pairs, actualPairs), item.Pairs.Length, unsupported, suggestion.Fields.Count,
-                omitted, item.ExpectedFields.Length, corrected, suggestion.MissingFields.Count, suggestion.Ambiguities.Count, item.Scenario is not null));
+                omitted, item.ExpectedFacts.Length, corrected, suggestion.MissingFields.Count, suggestion.Ambiguities.Count, item.Scenario is not null));
         }
         observations.Count(row => row.Failure).Should().Be(1);
         observations.Sum(row => row.Unsupported).Should().Be(0);
@@ -95,15 +94,15 @@ public sealed class AssistanceEvaluationHarnessTests
             suggestedFieldCount = succeeded.Sum(row => row.Fields),
             unsupportedInferenceRate = EvaluationMetrics.Rate(succeeded.Sum(row => row.Unsupported), succeeded.Sum(row => row.Fields)),
             omissionCount = succeeded.Sum(row => row.Omitted),
-            expectedFieldCount = succeeded.Sum(row => row.ExpectedFields),
-            omissionRate = EvaluationMetrics.Rate(succeeded.Sum(row => row.Omitted), succeeded.Sum(row => row.ExpectedFields)),
+            expectedFactCount = succeeded.Sum(row => row.ExpectedFacts),
+            omissionRate = EvaluationMetrics.Rate(succeeded.Sum(row => row.Omitted), succeeded.Sum(row => row.ExpectedFacts)),
             humanCorrectionFieldCount = succeeded.Sum(row => row.Corrected),
             humanCorrectionRate = EvaluationMetrics.Rate(succeeded.Sum(row => row.Corrected), succeeded.Sum(row => row.Fields)),
             missingFieldCount = succeeded.Sum(row => row.Missing),
             ambiguityCount = succeeded.Sum(row => row.Ambiguous)
         };
     }
-    private sealed record Case(string Id, string Group, string? Scenario, string Reference, string[] Numbers, string[] Pairs, string[] ExpectedFields, string[] Missing, string[] Ambiguous, Dictionary<string, string> ApprovedFields, bool Failure = false);
+    private sealed record Case(string Id, string Group, string? Scenario, string Reference, string[] Numbers, string[] Pairs, EvaluationFact[] ExpectedFacts, string[] Missing, string[] Ambiguous, Dictionary<string, string> ApprovedFields, bool Failure = false);
     private sealed record Observation(string Group, bool Failure, int WordErrors, int Words, int NumberMatches, int Numbers, int PairMatches, int Pairs,
-        int Unsupported, int Fields, int Omitted, int ExpectedFields, int Corrected, int Missing, int Ambiguous, bool Speech = false);
+        int Unsupported, int Fields, int Omitted, int ExpectedFacts, int Corrected, int Missing, int Ambiguous, bool Speech = false);
 }

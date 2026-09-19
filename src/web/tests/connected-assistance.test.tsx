@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { AssistancePanel } from '../features/connected/assistance-panel';
 import * as assistance from '../lib/assistance';
@@ -110,4 +110,26 @@ test('unmount stops microphone tracks and never uploads unfinished recording', a
     expect(stop).toHaveBeenCalledOnce();
     expect(stopRecorder).toHaveBeenCalledOnce();
     expect(assistance.transcribe).not.toHaveBeenCalled();
+});
+
+test('generic 503 retains the operation key for a possibly committed result', async () => {
+    setup();
+    vi.mocked(assistance.generateStructure).mockRejectedValueOnce(new alerts.AlertApiError(503, null, 'safe'));
+    render(<AssistancePanel draft={draft} disabled={false} onApplied={vi.fn()} onBusy={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Suggest SBAR structure' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry same assistance request' }));
+    await screen.findByRole('heading', { name: 'Structured suggestion' });
+    expect(vi.mocked(assistance.generateStructure).mock.calls[0][2]).toBe(vi.mocked(assistance.generateStructure).mock.calls[1][2]);
+});
+
+test('late initial history cannot erase a result generated after the history request began', async () => {
+    setup();
+    let finish!: (value: assistance.AssistancePage) => void;
+    vi.mocked(assistance.getHistory).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    render(<AssistancePanel draft={draft} disabled={false} onApplied={vi.fn()} onBusy={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Suggest SBAR structure' }));
+    await screen.findByRole('heading', { name: 'Structured suggestion' });
+    await act(async () => { finish({ items: [], nextCursor: null }); });
+    expect(screen.getByRole('heading', { name: 'Structured suggestion' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Apply evidence-backed suggestion' })).toBeEnabled();
 });

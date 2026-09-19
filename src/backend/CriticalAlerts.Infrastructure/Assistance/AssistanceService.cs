@@ -266,7 +266,7 @@ public sealed class AssistanceService(CriticalAlertsDbContext db, ISensitiveData
         alert.RegisterUnresolvedCriticalField($"assistance-{field}-review",
             "Review all source information, including numbers, units, dates, laterality and medication terms", null, alert.DraftVersion);
         foreach (Match match in Regex.Matches(value,
-            @"(?<![\p{L}\d])(?<value>[-+]?\d+(?:[.,:/-]\d+)*)(?:\s*(?<unit>mmHg|mmol/L|mg/dL|mg|mcg|mL|kg|bpm|%|°C)\b)?",
+            @"(?<![\p{L}\d.,+-])(?<value>[-+]?(?:\d+(?:[.,:/-]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?)(?:\s*(?<unit>mmHg|mmol/L|mg/dL|mg|mcg|mL|kg|bpm|%|°C)(?![\p{L}\d/]))?(?![\p{L}\d])",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)))
         {
             alert.RegisterUnresolvedCriticalField($"assistance-{field}-{match.Index}", match.Groups["value"].Value,

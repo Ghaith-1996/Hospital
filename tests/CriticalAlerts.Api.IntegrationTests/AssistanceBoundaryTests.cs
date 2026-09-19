@@ -98,6 +98,30 @@ public sealed class AssistanceBoundaryTests(SeededPostgresApiFixture fixture)
         (await client.GetFromJsonAsync<AlertDraftView>($"/api/v1/alerts/{draft.AlertId}"))!.Should().BeEquivalentTo(draft);
     }
 
+    [Theory]
+    [InlineData(".5", "mg")]
+    [InlineData(",5", "mg")]
+    [InlineData("-.5", "mg")]
+    [InlineData("+.5", "mg")]
+    [InlineData("98", "%")]
+    [InlineData("1e-3", "mg")]
+    [InlineData("8.2", "mmol/L")]
+    public async Task ApplyPreservesExactNumericSpellingAndExplicitUnit(string value, string unit)
+    {
+        using var host = fixture.WithAssistance(true); using var client = host.CreateClient();
+        await SignIn(client, DemoDataSeeder.JordanHandle);
+        var draft = await AssistanceApiTests.Create(client);
+        using var edit = await client.PatchAsJsonAsync($"/api/v1/alerts/{draft.AlertId}", new UpdateAlertDraftRequest(1,
+            draft.Location, draft.UrgencyLabel, "SIMULATION: Situation: fictional value " + value + (unit == "%" ? "" : " ") + unit, draft.Sbar, []));
+        edit.EnsureSuccessStatusCode();
+        using var generated = await AssistanceApiTests.Post(client, draft.AlertId, "structuring-suggestions", 2);
+        var result = (await generated.Content.ReadFromJsonAsync<AssistanceResultView>())!;
+        (await AssistanceApiTests.Post(client, draft.AlertId, $"structuring-suggestions/{result.Id}/apply", 2)).EnsureSuccessStatusCode();
+        var applied = (await client.GetFromJsonAsync<AlertDraftView>($"/api/v1/alerts/{draft.AlertId}"))!;
+        applied.CriticalFields.Where(field => field.FieldId.StartsWith("assistance-situation-", StringComparison.Ordinal)
+            && !field.FieldId.EndsWith("-review", StringComparison.Ordinal)).Should().ContainSingle()
+            .Which.Should().Match<AlertFieldConfirmationView>(field => field.OriginalValue == value && field.Unit == unit && field.Status == "Unresolved");
+    }
     [Fact]
     public async Task ConfirmedAlertCannotGenerateOrApplyAssistance()
     {

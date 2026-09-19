@@ -49,7 +49,10 @@ export function AssistancePanel({ draft, disabled, onApplied, onBusy }: {
             const history = await Promise.all(([...(caps.speechTranscription ? ['Transcription' as const] : []), ...(caps.alertStructuringSuggestions ? ['Structuring' as const] : [])]).map(async (kind) => ({ kind, page: await api.getHistory(draft.alertId, kind) })));
             if (cancelled)
                 return;
-            setResults(history.flatMap(item => item.page.items));
+            setResults(current => {
+                const loaded = history.flatMap(item => item.page.items);
+                return [...loaded, ...current.filter(item => item.alertId === draft.alertId && !loaded.some(row => row.id === item.id))];
+            });
             setCursors(Object.fromEntries(history.map(item => [item.kind, item.page.nextCursor])));
         }).catch(() => { if (!cancelled)
             setStatus('Optional assistance history is unavailable. Continue with manual editing.'); });
@@ -102,7 +105,8 @@ export function AssistancePanel({ draft, disabled, onApplied, onBusy }: {
                 setUncertain(true);
                 setError('This request is still in progress. Retry the same request to check its result, or continue with manual editing.');
             }
-            else if (isAlertApiError(failure) && ((failure.status >= 400 && failure.status < 500 && failure.status !== 429) || failure.status === 503)) {
+            else if (isAlertApiError(failure) && ((failure.status >= 400 && failure.status < 500 && ![408, 429].includes(failure.status))
+                || (failure.status === 503 && ['provider-unavailable', 'provider-output-invalid'].includes(failure.code ?? '')))) {
                 pending.current = null;
                 setUncertain(false);
                 if (isAlertApiError(failure) && failure.status === 409) {

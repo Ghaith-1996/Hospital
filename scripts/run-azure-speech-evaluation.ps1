@@ -31,9 +31,9 @@ try {
     $result = Invoke-RestMethod -Uri "$base/api/v1/alerts/$($draft.alertId)/transcriptions" -Method Post -WebSession $session -ContentType 'audio/wav' -InFile $audioFile.FullName -TimeoutSec 35 -Headers @{
         'Idempotency-Key' = [Guid]::NewGuid().ToString('N'); 'X-Alert-Draft-Version' = '1'; 'X-Audio-Language-Hint' = 'en-CA'
     }
-    $expected = @([regex]::Matches($reference, '(?<![\p{L}\d])[-+]?\d+(?:[.,:/-]\d+)*') | ForEach-Object Value)
+    $expected = @([regex]::Matches($reference, '(?<![\p{L}\d.,+-])[-+]?(?:\d+(?:[.,:/-]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?') | ForEach-Object Value)
     $observed = [Collections.Generic.List[string]]::new()
-    [regex]::Matches($result.transcription.transcript, '(?<![\p{L}\d])[-+]?\d+(?:[.,:/-]\d+)*') | ForEach-Object { $observed.Add($_.Value) }
+    [regex]::Matches($result.transcription.transcript, '(?<![\p{L}\d.,+-])[-+]?(?:\d+(?:[.,:/-]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?') | ForEach-Object { $observed.Add($_.Value) }
     $exact = 0
     foreach ($value in $expected) { if ($observed.Remove($value)) { $exact++ } }
     @{ simulationOnly = $true; provider = 'AzureSpeech'; cases = 1; numberExactMatches = $exact; expectedNumbers = $expected.Count

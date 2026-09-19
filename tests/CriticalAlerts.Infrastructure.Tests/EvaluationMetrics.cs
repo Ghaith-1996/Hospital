@@ -1,7 +1,15 @@
+using System.Text.RegularExpressions;
+using CriticalAlerts.Application.Assistance;
+
 namespace CriticalAlerts.Infrastructure.Tests;
+
+internal sealed record EvaluationFact(string Path, string Text);
 
 internal static class EvaluationMetrics
 {
+    public static string[] NumericTokens(string value) => Regex.Matches(value, @"(?<![\p{L}\d.,+-])[-+]?(?:\d+(?:[.,:/-]\d+)*|[.,]\d+)(?:[eE][+-]?\d+)?", RegexOptions.CultureInvariant).Select(match => match.Value).ToArray();
+    public static int OmittedFacts(IEnumerable<EvaluationFact> expected, IEnumerable<SuggestedField> actual)
+        => expected.Count(fact => !actual.Any(field => !field.Ambiguous && field.Path == fact.Path && field.Value.Contains(fact.Text, StringComparison.Ordinal)));
     public static int WordErrors(string reference, string actual)
     {
         var expected = Words(reference); var observed = Words(actual);
