@@ -1,0 +1,30 @@
+# Observability architecture
+
+Status: Phase 10 design baseline; implementation and verification are tracked in the [plan](../superpowers/plans/2026-09-19-phase-10-audit-observability.md). The [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) defines audit roles, pagination, projection, logs, metrics, health, worker semantics, runbooks and restore boundaries.
+
+PostgreSQL remains authoritative for workflow and audit. The API provides scoped audit reads and minimal liveness/readiness. Worker dispatch and Phase 9 escalation retain exact human-confirmed snapshots, durable bounded recovery and independent delivery/responsibility state. Next.js reads these projections without browser persistence.
+
+Phase 10 uses local ILogger and System.Diagnostics.Metrics only. No external monitoring, exporter, collector, hospital policy, retention approval or production readiness is configured.
+
+## Proposed safe warning vocabulary
+Each row defines application guidance, never clinical interpretation. Exact durable query conditions and test evidence will be recorded with implementation.
+
+| Code | Condition | Safe message and next application action | Hospital fallback |
+|---|---|---|---|
+| ProviderUnavailable | Durable simulated provider-outage failure | Provider unavailable; alert remains recorded. Refresh durable delivery/outbox status. Do not create a duplicate. | Required when unresolved |
+| DispatchDelayed | Pending/processing dispatch overdue by documented DEMO observation window | Notification processing delayed; confirmed alert remains durable. Refresh before retrying. | Required if persistent |
+| DeliveryFailed | Durable delivery failure | Review failed attempt and bounded retry state; do not duplicate the alert. | Required when unresolved |
+| DirectoryStale | Existing directory freshness evidence is stale | Review freshness before another recipient action. | No automatic fallback |
+| DirectorySynchronizationFailed | Latest in-scope sync failure | Review safe sync status and valid source evidence before import. | Required if unresolved |
+| DatabaseUnavailable | Dependency read cannot complete | Saved status cannot be refreshed. Restore API/database availability and reload before another action. | Required if unresolved |
+| EscalationProcessingDelayed | Eligible scheduled/running evaluation overdue by DEMO window | Refresh confirmed DEMO escalation state; preserve exact recipients. | Required if persistent |
+| EscalationExhausted | Durable exhausted run without completed responsibility/lifecycle | Automatic steps exhausted. Review delivery and responsibility separately. | Required |
+
+All fallback routes are REQUIRES_HOSPITAL_DECISION. No contact, timing SLA, clinical severity or production threshold is invented. Failed reads retain the last known projection visibly marked stale; they do not fabricate current database facts.
+
+## Audit coverage source
+The existing Phase 9 producers are AlertDraftService, AlertReviewService, DirectoryImportService, OutboxDispatchProcessor, RecipientResponseService, AlertLifecycleService, EscalationScheduler, EscalationRunProcessor and EscalationOverrideService. Implementation will document exact action names from those producers and add audit.read; this inventory does not claim any new event already exists.
+
+## Production decisions
+Audit retention/export/legal hold/review audience, central logs/log retention/SIEM, exporter/thresholds, incident severity/ownership, provider/directory fallback, database RPO/RTO/backup retention/recovery authority: REQUIRES_HOSPITAL_DECISION. Simulation exercise timings are measurements only.
+

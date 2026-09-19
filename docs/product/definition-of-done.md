@@ -1,5 +1,17 @@
 # Phase Definition of Done
 
+## Phase 10 gate — pending
+
+The [Phase 10 design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) and [plan](../superpowers/plans/2026-09-19-phase-10-audit-observability.md) implement the owner's September 19 request on completed Phase 9.
+
+- [ ] Role-restricted, scoped, bounded audit API/UI; strict metadata projection; audited reads; PostgreSQL append-only enforcement.
+- [ ] Runtime sentinel and metric-tag tests; structured local observability; truthful non-disclosing health.
+- [ ] Safe actionable warnings preserving all Phase 9 state and unresolved hospital fallback.
+- [ ] Four repo-specific runbooks; actual pg_dump/pg_restore exercise with source protection and success/failure cleanup.
+- [ ] Complete backend/PostgreSQL/web/OpenAPI/security/dependency/browser/system/container/fresh-migration checks with exact results.
+- [ ] No protected telemetry, persistent browser state, invented policy, real providers or Phase 11.
+- [ ] Owner review and acceptance; implementation cannot self-approve.
+
 ## Phase 0: specification and repository rules
 
 Historical phase checklists record their original scope and verification dates, including the now-retired frontend prototype. They are not claims that those screens remain active. Current architecture is Phase 8.5; [phase approval evidence](phase-approval-evidence.md) distinguishes technical closure, continuation/publication authorization, tags, and final acceptance. No blanket Phase 0–8 approval is claimed.

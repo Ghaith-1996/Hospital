@@ -4,6 +4,10 @@ Status: Not approved. Every unchecked item requires evidence and named human app
 
 This checklist prevents a simulation baseline from being mistaken for production authorization. The project must not launch because software tests pass alone.
 
+## Phase 10 production decisions remain open
+
+Every item remains REQUIRES_HOSPITAL_DECISION: audit retention; audit export/legal hold; production audit reviewers; central log destination; log retention; SIEM integration; metric exporter; alert thresholds; incident severity; support/on-call ownership; provider outage fallback route; directory outage fallback; database RPO; database RTO; backup retention; disaster recovery authority. Local logging/metrics and measured fictional restore durations do not close these gates.
+
 ## Intended use and workflow
 
 - [ ] Product intended use is written and legally/clinically reviewed: `REQUIRES_HOSPITAL_DECISION`.

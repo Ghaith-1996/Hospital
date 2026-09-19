@@ -2,7 +2,11 @@
 
 This file governs all future work in this repository. Read it and the relevant `docs/` files before changing anything.
 
-## Current phase
+## Current phase — Phase 10 authorized
+
+The owner explicitly authorized Phase 10 on September 19, 2026 from completed Phase 9 commit `44f18535ca202333ea526046f50531331cc3d721`. This supersedes historical Phase 9 stop instructions below for Phase 10 only, without inferring earlier final acceptance. Follow the [Phase 10 design](docs/superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) and [plan](docs/superpowers/plans/2026-09-19-phase-10-audit-observability.md): scoped audit, append-only storage, local structured logs/metrics, truthful health, safe warnings, runbooks and real fictional PostgreSQL restore verification. Use TDD and focused commits. No external exporter, real provider, hospital integration, invented production decisions or Phase 11. Stop for owner review.
+
+## Historical Phase 9 baseline
 
 The active phase is Phase 9 simulation-only escalation, authorized by the project owner's supplied Phase 9 plan and instruction to implement it on 2026-09-22. See `docs/superpowers/specs/2026-09-22-phase-9-escalation-design.md`. Start from the Phase 8.5 reintegration at `9e312b2`. PostgreSQL owns saved workflow state and UTC scheduling; the existing worker activates only the exact future DEMO recipients reviewed and confirmed by the operator, through the transactional outbox. Backend development authentication owns identity and organization. Browser memory holds only unsaved edits and transient presentation state; do not restore persistent browser workflow storage or a parallel frontend state machine. Preserve the API, historical migrations, identity, data-protection, lifecycle, and concurrency safeguards. The repository must remain public; do not change repository visibility/settings. Do not add real providers, external callbacks, production identity, hospital integration, AI, real data, or Phase 10 behavior. Production timing, authority, lifecycle, responsibility, escalation, and fallback policy remain `REQUIRES_HOSPITAL_DECISION`.
 

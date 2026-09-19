@@ -2,6 +2,10 @@
 
 Status: Phase 8 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
 
+## Phase 10 allowlist extension
+
+The [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) narrows historical logging allowances below: exclude display names, provider references, organization/actor identifiers, raw exceptions, URLs/query strings and arbitrary payloads. Use fixed templates, finite technical vocabularies, bounded counts/durations and effective opaque correlation IDs. Metrics tag only operation/channel/outcome/failure_category/response_type, never identifiers. Audit has a separate authorized projection. Framework diagnostics must not bypass these rules. Runtime sentinel and MeterListener verification is mandatory. Telemetry stays local; production destination/access/retention/exporter/SIEM remain REQUIRES_HOSPITAL_DECISION. Implementation pending.
+
 ## Purpose
 
 Logs should explain service health, security events, workflow transitions, and failure categories without duplicating clinical content or contact data. Audit events answer who did what to which resource and when; application logs answer how the system behaved.

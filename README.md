@@ -4,7 +4,11 @@ Status: Phase 9 adds simulation-only escalation to the connected frontend and ba
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 provides a fictional practitioner directory and CSV adapter. Phases 5–6 add protected drafting, critical-field confirmation, exact recipient review and idempotent dispatch approval. Phases 7–8 add simulated delivery, responses, responsibility and lifecycle controls. Phase 9 binds approval to the exact DEMO escalation policy, steps and future backup recipients, activates only those snapshots through the existing outbox, and adds durable Pause/Resume and a safe live timeline. Real providers, hospital connectors, SCIM, Graph, FHIR, AI, Entra SSO, production identity, external callbacks and Phase 10 remain out of scope.
+Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Phase 8 adds simulation practitioner responses, call-unit requests, operator resolve/cancel actions, a safe manual-fallback placeholder, and a read-only operator status surface. Real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, external callbacks, production escalation, and Phase 11 remain out of scope.
+
+## Phase 10 work in progress
+
+Phase 10 adds audit and observability to the current Phase 9 simulation. Its [design](docs/superpowers/specs/2026-09-19-phase-10-audit-observability-design.md), [plan](docs/superpowers/plans/2026-09-19-phase-10-audit-observability.md) and [observability architecture](docs/architecture/observability.md) define the extension. No production monitoring, retention approval or hospital policy is implied.
 
 ## Connected simulation frontend
 

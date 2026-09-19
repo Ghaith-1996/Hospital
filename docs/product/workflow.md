@@ -6,6 +6,10 @@ Phase 9 review explicitly lists the policy/version, DEMO delay and exact future 
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 
+## Phase 10 authorized extension
+
+The September 19, 2026 owner request supersedes the historical no-Phase-10 boundary below. The [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) extends completed Phase 9 with authorized audit review and safe operational warnings. Preserve exact confirmation, independent delivery/responsibility and durable escalation. Failures provide application recovery guidance without duplicate alerts, replacement recipients or invented fallback. No browser persistence, clinical interpretation or real provider. Verification is pending.
+
 ## Connected frontend surface
 
 Phase 8.5 retains the visual redesign and connects operator, practitioner, directory, and live-status screens to the Phase 0–8 backend. PostgreSQL owns saved content and workflow state; server development authentication owns identity and access. The local prototype store and its independent response engine are retired.
