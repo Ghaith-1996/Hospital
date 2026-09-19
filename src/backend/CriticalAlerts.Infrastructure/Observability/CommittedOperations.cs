@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace CriticalAlerts.Infrastructure.Observability;
 
 // Scoped to one DbContext. Only allowlisted operation names and opaque correlations survive capture.
-public sealed class CommittedOperations(ILogger logger)
+public sealed class CommittedOperations(ILogger logger, PlatformMetrics? metrics = null)
 {
     private readonly Dictionary<Guid, List<(string Action, string Correlation)>> pending = [];
     private List<(string Action, string Correlation)> saving = [];
@@ -41,7 +41,10 @@ public sealed class CommittedOperations(ILogger logger)
     private void Emit(IEnumerable<(string Action, string Correlation)> values)
     {
         foreach (var value in values)
+        {
             CriticalAlertsOperationalLog.Completed(logger, value.Action, value.Correlation);
+            metrics?.Record(value.Action);
+        }
     }
 }
 

@@ -23,7 +23,8 @@ public static class PersistenceServiceCollectionExtensions
         string? connectionString,
         string? dataProtectionKey = null)
     {
-        services.AddScoped(provider => new CommittedOperations(provider.GetRequiredService<ILoggerFactory>().CreateLogger(CriticalAlertsOperationalLog.Category)));
+        services.AddSingleton<PlatformMetrics>();
+        services.AddScoped(provider => new CommittedOperations(provider.GetRequiredService<ILoggerFactory>().CreateLogger(CriticalAlertsOperationalLog.Category), provider.GetRequiredService<PlatformMetrics>()));
         services.AddScoped<OperationSaveInterceptor>();
         services.AddScoped<OperationTransactionInterceptor>();
         services.AddDbContext<CriticalAlertsDbContext>((provider, options) => options.UseNpgsql(connectionString)

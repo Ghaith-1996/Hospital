@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Observability;
@@ -18,7 +19,16 @@ public sealed class OperationalLoggingTests(MigratedPostgresFixture fixture)
     public async Task OnlyCommittedAuditOperationsEmitAndMetadataNeverReachesLogger(bool rollback)
     {
         var capture = new Capture();
-        var observer = new CommittedOperations(capture);
+        using var metrics = new PlatformMetrics();
+        var measurements = new List<long>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, target) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter)) target.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) => measurements.Add(value));
+        listener.Start();
+        var observer = new CommittedOperations(capture, metrics);
         await using var db = new CriticalAlertsDbContext(new DbContextOptionsBuilder<CriticalAlertsDbContext>()
             .UseNpgsql(fixture.ConnectionString).AddInterceptors(new OperationSaveInterceptor(observer), new OperationTransactionInterceptor(observer)).Options);
         await using var transaction = await db.Database.BeginTransactionAsync();
@@ -31,8 +41,11 @@ public sealed class OperationalLoggingTests(MigratedPostgresFixture fixture)
                 System.Text.Json.JsonSerializer.Serialize(new { message = sentinel, channel = sentinel }), DateTimeOffset.UtcNow));
         await db.SaveChangesAsync();
         capture.Entries.Should().BeEmpty();
+        measurements.Should().BeEmpty();
         if (rollback) await transaction.RollbackAsync(); else await transaction.CommitAsync();
         capture.Entries.Count.Should().Be(rollback ? 0 : 8);
+        measurements.Count.Should().Be(rollback ? 0 : 7);
+        measurements.Should().OnlyContain(value => value == 1);
         string.Join(" ", capture.Entries).Contains(sentinel, StringComparison.Ordinal).Should().BeFalse();
         if (!rollback) string.Join(" ", capture.Entries).Should().Contain(correlation);
     }
