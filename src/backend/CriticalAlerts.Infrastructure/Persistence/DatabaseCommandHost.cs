@@ -7,6 +7,23 @@ public static class DatabaseCommandHost
     public static async Task<int> RunAsync(string[] args)
     {
         var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (args is ["database", "validate-restore"])
+        {
+            try
+            {
+                var connection = ResolveConnectionString();
+                var target = new Npgsql.NpgsqlConnectionStringBuilder(connection);
+                RestoreValidation.EnsureSafeTarget(environment, target.Host, target.Database);
+                var result = await RestoreValidation.ValidateAsync(connection, environment!);
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(result));
+                return 0;
+            }
+            catch (Exception)
+            {
+                Console.Error.WriteLine("Restore validation failed. Check the simulation environment, schema, and relational invariants.");
+                return 1;
+            }
+        }
         if (string.IsNullOrWhiteSpace(environment))
         {
             environment = "Development";

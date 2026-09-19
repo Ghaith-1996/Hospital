@@ -17,9 +17,9 @@ using Microsoft.AspNetCore.OpenApi;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-if (args is ["database", "migrate"] or ["database", "reset-demo", "--confirm-demo-reset"])
+if (args is ["database", "migrate"] or ["database", "reset-demo", "--confirm-demo-reset"] or ["database", "validate-restore"])
 {
-    await DatabaseCommandHost.RunAsync(args);
+    Environment.ExitCode = await DatabaseCommandHost.RunAsync(args);
     return;
 }
 

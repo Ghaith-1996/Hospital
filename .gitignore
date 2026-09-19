@@ -45,3 +45,8 @@ postgres-data/
 *.swp
 Thumbs.db
 .DS_Store
+
+# Phase 10 operational artifacts (never commit)
+*.dump
+*.backup
+*.log
