@@ -35,6 +35,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddSingleton<CsvDirectorySourceAdapter>();
         services.AddScoped<IDirectoryImportService, DirectoryImportService>();
         services.AddScoped<IDirectorySearchService, DirectorySearchService>();
+        services.AddScoped<IDirectorySyncStatusService, DirectorySyncStatusService>();
         services.AddScoped<IDirectorySelectionResolver, DirectorySelectionResolver>();
         services.AddScoped<IAlertDraftService, AlertDraftService>();
         services.AddScoped<IAlertReviewService, AlertReviewService>();

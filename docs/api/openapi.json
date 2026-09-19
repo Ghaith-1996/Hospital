@@ -2409,6 +2409,384 @@
           "urgencyLabel"
         ],
         "type": "object"
+      },
+      "AlertLiveEscalationEventView": {
+        "properties": {
+          "alertVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "failureCategory": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "occurredAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "overrideReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "planRevision": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "recipientSelectionId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stepSequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "alertVersion",
+          "eventId",
+          "eventType",
+          "failureCategory",
+          "occurredAtUtc",
+          "overrideReason",
+          "planRevision",
+          "policyId",
+          "policyVersion",
+          "recipientSelectionId",
+          "runId",
+          "stepSequence"
+        ],
+        "type": "object"
+      },
+      "AlertLiveRecipientSelectionView": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "escalationPlanRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationPolicyId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationPolicyVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationRunId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationStepSequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "null",
+              "string"
+            ]
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "selectedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "selectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "selectionSource": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "escalationPlanRevision",
+          "escalationPolicyId",
+          "escalationPolicyVersion",
+          "escalationRunId",
+          "escalationStepSequence",
+          "practitionerRoleId",
+          "selectedAtUtc",
+          "selectionId",
+          "selectionSource"
+        ],
+        "type": "object"
+      },
+      "AlertReviewEscalationPlan": {
+        "properties": {
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationStepSnapshot"
+            },
+            "type": "array"
+          },
+          "stopCondition": {
+            "type": "string"
+          },
+          "triggerCondition": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "policyId",
+          "policyVersion",
+          "revision",
+          "steps",
+          "stopCondition",
+          "triggerCondition"
+        ],
+        "type": "object"
+      },
+      "DirectorySyncStatus": {
+        "properties": {
+          "endedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "insertedCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "rejectedCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "sourceSystem": {
+            "type": "string"
+          },
+          "startedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedCount": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "endedAtUtc",
+          "insertedCount",
+          "rejectedCount",
+          "sourceSystem",
+          "startedAtUtc",
+          "status",
+          "updatedCount"
+        ],
+        "type": "object"
+      },
+      "EscalationOverrideResult": {
+        "properties": {
+          "alertId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "confirmedVersion": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "escalationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurredAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "confirmedVersion",
+          "escalationRunId",
+          "occurredAtUtc",
+          "reasonCode",
+          "replayed",
+          "state"
+        ],
+        "type": "object"
+      },
+      "EscalationRecipientEvidence": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "directoryRevision": {
+            "type": "string"
+          },
+          "directorySourceUpdatedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "onCallSnapshot": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "roleTitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "directoryRevision",
+          "directorySourceUpdatedAtUtc",
+          "displayName",
+          "onCallSnapshot",
+          "practitionerId",
+          "practitionerRoleId",
+          "roleTitle"
+        ],
+        "type": "object"
+      },
+      "EscalationStepSnapshot": {
+        "properties": {
+          "delaySeconds": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "maxAttempts": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationRecipientEvidence"
+            },
+            "type": "array"
+          },
+          "recipientSource": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "delaySeconds",
+          "maxAttempts",
+          "recipients",
+          "recipientSource",
+          "sequence"
+        ],
+        "type": "object"
       }
     }
   },
@@ -5054,6 +5432,48 @@
         },
         "tags": [
           "RecipientResponseEndpoints"
+        ]
+      }
+    },
+    "/api/v1/directory/sync-status": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySyncStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        },
+        "tags": [
+          "CriticalAlerts.Api"
         ]
       }
     }

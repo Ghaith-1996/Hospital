@@ -13,6 +13,12 @@ internal static class DirectoryEndpoints
             .RequireRateLimiting("api");
         directory.MapGet("/practitioners", Search).RequireAuthorization(AuthorizationPolicies.DirectoryReader)
             .Produces<IReadOnlyList<DirectoryPractitionerListItem>>().WithApiErrors(400);
+        directory.MapGet("/sync-status", async (HttpContext context, IDirectorySyncStatusService status, CancellationToken cancellationToken) =>
+        {
+            if (!TryGetActor(context.User, out _, out var organizationId)) return Results.Unauthorized();
+            context.Response.Headers.CacheControl = "no-store";
+            return Results.Ok(await status.GetAsync(organizationId, cancellationToken));
+        }).RequireAuthorization(AuthorizationPolicies.DirectoryReader).Produces<DirectorySyncStatus>().WithApiErrors();
         directory.MapPost("/imports/preview", Preview).WithDirectoryImportForm(apply: false)
             .RequireAuthorization(AuthorizationPolicies.DirectoryAdministrator)
             .DisableAntiforgery()
