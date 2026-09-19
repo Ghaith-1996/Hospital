@@ -74,3 +74,8 @@ Phase 1 may create empty project shells, health endpoints, local PostgreSQL comp
 Next.js proxies `/api/v1` to the configured internal API address. This destination is compiled at web build time; the container default is `http://api:8080`. Development identity selection posts only a server-listed handle and reloads the server principal; it cannot grant a role from browser state. The authorized simulation location endpoint supplies site/department identifiers. Draft, directory, review, inbox, live-status, and lifecycle screens use existing Phase 4–8 APIs.
 
 The system harness starts isolated PostgreSQL 18, migrations/demo reset, API, worker, production web and Chromium, then tears down its resources. No real provider or hospital connection is needed. The repository remains public and all test content is fictional. Missing production decisions remain `REQUIRES_HOSPITAL_DECISION`.
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and verification are in progress, not complete. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
+

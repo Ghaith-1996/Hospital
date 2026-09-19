@@ -99,3 +99,8 @@ Phase 8 response and lifecycle audit metadata is limited to opaque organization,
 
 Log access, centralized storage, cross-border transfer, retention, deletion, legal hold, SIEM integration, alert thresholds, and incident-response ownership are `REQUIRES_HOSPITAL_DECISION`. Until approved, keep simulation logs local, minimize retention, and do not send them to external services.
 
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and verification are in progress, not complete. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
+

@@ -336,3 +336,7 @@ The earlier frontend prototype replaced connected screens with a local store. Ph
 - [ ] Project owner accepts the integrated Phase 0–8 simulation baseline.
 
 No Phase 9, real provider, hospital connection, production identity or real data is authorized. Missing hospital decisions remain `REQUIRES_HOSPITAL_DECISION`. Repository visibility/settings remain unchanged; the direct request requires a public repository.
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit `da7f444`. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and verification are in progress, not complete. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain `REQUIRES_HOSPITAL_DECISION`. No Phase 12.
