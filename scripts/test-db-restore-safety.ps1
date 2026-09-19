@@ -23,10 +23,17 @@ try {
     if ($ExerciseCleanup) {
         foreach ($point in @("AfterBackup", "AfterRestore")) {
             $rejected = $false
-            try { & $scriptPath -ConfirmRestoreTest -TestFailurePoint $point *> $null } catch { $rejected = $true }
+            $evidence = [System.Collections.Generic.List[string]]::new()
+            try { & $scriptPath -ConfirmRestoreTest -TestFailurePoint $point | ForEach-Object { $evidence.Add([string]$_) } } catch { $rejected = $true }
             if (-not $rejected) { throw "Injected restore failure did not fail." }
+            $requiredStage = if ($point -eq "AfterBackup") { "RESTORE_TEST backup_created=true" } else { "RESTORE_TEST audit_append_only_verified=true" }
+            if (-not $evidence.Contains($requiredStage)) { throw "Restore failure test did not reach its intended injection stage." }
+            if (-not $evidence.Contains("RESTORE_TEST temporary_database_removed=true temporary_dump_removed=true owned_container_removed=true")) {
+                throw "Restore failure cleanup evidence is incomplete."
+            }
             $remaining = docker ps --all --quiet --filter "label=criticalalerts.restore-test=true"
             if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($remaining)) { throw "Restore failure cleanup left a container." }
+            Write-Output "RESTORE_FAILURE_TEST stage=$point reached=true cleanup_verified=true"
         }
     }
     Write-Output "Restore safety guards passed; failure cleanup exercised=$([bool]$ExerciseCleanup)."
