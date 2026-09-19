@@ -2,9 +2,11 @@
 
 This file governs all future work in this repository. Read it and the relevant `docs/` files before changing anything.
 
-## Current phase — Phase 10 authorized
+## Current phase — Phase 10 technically verified; owner review pending
 
 The owner explicitly authorized Phase 10 on September 19, 2026 from completed Phase 9 commit `44f18535ca202333ea526046f50531331cc3d721`. This supersedes historical Phase 9 stop instructions below for Phase 10 only, without inferring earlier final acceptance. Follow the [Phase 10 design](docs/superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) and [plan](docs/superpowers/plans/2026-09-19-phase-10-audit-observability.md): scoped audit, append-only storage, local structured logs/metrics, truthful health, safe warnings, runbooks and real fictional PostgreSQL restore verification. Use TDD and focused commits. No external exporter, real provider, hospital integration, invented production decisions or Phase 11. Stop for owner review.
+
+The [Phase 10 review package](docs/superpowers/phase10-verification.md) records the passing complete local gate: 589 backend tests, 58 web tests, 13 connected scenarios, standalone browser, real restore/cleanup and all container checks. Final owner acceptance, publication, merge and tag remain separate. Do not begin Phase 11 or add speech/AI interfaces without new explicit authorization.
 
 ## Historical Phase 9 baseline
 

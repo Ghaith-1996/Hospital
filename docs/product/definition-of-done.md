@@ -1,15 +1,15 @@
 # Phase Definition of Done
 
-## Phase 10 gate — pending
+## Phase 10 technical gate — passed; owner review pending
 
 The [Phase 10 design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) and [plan](../superpowers/plans/2026-09-19-phase-10-audit-observability.md) implement the owner's September 19 request on completed Phase 9.
 
-- [ ] Role-restricted, scoped, bounded audit API/UI; strict metadata projection; audited reads; PostgreSQL append-only enforcement.
-- [ ] Runtime sentinel and metric-tag tests; structured local observability; truthful non-disclosing health.
-- [ ] Safe actionable warnings preserving all Phase 9 state and unresolved hospital fallback.
-- [ ] Four repo-specific runbooks; actual pg_dump/pg_restore exercise with source protection and success/failure cleanup.
-- [ ] Complete backend/PostgreSQL/web/OpenAPI/security/dependency/browser/system/container/fresh-migration checks with exact results.
-- [ ] No protected telemetry, persistent browser state, invented policy, real providers or Phase 11.
+- [x] Role-restricted, scoped, bounded audit API/UI; strict metadata projection; audited reads; PostgreSQL append-only enforcement.
+- [x] Runtime sentinel and metric-tag tests; structured local observability; truthful non-disclosing health.
+- [x] Safe actionable warnings preserving all Phase 9 state and unresolved hospital fallback.
+- [x] Four repo-specific runbooks; actual pg_dump/pg_restore exercise with source protection and success/failure cleanup.
+- [x] Complete backend/PostgreSQL/web/OpenAPI/security/dependency/browser/system/container/fresh-migration checks recorded in the [verification package](../superpowers/phase10-verification.md).
+- [x] No protected telemetry, persistent browser state, invented policy, or real providers. Phase 11 AI assistance is governed by its separate explicit authorization and safety boundary.
 - [ ] Owner review and acceptance; implementation cannot self-approve.
 
 ## Phase 0: specification and repository rules
