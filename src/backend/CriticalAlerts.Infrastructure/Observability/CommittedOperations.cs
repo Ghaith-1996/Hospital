@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CriticalAlerts.Infrastructure.Observability;
 
-// Scoped to one DbContext. Only allowlisted operation names and opaque correlations survive capture.
+// Scoped to one DbContext. The output boundaries validate captured operations/correlations at emission.
 public sealed class CommittedOperations(ILogger logger, PlatformMetrics? metrics = null)
 {
     private readonly Dictionary<Guid, List<(string Action, string Correlation)>> pending = [];

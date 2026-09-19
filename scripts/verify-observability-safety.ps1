@@ -5,8 +5,8 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $log = Join-Path ([IO.Path]::GetTempPath()) ("critical-alerts-observability-" + [Guid]::NewGuid().ToString("N") + ".log")
 try {
     $checks = @(
-        @("tests/CriticalAlerts.Api.IntegrationTests", "FullyQualifiedName~Observability|FullyQualifiedName~AuditQueryTests|FullyQualifiedName~HealthEndpointsTests|FullyQualifiedName~OperationalWarningUses|FullyQualifiedName~LatestSyncStatus"),
-        @("tests/CriticalAlerts.Infrastructure.Tests", "FullyQualifiedName~OperationalLoggingTests|FullyQualifiedName~PlatformMetricsTests|FullyQualifiedName~AuditStorageTests")
+        @("tests/CriticalAlerts.Api.IntegrationTests", "FullyQualifiedName~Observability|FullyQualifiedName~AuditQueryTests|FullyQualifiedName~HealthEndpointsTests|FullyQualifiedName~OperationalWarning|FullyQualifiedName~LatestSyncStatus"),
+        @("tests/CriticalAlerts.Infrastructure.Tests", "FullyQualifiedName~OperationalLoggingTests|FullyQualifiedName~PlatformMetricsTests|FullyQualifiedName~AuditStorageTests|FullyQualifiedName~OperationalWarningProjectionTests")
     )
     foreach ($check in $checks) {
         & dotnet test (Join-Path $repositoryRoot $check[0]) --configuration Release --no-restore --nologo --filter $check[1] *> $log

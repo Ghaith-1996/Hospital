@@ -189,14 +189,15 @@ public sealed class AlertLiveQueryService(
 
     private static string? SafeFailureCategory(string value)
     {
-        if (string.IsNullOrEmpty(value))
+        if (string.IsNullOrEmpty(value)) return null;
+        return value switch
         {
-            return null;
-        }
-
-        return value.Length <= 64
-            && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_')
-                ? value
-                : "delivery-failed";
+            "provider-unavailable" or "provider-failed" or "provider-no-result" or "sms-failure" or "voice-no-answer"
+                or "simulation-provider-rejected" or "simulation-provider-outage" or "delivery-failed" or "delivery-pending" or "delivery-retry"
+                or "practitioner-missing" or "practitioner-inactive" or "role-invalid" or "channel-not-allowed"
+                or "channel-unavailable" or "endpoint-unavailable" or "dispatch-validation" or "domain-validation"
+                or "worker-error" => value,
+            _ => "delivery-failed",
+        };
     }
 }

@@ -1,10 +1,10 @@
 # Logging Policy
 
-Status: Phase 8 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
+Status: Phase 10 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
 
 ## Phase 10 allowlist extension
 
-The [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) narrows historical logging allowances below: exclude display names, provider references, organization/actor identifiers, raw exceptions, URLs/query strings and arbitrary payloads. Use fixed templates, finite technical vocabularies, bounded counts/durations and effective opaque correlation IDs. Metrics tag only operation/channel/outcome/failure_category/response_type, never identifiers. Audit has a separate authorized projection. Framework diagnostics must not bypass these rules. Runtime sentinel and MeterListener verification is mandatory. Telemetry stays local; production destination/access/retention/exporter/SIEM remain REQUIRES_HOSPITAL_DECISION. Implementation pending.
+The [implemented boundary](../architecture/observability.md) supersedes historical logging allowances below: exclude display names, provider references, organization/actor/resource identifiers, raw exceptions, URLs/query strings and arbitrary payloads. Only source-generated CriticalAlerts.Operations events are enabled. Their fields are finite operation/state, status code and effective opaque correlation ID. The metric tag is operation only, from a closed mapping; no identifiers. Audit has a separate authorized projection. Framework diagnostics are suppressed. Runtime sentinel and MeterListener verification is mandatory. Telemetry stays local; production destination/access/retention/exporter/SIEM remain REQUIRES_HOSPITAL_DECISION.
 
 ## Purpose
 

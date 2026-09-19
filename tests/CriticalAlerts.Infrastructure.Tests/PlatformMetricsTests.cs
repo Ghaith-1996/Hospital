@@ -10,7 +10,7 @@ public sealed class PlatformMetricsTests
     [Theory]
     [InlineData("alert.confirmed", "criticalalerts.alert.confirmations")]
     [InlineData("dispatch.completed", "criticalalerts.outbox.processed")]
-    [InlineData("dispatch.failed", "criticalalerts.outbox.failed")]
+    [InlineData("dispatch.failed", "criticalalerts.dispatch.failures")]
     [InlineData("dispatch.retry-scheduled", "criticalalerts.dispatch.retries")]
     [InlineData("dispatch.delivery-event", "criticalalerts.delivery.events")]
     [InlineData("recipient.response.accepted", "criticalalerts.responses")]

@@ -1,66 +1,96 @@
 # Observability architecture
 
-Status: Phase 10 design baseline; implementation and verification are tracked in the [plan](../superpowers/plans/2026-09-19-phase-10-audit-observability.md). The [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) defines audit roles, pagination, projection, logs, metrics, health, worker semantics, runbooks and restore boundaries.
+Phase 10 extends completed Phase 9 commit `44f18535ca202333ea526046f50531331cc3d721`. PostgreSQL remains authoritative for workflow and audit. Next.js reads scoped projections without browser persistence. Dispatch and escalation retain human-confirmed snapshots, bounded recovery and independent delivery/responsibility state. See the [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md), [implementation record](../superpowers/plans/2026-09-19-phase-10-audit-observability.md), and [verification package](../superpowers/phase10-verification.md).
 
-PostgreSQL remains authoritative for workflow and audit. The API provides scoped audit reads and minimal liveness/readiness. Worker dispatch and Phase 9 escalation retain exact human-confirmed snapshots, durable bounded recovery and independent delivery/responsibility state. Next.js reads these projections without browser persistence.
+Only local ILogger, System.Diagnostics.Metrics, ASP.NET Core health checks and PostgreSQL audit storage are used. No external exporter, collector or production monitoring is configured.
 
-Phase 10 uses local ILogger and System.Diagnostics.Metrics only. No external monitoring, exporter, collector, hospital policy, retention approval or production readiness is configured.
+## Audit access and projection
 
-## Proposed safe warning vocabulary
-Each row defines application guidance, never clinical interpretation. Exact durable query conditions and test evidence will be recorded with implementation.
+GET `/api/v1/admin/audit` requires `AuditReader`: Auditor or SystemAdministrator. Organization and actor come from authenticated server claims. Other roles are denied; frontend navigation is only a convenience. The fictional `sim-auditor-avery` identity has Auditor only and lands on `/admin/audit`.
 
-| Code | Condition | Safe message and next application action | Hospital fallback |
-|---|---|---|---|
-| ProviderUnavailable | Durable simulated provider-outage failure | Provider unavailable; alert remains recorded. Refresh durable delivery/outbox status. Do not create a duplicate. | Required when unresolved |
-| DispatchDelayed | Pending/processing dispatch overdue by documented DEMO observation window | Notification processing delayed; confirmed alert remains durable. Refresh before retrying. | Required if persistent |
-| DeliveryFailed | Durable delivery failure | Review failed attempt and bounded retry state; do not duplicate the alert. | Required when unresolved |
-| DirectoryStale | Existing directory freshness evidence is stale | Review freshness before another recipient action. | No automatic fallback |
-| DirectorySynchronizationFailed | Latest in-scope sync failure | Review safe sync status and valid source evidence before import. | Required if unresolved |
-| DatabaseUnavailable | Dependency read cannot complete | Saved status cannot be refreshed. Restore API/database availability and reload before another action. | Required if unresolved |
-| EscalationProcessingDelayed | Eligible scheduled/running evaluation overdue by DEMO window | Refresh confirmed DEMO escalation state; preserve exact recipients. | Required if persistent |
-| EscalationExhausted | Durable exhausted run without completed responsibility/lifecycle | Automatic steps exhausted. Review delivery and responsibility separately. | Required |
+Queries accept UTC inclusive from/exclusive to, exact finite action/outcome/resource-type, opaque correlation ID, cursor and page size. Unknown or repeated parameters fail with safe RFC 7807. Default page size is 50, maximum 100. Ordering is occurred-at descending then UUID descending. The cursor encodes only timestamp ticks and audit UUID; PostgreSQL performs tuple comparison. Each request reads at most pageSize+1 and returns at most pageSize events. There is no caller organization, SQL, sort or arbitrary metadata query.
 
-All fallback routes are REQUIRES_HOSPITAL_DECISION. No contact, timing SLA, clinical severity or production threshold is invented. Failed reads retain the last known projection visibly marked stale; they do not fabricate current database facts.
+AuditEventView exposes opaque event/resource/actor identifiers, fixed action/resource/outcome/actor vocabularies, safe correlation and UTC time. The projector never trusts SanitizedMetadata by name. Metadata has an 8192-character bound, bounded JSON depth, duplicate-key rejection, bounded integer counts, simulationOnly boolean, finite channel/response strings and filter-name arrays. Unexpected keys, nested objects, arbitrary reason/policy text and malformed values are omitted. Unknown top-level vocabulary becomes unknown; unsafe legacy correlation becomes null. The browser independently validates the contract and displays fixed errors.
 
-## Implemented application projection
+Successful reads append `audit.read` containing only pageSize, filter names and resultCount, after reading the requested page. Filter values are excluded. Failure to persist access returns safe 503. Reads disable caching and do not recursively query their own access event. OpenAPI declares 200/400/401/403/429/503. Responses and problems carry the effective correlation header.
 
-The application Audit module now defines a default 50/maximum 100 query, UTC inclusive lower/exclusive upper bounds, finite exact filters, a timestamp/UUID-only cursor, and explicit AuditEventView projection. Metadata is limited to bounded integer counts, simulationOnly boolean, finite channel/response values and filter-name arrays. Malformed, oversized, duplicate-key and unsupported nested data fail closed. Arbitrary policy/reason strings are omitted. Unknown top-level action/resource/outcome/actor strings become unknown; unsafe legacy correlation strings become null. Opaque actor/resource IDs remain available in the contract for the future authorized endpoint. Unit verification: 23 focused cases; API/storage integration is still pending.
+## Append-only storage
 
-## Audit API
+Additive migration `20260919150045_Phase10AuditProtection` installs a statement trigger rejecting UPDATE, DELETE and TRUNCATE using constant SQLSTATE 23514. INSERT remains functional, including under a restricted non-login role with table DML grants. There is no runtime bypass. The migration Down explicitly drops the trigger/function; schema-owner authority is outside ordinary application DML. Production recovery authority remains REQUIRES_HOSPITAL_DECISION. No retention deletion is implemented.
 
-GET `/api/v1/admin/audit` now requires AuditReader (Auditor or SystemAdministrator) and derives organization/actor from authenticated claims. It rejects unknown or repeated parameters; UTC filters use inclusive from/exclusive to; exact action/outcome/resource/correlation filters compose with PostgreSQL timestamp/UUID cursor comparison. Every page reads at most pageSize+1, returns at most 100 events, disables caching, then appends audit.read with pageSize, filter names and resultCount. Failed audit persistence yields safe 503 rather than an unaudited success. No recursion or raw query logging is added. Invalid query uses a constant RFC 7807 400 with the effective correlation ID. Runtime-generated OpenAPI declares 200/400/401/403/429/503. Verified: 21 focused PostgreSQL/API cases and 190 API regression tests. UI, database mutation protection and runtime log hardening remain separate pending slices.
+The former organization/time index becomes organization/time/ID. Organization/action/time/ID, organization/resource-type/time/ID and organization/correlation/time/ID indexes match implemented filters and stable traversal. PostgreSQL scans these B-trees backward. No unused resource-ID filter/index is introduced. Historical migrations are unchanged.
 
-## Append-only PostgreSQL storage
+## Implemented audit coverage
 
-Migration `20260919150045_Phase10AuditProtection` installs a statement trigger rejecting UPDATE/DELETE/TRUNCATE with constant SQLSTATE 23514 and no row contents. INSERT remains permitted, including with a non-login restricted role granted table DML. There is no runtime escape setting. Administrative schema rollback explicitly drops the trigger/function; only schema authority can perform that operation, and production recovery authority remains REQUIRES_HOSPITAL_DECISION. Empty-database pg_restore can insert before restoring post-data triggers; no retention deletion is implemented.
+These are exact persisted action names, not a proposed future inventory. Existing producers remain authoritative; Phase 10 adds audit.read.
 
-The prior organization/time index is replaced by organization/time/ID. Additional organization/action/time/ID, organization/resource-type/time/ID and organization/correlation/time/ID indexes match implemented exact filters plus stable traversal. PostgreSQL can scan each B-tree backward for descending pages. No unimplemented resource-ID query index is added. Verified: five focused storage cases (RED then GREEN), full infrastructure 180/180; fresh test databases apply all migrations.
+| Workflow | Persisted actions |
+| --- | --- |
+| Draft creation/edit | `alert.draft.created`, `alert.draft.updated` |
+| Critical field confirmation | `alert.critical-field.confirmed` |
+| Submission for review | `alert.draft.submitted` |
+| Approved message and recipient review | `alert.approved-message.updated`, `alert.recipients.replaced` |
+| Human dispatch confirmation | `alert.confirmed` |
+| Dispatch and bounded recovery | `dispatch.completed`, `dispatch.failed`, `dispatch.retry-scheduled`, `dispatch.suppressed` |
+| Normalized delivery events | `dispatch.delivery-event` |
+| Secure message opened | `recipient.opened` |
+| Recipient responses | `recipient.response.acknowledged`, `recipient.response.accepted`, `recipient.response.declined`, `recipient.response.unavailable`, `recipient.response.callunitrequested` |
+| Operator lifecycle | `alert.resolved`, `alert.cancelled` |
+| Valid directory import | `directory.import.applied` |
+| Audit access | `audit.read` |
+| Phase 9 scheduling/activation/queue | `escalation-scheduled`, `escalation-recipients-activated`, `escalation-dispatch-queued` |
+| Phase 9 terminal/failure | `escalation-stopped`, `escalation-exhausted`, `escalation-processing-failed` |
+| Phase 9 human overrides | `escalation.paused`, `escalation.resumed` |
 
-## Audit coverage source
-The existing Phase 9 producers are AlertDraftService, AlertReviewService, DirectoryImportService, OutboxDispatchProcessor, RecipientResponseService, AlertLifecycleService, EscalationScheduler, EscalationRunProcessor and EscalationOverrideService. Implementation will document exact action names from those producers and add audit.read; this inventory does not claim any new event already exists.
+An invalid preview or rejected workflow request does not fabricate a successful business audit event. Request rejection is safely observable through the logging boundary. Audit storage is durable; logs and metrics are not substitutes.
 
-## Production decisions
-Audit retention/export/legal hold/review audience, central logs/log retention/SIEM, exporter/thresholds, incident severity/ownership, provider/directory fallback, database RPO/RTO/backup retention/recovery authority: REQUIRES_HOSPITAL_DECISION. Simulation exercise timings are measurements only.
+## Structured logs and correlation
 
-The connected `/admin/audit` viewer uses transient component state and server cursors. Only Auditor/SystemAdministrator see its navigation link; server authorization remains authoritative. Fictional development handle `sim-auditor-avery` has only Auditor access. Response decoding independently rejects unexpected top-level vocabulary and projects metadata through the same finite technical types. Errors use fixed recovery text, with no server payload reflection.
+Only category `CriticalAlerts.Operations` at Information or higher is enabled. Post-configured filters suppress framework request, SQL and exception logs even under verbose configuration. Source-generated fixed events cover request rejection, database readiness failure, worker state and committed workflow operations. Fields are status code, finite operation/state and effective opaque correlation ID where applicable. No display name, organization/actor/resource ID, URL, query string, exception, metadata or business payload is accepted.
 
-Runtime logging enables only `CriticalAlerts.Operations` at Information or above; a post-configured filter suppresses framework request, SQL, and exception logs even when configuration requests verbose logging. The source-generated boundary emits request rejection, database readiness failure, worker state, and committed workflow operations. It accepts no request body, URL, exception, actor, organization, or metadata. Commit observers emit saved audit operations only after implicit or explicit PostgreSQL commit; rollback discards observations. These best-effort process logs are not the durable audit source. API correlation accepts only nonempty UUID N/D syntax, replaces other values, and attaches the effective ID before body-size checks. Health remains process-only/live and database-only/ready. Failed worker loops preserve durable lease recovery and use existing poll intervals.
+SaveChanges/transaction observers emit workflow observations only after successful implicit or explicit PostgreSQL commit; rollback discards pending observations. Worker dependency failures emit fixed retry-pending state and retain existing polling and durable lease recovery. These process observations are best effort and are not transactionally durable telemetry.
 
-Metric names: `criticalalerts.alert.confirmations`, `criticalalerts.outbox.processed`, `criticalalerts.outbox.failed`, `criticalalerts.dispatch.retries`, `criticalalerts.delivery.events`, `criticalalerts.responses`, `criticalalerts.directory.imports`, `criticalalerts.audit.queries`, `criticalalerts.escalation.steps`, `criticalalerts.escalation.stopped`, `criticalalerts.escalation.exhausted`, and `criticalalerts.escalation.failures`. Each counter increments by one per committed corresponding audit event, not per recipient or clinical result. The sole tag is `operation`, drawn from the closed mapping in PlatformMetrics. Unknown values emit no measurement. Counters are process-local, best effort, reset on restart, and cannot replace durable audit queries. No exporter is configured.
+`X-Correlation-ID` accepts a UUID in N or D syntax; missing, malformed, oversized or other text is replaced with a server UUID. The effective value is established before body-size checks, returned in the response and used by request audit/log producers. Legacy worker correlations outside that syntax are omitted from the public audit projection and logged as unavailable rather than reflected.
 
-## Warning vocabulary and conditions
+## Metrics
 
-All warning contracts contain code, fixed title/explanation, recommended application action, and requiresHospitalFallback. Messages are in OperationalWarnings.cs; the browser uses an equivalent closed code vocabulary. No clinical rank or contact route exists.
+Meter `CriticalAlerts.Platform` version 1.0.0 has counters `criticalalerts.alert.confirmations`, `criticalalerts.outbox.processed`, `criticalalerts.dispatch.failures`, `criticalalerts.dispatch.retries`, `criticalalerts.delivery.events`, `criticalalerts.responses`, `criticalalerts.directory.imports`, `criticalalerts.audit.queries`, `criticalalerts.escalation.steps`, `criticalalerts.escalation.stopped`, `criticalalerts.escalation.exhausted`, and `criticalalerts.escalation.failures`.
 
-| Code | Durable condition | Next application action | Fallback |
+Each increments by one per corresponding committed audit operation, not per recipient, send attempt or clinical outcome. In particular, dispatch.failures counts both recipient and aggregate dispatch.failed records, not distinct failed outboxes. The sole tag is `operation`, from the closed mapping in PlatformMetrics. Unknown operations emit nothing. No identifiers, correlation, patient data, provider reference or free text are dimensions. Counters reset with the process; no exporter or production threshold is configured. MeterListener tests assert values, vocabulary and non-disclosure.
+
+## Health and worker semantics
+
+`/health/live` means the API process responds; it has no PostgreSQL dependency. `/health/ready` checks PostgreSQL and returns 503 when unavailable. Minimal responses contain safe status/category only, plus the effective correlation header. They contain no host, database name, SQL, credentials, connection string, exception or stack trace.
+
+Worker delay does not fail API readiness: operators still need access to durable state. The worker preserves Phase 9 leases, confirmed plans and bounded retry behavior. Live operational warnings expose delay/failure without changing dispatch/escalation state or inventing responsibility.
+
+## Operational warning vocabulary
+
+Every warning includes code, fixed title/explanation, recommendedApplicationAction and requiresHospitalFallback. The browser maps only recognized codes to fixed local messages. No severity rank or contact route exists.
+
+| Code | Durable condition | Safe message and next action | Fallback flag |
 | --- | --- | --- | --- |
-| ProviderUnavailable | A failed attempt records provider-unavailable | Refresh; do not duplicate alert | Required |
-| DeliveryFailed | Failed attempt or failed original outbox | Review attempts; refresh | Required |
-| DispatchDelayed | Pending next attempt or processing lease is overdue by a 30-second DEMO observation grace | Refresh before retry | Required if persistent |
-| DirectoryStale | A selected practitioner's organization-scoped source record is marked stale | Review freshness/source before another recipient action | No automatic fallback |
-| DirectorySynchronizationFailed | Latest organization sync status is Failed or Partial | Review safe status and validate new import | Required |
-| DatabaseUnavailable | Dependency unavailable; vocabulary reserved for readiness/recovery surfaces because live query itself requires DB | Check readiness; refresh | Required |
-| EscalationProcessingDelayed | Scheduled/running evaluation overdue by DEMO grace, processing failure, or failed escalation outbox | Review confirmed plan; refresh; never edit state | Required |
-| EscalationExhausted | Exhausted run without active responsibility | Review delivery and responsibility separately | Required |
+| ProviderUnavailable | Failed attempt has provider-unavailable | Simulated provider unavailable; alert remains recorded. Refresh; do not duplicate alert. | true |
+| DeliveryFailed | Failed attempt or failed original outbox | Recorded attempt failed; delivery does not establish responsibility. Review attempts and refresh. | true |
+| DispatchDelayed | Pending next-attempt or processing lease overdue by 30-second DEMO grace | Processing delayed; confirmation remains durable. Refresh before retrying. | true |
+| DirectoryStale | Selected practitioner's scoped source record is stale | Selected information is marked stale. Review freshness/source before another recipient action. | false |
+| DirectorySynchronizationFailed | Latest scoped sync is Failed or Partial | Latest synchronization did not succeed. Inspect safe status and validate a new import. | true |
+| DatabaseUnavailable | Dependency unavailable; vocabulary for readiness/recovery because live query itself needs DB | Dependency operations unavailable. Check readiness and refresh before retrying. | true |
+| EscalationProcessingDelayed | Scheduled/running evaluation overdue, processing failure or failed escalation outbox | Confirmed step overdue or failed. Review confirmed plan and refresh; never edit workflow state. | true |
+| EscalationExhausted | Exhausted run without active responsibility | Approved automatic steps queued; delivery/responsibility remain separate. Review both and use approved fallback if unassigned. | true |
 
-The 30-second grace is a simulation technical observation tolerance, not a clinical deadline, incident severity, retry rule, or production threshold. Paused/stopped runs do not produce delay warnings merely because time passes. Existing Phase 9 fallback and escalation fields are preserved. Every real fallback and all production thresholds remain REQUIRES_HOSPITAL_DECISION.
+The 30-second grace is a simulation technical observation tolerance, not a clinical deadline, SLA, retry rule or production threshold. Paused/stopped runs do not warn merely because time passes. Existing Phase 9 live fields remain intact. All real fallback routes and thresholds remain REQUIRES_HOSPITAL_DECISION.
+
+GET `/api/v1/directory/sync-status` uses existing DirectoryReader authorization and server organization. It exposes only latest fixed source/status, UTC times and counts; never ErrorSummary. Rejected previews/imports do not create a sync run. Stale and inactive remain separate source facts.
+
+## Runbooks and restore verification
+
+The four [runbooks](../runbooks/local-development.md) cover local development, notification outage, directory sync failure and database restore. Each contains Purpose, Scope, Detection, Safety impact, Immediate actions, What NOT to do, Diagnosis, Recovery, Verification, Evidence to preserve, Exit criteria and Production decisions.
+
+`db-restore-test.ps1 -ConfirmRestoreTest` requires explicit Development/Test and a local Docker endpoint. It owns a fresh pinned PostgreSQL container and fictional source, uses real pg_dump/createdb/pg_restore/dropdb, and never accepts an existing source/restore target. A unique empty temporary database is restored; the application read-only validate-restore command verifies migrations, every EF table, foreign-key/org integrity, trigger availability and safe counts. Restored append-only behavior and unchanged source counts are checked. Cleanup drops the temporary DB, deletes the dump and removes the owned container/volume on success and injected failure. Workflow tables in this seed-only exercise may be empty; populated workflows are tested by the connected harness. Durations are simulation measurements, not RPO/RTO.
+
+Runtime sentinel tests exercise draft rejection, confirmation, directory import, dispatch failure, responses, lifecycle, audit, escalation processing/failure, metrics and health. The focused safety script runs those checks and rejects tracked operational artifacts. Connected browser traces/video are disabled; only the allowlisted audit screen can be captured after protected-value checks.
+
+## Open production decisions
+
+Each remains REQUIRES_HOSPITAL_DECISION: audit retention; audit export/legal hold; production audit reviewers and role mapping; central log destination; log retention; SIEM integration; production metric exporter; alert thresholds; incident severity model; support/on-call ownership; provider outage fallback route; directory outage fallback; database RPO; database RTO; production backup retention; disaster recovery authority. No simulation verification approves production use.

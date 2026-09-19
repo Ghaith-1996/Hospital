@@ -15,7 +15,7 @@ public sealed class PlatformMetrics : IDisposable
         {
             ["alert.confirmed"] = "criticalalerts.alert.confirmations",
             ["dispatch.completed"] = "criticalalerts.outbox.processed",
-            ["dispatch.failed"] = "criticalalerts.outbox.failed",
+            ["dispatch.failed"] = "criticalalerts.dispatch.failures",
             ["dispatch.retry-scheduled"] = "criticalalerts.dispatch.retries",
             ["dispatch.delivery-event"] = "criticalalerts.delivery.events",
             ["recipient.response.acknowledged"] = "criticalalerts.responses",

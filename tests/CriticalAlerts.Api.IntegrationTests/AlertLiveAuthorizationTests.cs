@@ -19,6 +19,21 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-30T16:00:00Z");
 
+    [Fact]
+    public async Task OperationalWarningProjectionDoesNotReflectPayloadShapedFailureCategories()
+    {
+        var prepared = await CreateLiveAlertAsync();
+        await using var db = fixture.CreateContext();
+        const string sentinel = "SIM-PATIENT-PHASE10-SENTINEL";
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE delivery_attempts SET failure_category = {sentinel} WHERE alert_id = {prepared.AlertId} AND status = 'Failed'");
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var response = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Contains(sentinel, StringComparison.Ordinal).Should().BeFalse("failure categories are a closed technical vocabulary");
+        body.Should().Contain("delivery-failed");
+    }
+
     [Theory]
     [InlineData("DeliveryFailed")]
     [InlineData("ProviderUnavailable")]
