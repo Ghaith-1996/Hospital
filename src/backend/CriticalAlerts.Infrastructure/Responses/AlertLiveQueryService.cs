@@ -1,5 +1,8 @@
 using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Domain;
+using CriticalAlerts.Domain.Delivery;
+using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -132,11 +135,11 @@ public sealed class AlertLiveQueryService(
         var hasActiveResponsibility = assignments.Any(assignment => assignment.ReleasedAtUtc is null);
         var approval = await db.ConfirmedEscalationPlans.AsNoTracking().SingleOrDefaultAsync(row =>
             row.OrganizationId == organizationId && row.AlertId == alertId && row.AlertVersion == version, cancellationToken);
+        var run = approval is null ? null : await db.EscalationRuns.AsNoTracking().SingleOrDefaultAsync(row => row.OrganizationId == organizationId
+            && row.AlertId == alertId && row.AlertVersion == version, cancellationToken);
         AlertLiveEscalationView? escalation = null;
         if (approval is not null)
         {
-            var run = await db.EscalationRuns.AsNoTracking().SingleOrDefaultAsync(row => row.OrganizationId == organizationId
-                && row.AlertId == alertId && row.AlertVersion == version, cancellationToken);
             var events = run is null ? [] : await db.EscalationEvents.AsNoTracking()
                 .Where(row => row.OrganizationId == organizationId && row.RunId == run.Id).OrderBy(row => row.Sequence).ToArrayAsync(cancellationToken);
             var controllable = alert.State == AlertState.Active && !hasActiveResponsibility;
@@ -150,9 +153,25 @@ public sealed class AlertLiveQueryService(
             manualFallbackRequired |= !hasActiveResponsibility && alert.State == AlertState.Active
                 && run?.State is EscalationRunState.Exhausted or EscalationRunState.Failed;
         }
-        await transaction.CommitAsync(cancellationToken);
 
-        return new AlertLiveView(
+        var directoryStale = await db.DirectorySourceRecords.AnyAsync(item => item.OrganizationId == organizationId
+            && item.IsStale && db.AlertRecipientSelections.Any(selection => selection.OrganizationId == organizationId
+                && selection.AlertId == alertId && selection.AlertVersion == version && selection.PractitionerId == item.PractitionerId), cancellationToken);
+        var latestSync = await db.DirectorySyncRuns.AsNoTracking().Where(item => item.OrganizationId == organizationId)
+            .OrderByDescending(item => item.StartedAtUtc).ThenByDescending(item => item.Id).FirstOrDefaultAsync(cancellationToken);
+        // A fixed technical DEMO observation grace, not a clinical deadline or production threshold.
+        var overdue = refreshedAtUtc.AddSeconds(-30);
+        var warnings = OperationalWarnings.From(new(
+            ProviderUnavailable: attempts.Any(item => item.Status == DeliveryAttemptStatus.Failed && item.FailureCategory == "provider-unavailable"),
+            DispatchDelayed: outbox is not null && ((outbox.ProcessingState == OutboxProcessingState.Pending && outbox.NextAttemptAtUtc < overdue)
+                || (outbox.ProcessingState == OutboxProcessingState.Processing && outbox.LeaseExpiresAtUtc < overdue)),
+            DeliveryFailed: attempts.Any(item => item.Status == DeliveryAttemptStatus.Failed) || outbox?.ProcessingState == OutboxProcessingState.Failed,
+            DirectoryStale: directoryStale,
+            DirectorySynchronizationFailed: latestSync?.Status is DirectorySyncRunStatus.Failed or DirectorySyncRunStatus.Partial,
+            EscalationProcessingDelayed: (run is { State: EscalationRunState.Scheduled or EscalationRunState.Running } && run.NextDueAtUtc < overdue)
+                || run?.StopReason == EscalationEventKind.ProcessingFailed.ToString(),
+            EscalationExhausted: run?.State == EscalationRunState.Exhausted && !hasActiveResponsibility));
+        var result = new AlertLiveView(
             alert.Id.Value,
             version.Value,
             alert.State.ToString(),
@@ -162,7 +181,10 @@ public sealed class AlertLiveQueryService(
             alert.State == AlertState.Active,
             manualFallbackRequired,
             recipientViews,
-            escalation);
+            escalation)
+        { OperationalWarnings = warnings };
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     private static string? SafeFailureCategory(string value)

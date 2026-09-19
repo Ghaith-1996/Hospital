@@ -26,6 +26,10 @@ export function LiveAlert({ alertId, pollMs = 5000 }: { alertId: string; pollMs?
     <ApiError error={error} retry={() => void refresh().catch(() => {})} /><ApiError error={action.error} retry={() => void action.refresh()} />
     {action.uncertain && <button type="button" className="button-secondary" disabled={action.busy} onClick={() => void action.retry()}>Retry {action.uncertain} action</button>}
     {!live && !error && <Loading />}{live && <>
+      <section aria-label="Operational warnings">{Array.isArray(live.operationalWarnings) && live.operationalWarnings.slice(0, 8).map(warning => {
+        const message = warning && typeof warning.code === "string" && Object.hasOwn(api.operationalWarningMessages, warning.code) ? api.operationalWarningMessages[warning.code] : null;
+        return message ? <div className="error-panel" key={warning.code}><h2>{message[0]}</h2><p>{message[1]}</p></div> : null;
+      })}</section>
       <section className="detail-card"><h2>{live.alertState}</h2><p>Alert {live.alertId} · Confirmed version {live.confirmedVersion}</p><p>Outbox: {live.outboxState}</p><p>Last server refresh: {live.refreshedAtUtc}</p>{!!error && <p>Showing the last successful response; current state is unavailable.</p>}</section>
       {live.manualFallbackRequired && <section className="error-panel"><h2>Manual fallback required</h2><p>REQUIRES_HOSPITAL_DECISION — a hospital-approved fallback procedure is required. No contact route is configured.</p></section>}
       <section className="detail-card"><h2>DEMO escalation</h2>{live.escalation ? <>

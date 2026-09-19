@@ -47,3 +47,20 @@ The connected `/admin/audit` viewer uses transient component state and server cu
 Runtime logging enables only `CriticalAlerts.Operations` at Information or above; a post-configured filter suppresses framework request, SQL, and exception logs even when configuration requests verbose logging. The source-generated boundary emits request rejection, database readiness failure, worker state, and committed workflow operations. It accepts no request body, URL, exception, actor, organization, or metadata. Commit observers emit saved audit operations only after implicit or explicit PostgreSQL commit; rollback discards observations. These best-effort process logs are not the durable audit source. API correlation accepts only nonempty UUID N/D syntax, replaces other values, and attaches the effective ID before body-size checks. Health remains process-only/live and database-only/ready. Failed worker loops preserve durable lease recovery and use existing poll intervals.
 
 Metric names: `criticalalerts.alert.confirmations`, `criticalalerts.outbox.processed`, `criticalalerts.outbox.failed`, `criticalalerts.dispatch.retries`, `criticalalerts.delivery.events`, `criticalalerts.responses`, `criticalalerts.directory.imports`, `criticalalerts.audit.queries`, `criticalalerts.escalation.steps`, `criticalalerts.escalation.stopped`, `criticalalerts.escalation.exhausted`, and `criticalalerts.escalation.failures`. Each counter increments by one per committed corresponding audit event, not per recipient or clinical result. The sole tag is `operation`, drawn from the closed mapping in PlatformMetrics. Unknown values emit no measurement. Counters are process-local, best effort, reset on restart, and cannot replace durable audit queries. No exporter is configured.
+
+## Warning vocabulary and conditions
+
+All warning contracts contain code, fixed title/explanation, recommended application action, and requiresHospitalFallback. Messages are in OperationalWarnings.cs; the browser uses an equivalent closed code vocabulary. No clinical rank or contact route exists.
+
+| Code | Durable condition | Next application action | Fallback |
+| --- | --- | --- | --- |
+| ProviderUnavailable | A failed attempt records provider-unavailable | Refresh; do not duplicate alert | Required |
+| DeliveryFailed | Failed attempt or failed original outbox | Review attempts; refresh | Required |
+| DispatchDelayed | Pending next attempt or processing lease is overdue by a 30-second DEMO observation grace | Refresh before retry | Required if persistent |
+| DirectoryStale | A selected practitioner's organization-scoped source record is marked stale | Review freshness/source before another recipient action | No automatic fallback |
+| DirectorySynchronizationFailed | Latest organization sync status is Failed or Partial | Review safe status and validate new import | Required |
+| DatabaseUnavailable | Dependency unavailable; vocabulary reserved for readiness/recovery surfaces because live query itself requires DB | Check readiness; refresh | Required |
+| EscalationProcessingDelayed | Scheduled/running evaluation overdue by DEMO grace, processing failure, or failed escalation outbox | Review confirmed plan; refresh; never edit state | Required |
+| EscalationExhausted | Exhausted run without active responsibility | Review delivery and responsibility separately | Required |
+
+The 30-second grace is a simulation technical observation tolerance, not a clinical deadline, incident severity, retry rule, or production threshold. Paused/stopped runs do not produce delay warnings merely because time passes. Existing Phase 9 fallback and escalation fields are preserved. Every real fallback and all production thresholds remain REQUIRES_HOSPITAL_DECISION.

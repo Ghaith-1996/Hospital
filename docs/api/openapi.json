@@ -515,6 +515,12 @@
           "manualFallbackRequired": {
             "type": "boolean"
           },
+          "operationalWarnings": {
+            "items": {
+              "$ref": "#/components/schemas/OperationalWarning"
+            },
+            "type": "array"
+          },
           "outboxState": {
             "type": "string"
           },
@@ -2030,6 +2036,33 @@
         },
         "required": [
           "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "OperationalWarning": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "recommendedApplicationAction": {
+            "type": "string"
+          },
+          "requiresHospitalFallback": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "explanation",
+          "recommendedApplicationAction",
+          "requiresHospitalFallback",
+          "title"
         ],
         "type": "object"
       },

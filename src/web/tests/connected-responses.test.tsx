@@ -47,6 +47,26 @@ test("escalation uses server state and retries an uncertain pause with the exact
   expect(vi.mocked(api.setEscalationPaused).mock.calls[0]).toEqual(vi.mocked(api.setEscalationPaused).mock.calls[1]);
   expect(vi.mocked(api.setEscalationPaused).mock.calls[0].slice(0, 3)).toEqual(["sim", 9, true]);
 });
+test("operational warning guidance is safe and preserves escalation controls", async () => {
+  vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", operationalWarnings: [{
+    code: "ProviderUnavailable", title: "Provider unavailable", explanation: "The simulated notification provider is unavailable.",
+    recommendedApplicationAction: "Refresh status. Do not create a duplicate alert. REQUIRES_HOSPITAL_DECISION.", requiresHospitalFallback: true,
+  }] } as api.AlertLive);
+  render(<LiveAlert alertId="sim" pollMs={0} />);
+  expect(await screen.findByRole("heading", { name: "Provider unavailable" })).toBeVisible();
+  expect(screen.getByText(/Do not create a duplicate alert/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Pause DEMO escalation" })).toBeVisible();
+});
+test("untrusted warning text never reaches the live screen", async () => {
+  const sentinel = "SIM-APPROVED-MESSAGE-DO-NOT-LOG";
+  vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", operationalWarnings: [{
+    code: "ProviderUnavailable", title: sentinel, explanation: sentinel,
+    recommendedApplicationAction: sentinel, requiresHospitalFallback: true,
+  }] } as api.AlertLive);
+  render(<LiveAlert alertId="sim" pollMs={0} />);
+  expect(await screen.findByRole("heading", { name: "Provider unavailable" })).toBeVisible();
+  expect(document.body.textContent?.includes(sentinel)).toBe(false);
+});
 test("live polling stops on unmount", async () => {
   vi.useFakeTimers();
   vi.mocked(api.getAlertLive).mockRejectedValue(new TypeError("offline"));
