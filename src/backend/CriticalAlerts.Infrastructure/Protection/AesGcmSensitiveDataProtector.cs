@@ -39,12 +39,13 @@ public sealed class AesGcmSensitiveDataProtector : ISensitiveDataProtector
         var ciphertext = new byte[plaintextBytes.Length];
         var tag = new byte[16];
         using var aes = new AesGcm(key, 16);
-        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag);
+        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag, AssistanceContext(context));
+        CryptographicOperations.ZeroMemory(plaintextBytes);
         var packed = new byte[nonce.Length + tag.Length + ciphertext.Length];
         Buffer.BlockCopy(nonce, 0, packed, 0, nonce.Length);
         Buffer.BlockCopy(tag, 0, packed, nonce.Length, tag.Length);
         Buffer.BlockCopy(ciphertext, 0, packed, nonce.Length + tag.Length, ciphertext.Length);
-        return new ProtectedValue(packed, LocalKeyVersion, context.Purpose);
+        return new ProtectedValue(packed, AssistanceContext(context).Length == 0 ? LocalKeyVersion : "local-v2-context", context.Purpose);
     }
 
     public string Unprotect(ProtectedValue protectedValue, SensitiveDataContext context)
@@ -61,7 +62,17 @@ public sealed class AesGcmSensitiveDataProtector : ISensitiveDataProtector
         var ciphertext = packed.AsSpan(28);
         var plaintext = new byte[ciphertext.Length];
         using var aes = new AesGcm(key, 16);
-        aes.Decrypt(nonce, ciphertext, tag, plaintext);
-        return Encoding.UTF8.GetString(plaintext);
+        var associated = AssistanceContext(context);
+        if (associated.Length > 0 && protectedValue.KeyVersion != "local-v2-context")
+            throw new InvalidOperationException("Assistance protection context is required.");
+        try
+        {
+            aes.Decrypt(nonce, ciphertext, tag, plaintext, associated);
+            return Encoding.UTF8.GetString(plaintext);
+        }
+        finally { CryptographicOperations.ZeroMemory(plaintext); }
     }
+    private static byte[] AssistanceContext(SensitiveDataContext context)
+        => context.Purpose is "alert-transcription-result" or "alert-structuring-suggestion"
+            ? Encoding.UTF8.GetBytes($"{context.Purpose}:{context.OrganizationId:D}") : [];
 }
