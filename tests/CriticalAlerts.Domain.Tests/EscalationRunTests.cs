@@ -18,7 +18,7 @@ public sealed class EscalationRunTests
     {
         var run = Create();
         run.Evaluate(state, responsibility, 1, Now.AddMinutes(2)).Should().Be(expected);
-        run.AlertVersion.Value.Should().Be(7);
+        run.AlertVersion!.Value.Value.Should().Be(7);
     }
 
     [Fact]

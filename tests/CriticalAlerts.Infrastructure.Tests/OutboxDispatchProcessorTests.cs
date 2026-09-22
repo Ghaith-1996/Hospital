@@ -191,7 +191,7 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
             }),
             NullLogger<OutboxDispatchProcessor>.Instance);
 
-    private static async Task<AlertId> SeedConfirmedAlertAsync(
+    internal static async Task<AlertId> SeedConfirmedAlertAsync(
         CriticalAlertsDbContext db,
         NotificationChannel channel)
     {

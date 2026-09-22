@@ -30,3 +30,7 @@ Plan: `plans/2026-09-22-phase-9-escalation.md`. Baseline `9e312b2`; branch `feat
 ## Final gate
 
 Not yet run. No completion, migration, test-count, security or system-restart claim is made until recorded with actual evidence. Production decisions remain `REQUIRES_HOSPITAL_DECISION` as listed in the spec.
+
+### Task 4 — durable persistence
+Added nullable exact-version binding (legacy rows remain disabled), durable leases/pause delay, scoped uniqueness and append-only safe events. PostgreSQL tests first failed because policy/event mutation was allowed, then passed with database triggers. Full infrastructure suite: 70 passed, no skips. No historical migration changed. New migration is additive; policy activation status alone remains editable.
+

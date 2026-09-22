@@ -49,13 +49,17 @@ public sealed class EscalationRun
 
     public DateTimeOffset? CompletedAtUtc { get; private set; }
 
-    public AlertDraftVersion AlertVersion { get; private set; }
+    public AlertDraftVersion? AlertVersion { get; private set; }
     public string? LeaseOwner { get; private set; }
     public DateTimeOffset? LeaseExpiresAtUtc { get; private set; }
     public DateTimeOffset NextCheckAtUtc { get; private set; }
     public TimeSpan? RemainingDelay { get; private set; }
     public string? StopReason { get; private set; }
     public int HandledNegativeResponses { get; private set; }
+    public int EventSequence { get; private set; }
+
+    public EscalationEvent Record(EscalationEventKind kind, DateTimeOffset now, Guid? recipientSelectionId = null, UserId? actor = null)
+        => EscalationEvent.Record(Id, OrganizationId, ++EventSequence, kind, CurrentStep, now, recipientSelectionId, actor);
 
     public EscalationEventKind? Evaluate(AlertState state, bool responsibility, int negativeResponses, DateTimeOffset now)
     {
