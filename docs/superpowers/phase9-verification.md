@@ -24,7 +24,8 @@ Plan: `plans/2026-09-22-phase-9-escalation.md`. Baseline `9e312b2`; branch `feat
    - RED: frontend future-backup visibility test failed; four retained tests passed. Initial sandbox startup failure was rerun with authorized filesystem access.
    - GREEN: 128 API integration tests, 67 infrastructure tests, 60 domain tests, 29 frontend tests (8 files); no failures/skips in these suites. Typecheck and lint passed. Infrastructure regression took 17m17s including container/database work.
    - `dotnet format ... --no-restore`, OpenAPI regeneration, sensitive-data scan, active storage-safety scan and `git diff --check` passed. System replay scenario now sends the exact reviewed plan; system execution remains a later gate.
-3–12. Pending.
+3. Domain run behavior: 10 new executable tests first failed against unimplemented methods, then the complete domain project passed 70/70. Exact alert version, precedence, UTC, pause/resume remaining delay, negative-response consumption, exhaustion and lease recovery are covered. Persistence mapping follows in task 4; this slice alone does not enable a worker.
+4–12. Pending.
 
 ## Final gate
 
