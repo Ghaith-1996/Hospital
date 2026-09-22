@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Domain;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CriticalAlerts.Api.Http;
 
@@ -26,6 +27,7 @@ internal static class AlertLiveEndpoints
     private static async Task<IResult> Get(
         ClaimsPrincipal principal,
         IAlertLiveQueryService live,
+        IAuthorizationService authorization,
         Guid alertId,
         CancellationToken cancellationToken)
     {
@@ -43,6 +45,9 @@ internal static class AlertLiveEndpoints
             new OrganizationId(organizationId),
             new AlertId(alertId),
             cancellationToken);
+        if (result is not null && !(await authorization.AuthorizeAsync(principal, AuthorizationPolicies.AlertLifecycleOperator)).Succeeded)
+            result = result with { CanResolve = false, CanCancel = false,
+                Escalation = result.Escalation is null ? null : result.Escalation with { CanPause = false, CanResume = false } };
         return result is null
             ? Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,

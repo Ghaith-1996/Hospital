@@ -11,7 +11,14 @@ public sealed record AlertLiveView(
     bool CanResolve,
     bool CanCancel,
     bool ManualFallbackRequired,
-    IReadOnlyList<AlertLiveRecipientView> Recipients);
+    IReadOnlyList<AlertLiveRecipientView> Recipients,
+    AlertLiveEscalationView? Escalation = null);
+
+public sealed record AlertLiveEscalationView(Guid PolicyId, string PolicyVersion, string State, int CurrentStep,
+    DateTimeOffset? NextDueAtUtc, double? RemainingDelaySeconds, string? StopReason, bool CanPause, bool CanResume,
+    IReadOnlyList<AlertLiveEscalationEvent> Events);
+public sealed record AlertLiveEscalationEvent(int Sequence, string Kind, int Step, DateTimeOffset OccurredAtUtc,
+    Guid? RecipientSelectionId, Guid? ActorUserId);
 
 public sealed record AlertLiveRecipientView(
     Guid PractitionerId,
@@ -24,7 +31,8 @@ public sealed record AlertLiveRecipientView(
     DateTimeOffset? ResponsibilityAcceptedAtUtc,
     DateTimeOffset? CallUnitRequestedAtUtc,
     string? LastResponseReasonCode,
-    IReadOnlyList<AlertLiveAttemptView> Attempts);
+    IReadOnlyList<AlertLiveAttemptView> Attempts,
+    IReadOnlyList<string>? SelectionSources = null);
 
 public sealed record AlertLiveAttemptView(
     string Channel,

@@ -246,6 +246,14 @@ export type AlertLiveRecipient = {
   callUnitRequestedAtUtc: string | null;
   lastResponseReasonCode: string | null;
   attempts: AlertLiveAttempt[];
+  selectionSources?: string[];
+};
+
+export type AlertLiveEscalation = {
+  policyId: string; policyVersion: string; state: string; currentStep: number;
+  nextDueAtUtc: string | null; remainingDelaySeconds: number | null; stopReason: string | null;
+  canPause: boolean; canResume: boolean;
+  events: { sequence: number; kind: string; step: number; occurredAtUtc: string; recipientSelectionId: string | null; actorUserId: string | null }[];
 };
 
 export type AlertLive = {
@@ -258,6 +266,7 @@ export type AlertLive = {
   canCancel: boolean;
   manualFallbackRequired: boolean;
   recipients: AlertLiveRecipient[];
+  escalation?: AlertLiveEscalation | null;
 };
 
 export type AlertLifecycleResult = {
@@ -437,6 +446,14 @@ export function recordMyAlertResponse(
 
 export function getAlertLive(alertId: string): Promise<AlertLive> {
   return requestJson<AlertLive>(`/api/v1/alerts/${alertId}/live`);
+}
+
+export function setEscalationPaused(alertId: string, expectedVersion: number, paused: boolean, idempotencyKey: string): Promise<AlertLifecycleResult> {
+  const action = paused ? "pause" : "resume";
+  return requestJson<AlertLifecycleResult>(`/api/v1/alerts/${alertId}/escalation/${action}`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ expectedVersion, reasonCode: `simulation-${action}-requested` }),
+  });
 }
 
 export function resolveAlert(

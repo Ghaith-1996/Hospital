@@ -14,6 +14,7 @@ public sealed class AlertLiveQueryService(
         AlertId alertId,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken);
         var alert = await db.Alerts
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.OrganizationId == organizationId
@@ -113,7 +114,8 @@ public sealed class AlertLiveQueryService(
                     assignment?.AcceptedAtUtc,
                     callUnit?.OccurredAtUtc,
                     lastResponse?.SanitizedReasonCode,
-                    recipientAttempts);
+                    recipientAttempts,
+                    group.Select(item => item.SelectionSource.ToString()).Distinct().Order(StringComparer.Ordinal).ToArray());
             })
             .OrderBy(item => item.DisplayName, StringComparer.Ordinal)
             .ThenBy(item => item.SimulationCode, StringComparer.Ordinal)
@@ -128,6 +130,27 @@ public sealed class AlertLiveQueryService(
         var manualFallbackRequired = alert.State == AlertState.Failed
             || attempts.Any(attempt => attempt.Status == DeliveryAttemptStatus.Failed);
         var hasActiveResponsibility = assignments.Any(assignment => assignment.ReleasedAtUtc is null);
+        var approval = await db.ConfirmedEscalationPlans.AsNoTracking().SingleOrDefaultAsync(row =>
+            row.OrganizationId == organizationId && row.AlertId == alertId && row.AlertVersion == version, cancellationToken);
+        AlertLiveEscalationView? escalation = null;
+        if (approval is not null)
+        {
+            var run = await db.EscalationRuns.AsNoTracking().SingleOrDefaultAsync(row => row.OrganizationId == organizationId
+                && row.AlertId == alertId && row.AlertVersion == version, cancellationToken);
+            var events = run is null ? [] : await db.EscalationEvents.AsNoTracking()
+                .Where(row => row.OrganizationId == organizationId && row.RunId == run.Id).OrderBy(row => row.Sequence).ToArrayAsync(cancellationToken);
+            var controllable = alert.State == AlertState.Active && !hasActiveResponsibility;
+            escalation = new(approval.PolicyId.Value, approval.PolicyVersion, run?.State.ToString() ?? "AwaitingActivation",
+                run?.CurrentStep ?? 0, run?.State == EscalationRunState.Scheduled ? run.NextDueAtUtc : null,
+                run?.RemainingDelay?.TotalSeconds, run?.StopReason,
+                controllable && run?.State == EscalationRunState.Scheduled,
+                controllable && run?.State == EscalationRunState.Paused,
+                events.Select(row => new AlertLiveEscalationEvent(row.Sequence, row.Kind.ToString(), row.Step,
+                    row.OccurredAtUtc, row.RecipientSelectionId, row.ActorUserId?.Value)).ToArray());
+            manualFallbackRequired |= !hasActiveResponsibility && alert.State == AlertState.Active
+                && run?.State is EscalationRunState.Exhausted or EscalationRunState.Failed;
+        }
+        await transaction.CommitAsync(cancellationToken);
 
         return new AlertLiveView(
             alert.Id.Value,
@@ -138,7 +161,8 @@ public sealed class AlertLiveQueryService(
             alert.State == AlertState.Active && hasActiveResponsibility,
             alert.State == AlertState.Active,
             manualFallbackRequired,
-            recipientViews);
+            recipientViews,
+            escalation);
     }
 
     private static string? SafeFailureCategory(string value)

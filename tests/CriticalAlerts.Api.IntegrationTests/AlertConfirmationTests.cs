@@ -317,7 +317,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         }
     }
 
-    private static async Task<HttpResponseMessage> ConfirmAsync(
+    internal static async Task<HttpResponseMessage> ConfirmAsync(
         HttpClient client,
         Guid alertId,
         int expectedVersion,
@@ -336,7 +336,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         return await client.SendAsync(request);
     }
 
-    private async Task<PreparedAlert> CreateConfirmableAlertAsync(
+    internal async Task<PreparedAlert> CreateConfirmableAlertAsync(
         HttpClient client,
         string patientReference = "SIM-PAT-CONFIRM-0001",
         string sourceText = "SIMULATION: confirmation source",
@@ -395,5 +395,5 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         return new PreparedAlert(draft.AlertId, confirmedDraft.DraftVersion);
     }
 
-    private sealed record PreparedAlert(Guid AlertId, int Version);
+    internal sealed record PreparedAlert(Guid AlertId, int Version);
 }

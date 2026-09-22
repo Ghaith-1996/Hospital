@@ -3,6 +3,7 @@ using CriticalAlerts.Domain;
 namespace CriticalAlerts.Application.Alerts;
 
 public sealed record AlertLifecycleActionRequest(int ExpectedVersion);
+public sealed record EscalationOverrideRequest(int ExpectedVersion, string ReasonCode);
 
 public sealed record AlertLifecycleResult(
     Guid AlertId,
@@ -12,6 +13,10 @@ public sealed record AlertLifecycleResult(
 
 public interface IAlertLifecycleService
 {
+    Task<AlertLifecycleResult?> SetEscalationPausedAsync(
+        OrganizationId organizationId, UserId actorUserId, string correlationId, AlertId alertId,
+        EscalationOverrideRequest request, string? idempotencyKey, bool paused, CancellationToken cancellationToken);
+
     Task<AlertLifecycleResult?> ResolveAsync(
         OrganizationId organizationId,
         UserId actorUserId,
