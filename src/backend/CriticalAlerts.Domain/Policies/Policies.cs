@@ -112,6 +112,13 @@ public sealed class NotificationPolicy
 
 public sealed class EscalationPolicy
 {
+    public void Deactivate() => IsActive = false;
+
+    public static EscalationPolicy CreatePhase9Demo(EscalationPolicyId id, OrganizationId organizationId)
+        => new(id, organizationId, "DEMO approved sequential backup", "DEMO-9", true,
+            "REQUIRES_HOSPITAL_DECISION: DEMO database UTC deadline or new decline/unavailable; approved backups only.",
+            "REQUIRES_HOSPITAL_DECISION: DEMO exact-version responsibility acceptance, resolution or cancellation stops escalation; pause preserves delay.");
+
     private EscalationPolicy()
     {
         Name = string.Empty;

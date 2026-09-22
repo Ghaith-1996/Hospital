@@ -26,7 +26,7 @@ internal static class EscalationPlanReview
     {
         var policies = await db.EscalationPolicies.AsNoTracking()
             .Where(row => row.OrganizationId == alert.OrganizationId && row.IsActive).ToArrayAsync(ct);
-        if (policies.Length != 1 || !policies[0].Version.StartsWith("DEMO", StringComparison.Ordinal))
+        if (policies.Length != 1 || policies[0].Version != "DEMO-9")
         {
             throw Changed();
         }
