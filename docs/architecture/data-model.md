@@ -1,6 +1,8 @@
 # Conceptual Data Model
 
-Status: Conceptual model through the Phase 8 simulation-response boundary. It is a design boundary for fictional simulation data, not a production schema approval.
+Status: Conceptual model through Phase 9 simulation-only escalation. It is a design boundary for fictional simulation data, not a production schema approval.
+
+Phase 9 adds `confirmed_escalation_plans` (immutable organization/alert/version/policy identity and exact reviewed future-recipient JSON) and `escalation_events` (append-only enum, sequence, step, UTC and identifiers). `escalation_runs` adds nullable exact alert version for legacy compatibility, unique organization/alert/version, an approval foreign key, leases, next-check time, remaining pause delay, consumed negative-response count and stop reason. Historical approvals are never inferred. Activation uses the existing selection table with `EscalationPolicy` provenance and the confirmed version. Three additive Phase 9 migrations preserve historical migrations.
 
 ## Design rules
 

@@ -4,7 +4,17 @@
 
 Phase 7 is a local, simulation-only dispatch worker for the fictional alert workflow. It is not a hospital communications system and does not authorize clinical escalation, provider use, or production deployment. The worker is allowed only when `SimulationDispatch:Enabled` is true in `Development` or `Test`; startup fails closed in `Staging` and `Production`.
 
-The implementation deliberately excludes real SMS, voice, secure-message, FHIR, SCIM, Graph, Entra, hospital database, callback, and automated escalation behavior. Phase 8 response and live-status projections consume the resulting simulation records but do not change the dispatch boundary. Any production choice about provider contracts, credentials, callback signatures, retry service levels, escalation, lifecycle, fallback, or operational ownership is `REQUIRES_HOSPITAL_DECISION`.
+The implementation excludes real SMS, voice, secure-message, FHIR, SCIM, Graph, Entra, hospital database and callback behavior. Phase 9 adds only approved DEMO escalation through the same simulated dispatch boundary. Any production choice about providers, credentials, callbacks, retry service levels, escalation, lifecycle, fallback or operational ownership is `REQUIRES_HOSPITAL_DECISION`.
+
+## Phase 9 extension
+
+`SimulationEscalation:Enabled` defaults false, requires simulated dispatch and fails closed outside Development/Test. The existing worker loop invokes a scoped escalation processor. PostgreSQL `clock_timestamp()` decides scheduling and claim expiry. Claims commit before taking the shared alert mutation lock; processing then locks alert, then run and checks lifecycle, exact-version responsibility, pause, new negative responses and deadline in order.
+
+Confirmation stores immutable policy identity, plan revision, steps and future recipient evidence. A run references that approval through an organization-scoped composite foreign key; nullable legacy versions are not backfilled. Activation, append-only events, progress and `EscalationDispatchRequested` commit together. Its strict payload contains only alert/version and distinct new selection IDs. Original outbox jobs exclude policy-added selections. Escalation dispatch locks and rereads lifecycle/responsibility before calling the existing simulation adapter. No replacement lookup occurs.
+
+Seeded `DEMO-9` is a new policy version: one 60-second step, explicitly reviewed current synthetic backup-on-call candidates and SecureMessage only. Policy updates/deletes and step updates/deletes are rejected; steps cannot be appended after approval. Active status affects future reviews only. Existing `DEMO-1` databases require explicit fictional seeding/reset before new reviews; historical alerts receive no inferred approvals. The policy's production counterpart remains `REQUIRES_HOSPITAL_DECISION`.
+
+Pause/Resume reuse lifecycle authorization, exact version, organization and idempotency. Safe reason, actor, audit and timeline commit together. Remaining delay survives restart. Resolve/Cancel retain their existing controls; exact-version acceptance stops automated escalation. Polling only reads. Exhaustion/failure exposes manual fallback, whose actual routing remains `REQUIRES_HOSPITAL_DECISION`.
 
 ## Processing flow
 

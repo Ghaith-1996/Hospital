@@ -1,6 +1,8 @@
 # Workflow Specification
 
-Status: Proposed simulation workflow through the local Phase 8 practitioner-response, lifecycle, and fallback-display boundary. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
+Status: Simulation workflow through Phase 9 approved DEMO escalation. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
+
+Phase 9 review explicitly lists the policy/version, DEMO delay and exact future backup recipients. Confirmation binds their revision to the alert version; changed policy/directory evidence requires new review. Only those approved snapshots can activate after the database deadline or a new decline/unavailable response. Delivery, opening and acknowledgement do not stop escalation. Exact-version responsibility acceptance, resolution or cancellation takes precedence. Authorized operators can pause/resume with durable remaining delay; they cannot separately permanently stop escalation. The live page displays timeline, provenance and manual fallback. All production timing, responsibility, escalation authority and fallback policy remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
 

@@ -19,9 +19,15 @@ public sealed class EscalationEvent
         if (!Enum.IsDefined(kind)) throw new DomainException("An allowed escalation event is required.");
         return new EscalationEvent
         {
-            Id = Guid.NewGuid(), RunId = runId, OrganizationId = organizationId, Sequence = sequence,
-            Kind = kind, Step = step, OccurredAtUtc = UtcInstant.Require(now, nameof(now)),
-            RecipientSelectionId = recipientSelectionId, ActorUserId = actor,
+            Id = Guid.NewGuid(),
+            RunId = runId,
+            OrganizationId = organizationId,
+            Sequence = sequence,
+            Kind = kind,
+            Step = step,
+            OccurredAtUtc = UtcInstant.Require(now, nameof(now)),
+            RecipientSelectionId = recipientSelectionId,
+            ActorUserId = actor,
         };
     }
 }

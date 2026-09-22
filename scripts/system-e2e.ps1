@@ -111,6 +111,7 @@ try {
     $env:DevelopmentAuthentication__Enabled = "true"
     $env:SimulationResponses__Enabled = "true"
     $env:SimulationDispatch__Enabled = "true"
+    $env:SimulationEscalation__Enabled = "true"
 
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database migrate
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database reset-demo --confirm-demo-reset
@@ -121,6 +122,11 @@ try {
     Wait-Http "http://127.0.0.1:$apiPort/health/ready" $api
 
     $worker = Start-OwnedProcess $dotnet @($workerDll) $repositoryRoot "worker"
+    $secondWorker = Start-OwnedProcess $dotnet @($workerDll) $repositoryRoot "worker-2"
+    $env:SYSTEM_E2E_WORKER_IDS = "$($worker.Id),$($secondWorker.Id)"
+    $env:SYSTEM_E2E_WORKER_DLL = $workerDll
+    $env:SYSTEM_E2E_DOTNET = (Get-Command $dotnet).Source
+    $env:SYSTEM_E2E_WORKER_LEDGER = Join-Path $logRoot "restarted-workers.txt"
     $env:CRITICAL_ALERTS_API_URL = "http://127.0.0.1:$apiPort"
     if (-not $SkipWebBuild) {
         & $npm --prefix $webRoot run build
@@ -138,6 +144,12 @@ try {
     & $npx playwright test --config playwright.system.config.ts
     $exitCode = $LASTEXITCODE
 } finally {
+    if ($env:SYSTEM_E2E_WORKER_LEDGER -and (Test-Path -LiteralPath $env:SYSTEM_E2E_WORKER_LEDGER)) {
+        foreach ($ownedId in Get-Content -LiteralPath $env:SYSTEM_E2E_WORKER_LEDGER) {
+            $restarted = Get-Process -Id ([int]$ownedId) -ErrorAction SilentlyContinue
+            if ($restarted -and $restarted.ProcessName -eq "dotnet") { $ownedProcesses.Add($restarted) }
+        }
+    }
     for ($index = $ownedProcesses.Count - 1; $index -ge 0; $index--) {
         $process = $ownedProcesses[$index]
         Stop-OwnedProcess $process

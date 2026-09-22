@@ -46,8 +46,12 @@ internal static class AlertLiveEndpoints
             new AlertId(alertId),
             cancellationToken);
         if (result is not null && !(await authorization.AuthorizeAsync(principal, AuthorizationPolicies.AlertLifecycleOperator)).Succeeded)
-            result = result with { CanResolve = false, CanCancel = false,
-                Escalation = result.Escalation is null ? null : result.Escalation with { CanPause = false, CanResume = false } };
+            result = result with
+            {
+                CanResolve = false,
+                CanCancel = false,
+                Escalation = result.Escalation is null ? null : result.Escalation with { CanPause = false, CanResume = false }
+            };
         return result is null
             ? Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,

@@ -1,4 +1,5 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { appendFileSync } from "node:fs";
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 const jordan = "Jordan Lee";
@@ -162,6 +163,124 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await expect.poll(() => dbScalar(`select count(*) from delivery_attempts where alert_id = '${prepared.alertId}'`), { timeout: 60_000 }).toBe("1");
     expect(dbScalar(`select count(*) from outbox_messages where aggregate_id = '${prepared.alertId}'`)).toBe("1");
     expect(dbScalar(`select count(*) from alert_recipient_selections where alert_id = '${prepared.alertId}'`)).toBe("1");
+  });
+});
+
+test.describe.serial("Phase 9 durable DEMO escalation", () => {
+  const restarted: ChildProcess[] = [];
+  let workers: number[] = [];
+  test.beforeAll(() => {
+    workers = requiredEnv("SYSTEM_E2E_WORKER_IDS").split(",").map(Number);
+    expect(workers).toHaveLength(2);
+    dbScalar(`INSERT INTO on_call_assignments
+      (id, organization_id, practitioner_id, site_id, department_id, tier, starts_at_utc, ends_at_utc, source_system, source_record_id, last_synchronized_at_utc)
+      VALUES (gen_random_uuid(), '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111110101',
+      '11111111-1111-4111-8111-111111111201', '11111111-1111-4111-8111-111111110301', 'Backup',
+      clock_timestamp() - interval '1 minute', clock_timestamp() + interval '1 day', 'SIM-SYSTEM-TEST', 'SIM-PHASE9-BACKUP', clock_timestamp())`);
+  });
+  test.afterAll(() => { for (const child of restarted) if (child.exitCode === null) child.kill(); });
+
+  function restartWorkers() {
+    for (const pid of workers) { try { process.kill(pid); } catch { /* Already exited owned test worker. */ } }
+    workers = [0, 1].map(() => {
+      const child = spawn(requiredEnv("SYSTEM_E2E_DOTNET"), [requiredEnv("SYSTEM_E2E_WORKER_DLL")], { stdio: "ignore", windowsHide: true });
+      restarted.push(child);
+      if (!child.pid) throw new Error("Could not restart the owned simulation worker.");
+      appendFileSync(requiredEnv("SYSTEM_E2E_WORKER_LEDGER"), `${child.pid}\n`);
+      return child.pid;
+    });
+  }
+
+  async function confirmScenario(page: Page, name: string) {
+    await signIn(page, jordan);
+    const draft = await prepareConfirmableAlert(page.request, `SIM-PAT-SYSTEM-${name}`);
+    const review = await apiJson(page.request, "get", `/api/v1/alerts/${draft.alertId}/review`);
+    expect(review.escalationPlan.policyVersion).toBe("DEMO-9");
+    expect(review.escalationPlan.steps[0].recipients.map((person: { displayName: string }) => person.displayName)).toEqual(["Maya Chen"]);
+    const response = await page.request.post(`/api/v1/alerts/${draft.alertId}/confirm`, {
+      headers: { "Idempotency-Key": `phase9-${crypto.randomUUID()}` }, data: { expectedVersion: draft.draftVersion,
+        escalationPolicyId: review.escalationPlan.policyId, escalationPolicyVersion: review.escalationPlan.policyVersion,
+        escalationPlanRevision: review.escalationPlan.revision } });
+    expect(response.ok(), await response.text()).toBeTruthy();
+    await expect.poll(() => dbScalar(`select state from escalation_runs where alert_id = '${draft.alertId}'`)).toBe("Scheduled");
+    return draft;
+  }
+
+  async function respond(page: Page, draft: { alertId: string; draftVersion: number }, responseType: string) {
+    await switchIdentity(page, riley);
+    const response = await page.request.post(`/api/v1/my-alerts/${draft.alertId}/responses`, {
+      headers: { "Idempotency-Key": `phase9-${crypto.randomUUID()}` }, data: { expectedVersion: draft.draftVersion, responseType } });
+    expect(response.ok(), await response.text()).toBeTruthy();
+    await switchIdentity(page, jordan);
+  }
+
+  async function expectBackup(draft: { alertId: string; draftVersion: number }) {
+    const id = draft.alertId;
+    await expect.poll(() => dbScalar(`select count(*) from delivery_attempts d join alert_recipient_selections s on s.id = d.recipient_selection_id
+      where d.alert_id = '${id}' and s.selection_source = 'EscalationPolicy' and d.status = 'Delivered'`), { timeout: 75_000 }).toBe("1");
+    expect(dbScalar(`select count(*) from alert_recipient_selections where alert_id = '${id}' and selection_source = 'EscalationPolicy'`)).toBe("1");
+    expect(dbScalar(`select count(*) from outbox_messages where aggregate_id = '${id}' and event_type = 'EscalationDispatchRequested'`)).toBe("1");
+    expect(dbScalar(`select count(*) from delivery_attempts where alert_id = '${id}'`)).toBe("2");
+    expect(dbScalar(`select draft_version from alerts where id = '${id}'`)).toBe(String(draft.draftVersion));
+  }
+
+  test("D: database deadline activates and delivers the approved backup", async ({ page }) => {
+    const draft = await confirmScenario(page, "D");
+    await expectBackup(draft);
+    await page.goto(`/alerts/${draft.alertId}/live`);
+    await expect(page.getByText("Activated from the approved DEMO escalation plan")).toBeVisible();
+    await expect(page.getByText(/Escalation state: Exhausted/)).toBeVisible();
+    await capture(page, "07-escalation-exhausted.png");
+  });
+
+  test("E: acknowledgement alone does not stop deadline escalation", async ({ page }) => {
+    const draft = await confirmScenario(page, "E");
+    await respond(page, draft, "Acknowledged");
+    await expectBackup(draft);
+    expect(dbScalar(`select count(*) from responsibility_assignments where alert_id = '${draft.alertId}'`)).toBe("0");
+  });
+
+  test("F: accepted responsibility survives restart and prevents backup after deadline", async ({ page }) => {
+    const draft = await confirmScenario(page, "F");
+    await respond(page, draft, "Accepted");
+    restartWorkers();
+    await expect.poll(() => dbScalar(`select state from escalation_runs where alert_id = '${draft.alertId}'`)).toBe("Stopped");
+    await expect.poll(() => dbScalar(`select clock_timestamp() > next_due_at_utc from escalation_runs where alert_id = '${draft.alertId}'`), { timeout: 75_000 }).toBe("t");
+    expect(dbScalar(`select count(*) from alert_recipient_selections where alert_id = '${draft.alertId}' and selection_source = 'EscalationPolicy'`)).toBe("0");
+    expect(dbScalar(`select count(*) from outbox_messages where aggregate_id = '${draft.alertId}' and event_type = 'EscalationDispatchRequested'`)).toBe("0");
+  });
+
+  for (const responseType of ["Declined", "Unavailable"]) test(`G: ${responseType} makes the approved step immediately eligible`, async ({ page }) => {
+    const draft = await confirmScenario(page, `G-${responseType}`);
+    await respond(page, draft, responseType);
+    await expect.poll(() => dbScalar(`select count(*) from outbox_messages where aggregate_id = '${draft.alertId}' and event_type = 'EscalationDispatchRequested'`), { timeout: 15_000 }).toBe("1");
+    await expectBackup(draft);
+    expect(dbScalar(`select completed_at_utc < next_due_at_utc from escalation_runs where alert_id = '${draft.alertId}'`)).toBe("t");
+  });
+
+  test("H: pause survives worker restart and original deadline, then resume escalates once", async ({ page }) => {
+    test.setTimeout(180_000);
+    const draft = await confirmScenario(page, "H");
+    await page.goto(`/alerts/${draft.alertId}/live`);
+    await page.getByRole("button", { name: "Pause DEMO escalation" }).dblclick();
+    await expect(page.getByText(/Escalation state: Paused/)).toBeVisible();
+    restartWorkers();
+    await expect.poll(() => dbScalar(`select clock_timestamp() > next_due_at_utc from escalation_runs where alert_id = '${draft.alertId}'`), { timeout: 75_000 }).toBe("t");
+    expect(dbScalar(`select count(*) from alert_recipient_selections where alert_id = '${draft.alertId}' and selection_source = 'EscalationPolicy'`)).toBe("0");
+    await page.reload();
+    await expect(page.getByText(/Escalation state: Paused/)).toBeVisible();
+    await capture(page, "08-escalation-paused-after-restart.png");
+    await page.getByRole("button", { name: "Resume DEMO escalation" }).dblclick();
+    await expectBackup(draft);
+    expect(dbScalar(`select count(*) from escalation_events e join escalation_runs r on r.id = e.run_id where r.alert_id = '${draft.alertId}' and e.kind = 'Resumed'`)).toBe("1");
+  });
+
+  test("I: two running workers produce one activation, outbox and logical delivery", async ({ page }) => {
+    restartWorkers();
+    const draft = await confirmScenario(page, "I");
+    await expectBackup(draft);
+    expect(dbScalar(`select count(*) from escalation_runs where alert_id = '${draft.alertId}'`)).toBe("1");
+    expect(dbScalar(`select count(*) from escalation_events e join escalation_runs r on r.id = e.run_id where r.alert_id = '${draft.alertId}' and e.kind = 'RecipientActivated'`)).toBe("1");
   });
 });
 

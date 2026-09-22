@@ -1,6 +1,6 @@
 # Security Threat Model
 
-Status: Phase 8 repository-scoped review model. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch, practitioner response, safe operator lifecycle actions, and manual-fallback display boundaries; this is not hospital approval or a production security conclusion.
+Status: Phase 9 repository-scoped review model. The Phase 0 design baseline is extended by recipient selection, exact review, simulation-only dispatch and escalation, practitioner response, safe operator lifecycle actions, and manual-fallback display boundaries; this is not hospital approval or a production security conclusion.
 
 ## Overview
 
@@ -29,11 +29,19 @@ The Phase 7 implementation consumes the Phase 6 outbox request only through a wo
 
 No real provider SDK, network call, external callback endpoint, doctor response, live monitoring screen, or escalation decision exists in this phase. Production enablement, provider authentication/signatures, callback replay windows, delivery SLAs, retry policy, escalation policy, and operational ownership remain `REQUIRES_HOSPITAL_DECISION`.
 
-### Current Phase 8 boundary
+### Historical Phase 8 boundary
 
 Phase 8 adds Development/Test-only practitioner response and operator status/lifecycle surfaces without changing the Phase 7 provider boundary. Practitioner identity comes only from the authenticated user plus an explicit organization-scoped user-to-practitioner link. Practitioner routes require the Practitioner or Physician role and return only confirmed Active alerts whose exact version addresses the linked practitioner. Operator live status and lifecycle actions require their distinct server policies and apply the authenticated organization scope; caller-supplied identity, role, organization, and practitioner values are never authoritative.
 
 Opened, acknowledged, call-unit request, terminal disposition, responsibility assignment, delivery, and lifecycle remain separate. Idempotency records, transactions, and database uniqueness constraints protect duplicate and concurrent commands. Accepted creates one exact-version assignment; declined, unavailable, and call-unit request do not. Resolve requires an unreleased exact-version responsibility assignment; cancel requires an Active alert. The live projection excludes protected message/source/SBAR content, decrypted contact values, and raw provider references. Delivery failure remains visible and produces only a non-routing manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`. No external callback, real provider, automated escalation, transfer, hospital integration, or production identity is introduced.
+
+### Current Phase 9 boundary
+
+The operator reviews and confirms the exact future DEMO recipient/channel set, immutable policy version and evidence revision with the alert version. PostgreSQL stores that approved snapshot and owns UTC scheduling. The existing worker activates only stored approved selections and writes identifier-only outbox requests in the same transaction. Activation never searches for substitute recipients. Missing approved references create a durable visible failure. Historical alerts without an approved plan remain disabled for escalation.
+
+Run leases and unique scoped constraints protect recovery and competing workers. Worker activation, recipient response and lifecycle operations share the alert lock; queued escalation dispatch rechecks terminal lifecycle and accepted responsibility under that lock. Delivery, opened and acknowledged states do not imply responsibility or stop escalation. A backup delivery failure remains visible while original recipients can still respond. Pause/Resume require authenticated lifecycle authority, exact version, allowlisted reason and idempotency; uncertain browser retries retain the original command and key even when polled controls change.
+
+Confirmed plans and timeline events are append-only. Approved policy steps cannot be inserted, changed or deleted after publication. Live escalation projections and event/outbox metadata exclude protected case content, endpoints and raw provider payloads. Escalation requires explicit simulation configuration and fails closed outside Development/Test or without simulated dispatch. No real provider, external callback, AI, hospital integration, production identity or Phase 10 behavior is introduced. Timing, eligibility, authority, responsibility and fallback rules remain `REQUIRES_HOSPITAL_DECISION`. See the [Phase 9 verification record](../superpowers/phase9-verification.md) for tests and retained Phase 0 controls.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 
@@ -80,7 +88,7 @@ Operators control source text, human approvals, recipient selection, and respons
 
 ### Assumptions and exclusions
 
-- Phase 8 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
+- Phase 9 verification is limited to the repository tests and checks reported at the review gate; passing simulation tests is not evidence of production suitability.
 - Simulation data and providers are fictional and local; no real hospital network or provider is trusted or connected.
 - Production identity, privacy, data residency, retention, directory, scheduling, communication, and clinical workflow decisions are `REQUIRES_HOSPITAL_DECISION`.
 - The system is not an EHR, clinical decision support tool, medical device integration, or replacement for a hospital's approved fallback.
