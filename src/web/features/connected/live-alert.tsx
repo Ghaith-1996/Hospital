@@ -24,6 +24,7 @@ export function LiveAlert({ alertId, pollMs = 5000 }: { alertId: string; pollMs?
   const action = useIdempotentAction(refresh);
   return <div className="alert-details-page"><PageHeader title="Alert Live Status" description="Refreshed durable simulation status. Delivery, opening, acknowledgement and responsibility remain separate." actions={<button type="button" className="button-secondary" onClick={() => void refresh().catch(() => {})}>Refresh status</button>} />
     <ApiError error={error} retry={() => void refresh().catch(() => {})} /><ApiError error={action.error} retry={() => void action.refresh()} />
+    {action.uncertain && <button type="button" className="button-secondary" disabled={action.busy} onClick={() => void action.retry()}>Retry {action.uncertain} action</button>}
     {!live && !error && <Loading />}{live && <>
       <section className="detail-card"><h2>{live.alertState}</h2><p>Alert {live.alertId} · Confirmed version {live.confirmedVersion}</p><p>Outbox: {live.outboxState}</p><p>Last server refresh: {live.refreshedAtUtc}</p>{!!error && <p>Showing the last successful response; current state is unavailable.</p>}</section>
       {live.manualFallbackRequired && <section className="error-panel"><h2>Manual fallback required</h2><p>REQUIRES_HOSPITAL_DECISION — a hospital-approved fallback procedure is required. No contact route is configured.</p></section>}

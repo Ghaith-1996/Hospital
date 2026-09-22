@@ -1,7 +1,11 @@
+using CriticalAlerts.Application.Dispatch;
+using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Delivery;
+using CriticalAlerts.Infrastructure.Alerts;
 using CriticalAlerts.Infrastructure.Dispatch;
 using CriticalAlerts.Infrastructure.Persistence;
+using CriticalAlerts.Infrastructure.Responses;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -11,6 +15,104 @@ namespace CriticalAlerts.Infrastructure.Tests;
 [Collection(MigratedPostgresCollection.Name)]
 public sealed class EscalationProcessorTests(MigratedPostgresFixture fixture)
 {
+    [Fact]
+    public async Task RemovedApprovedBackupRoleFailsDurablyWithoutSelectingItsReplacement()
+    {
+        await fixture.ResetAsync();
+        await using var db = fixture.CreateContext();
+        await EscalationPersistenceTests.SeedApprovalAsync(db, 0, includeBackupRole: true);
+        // The existing CSV importer deletes and recreates roles when refreshing a practitioner.
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM practitioner_roles WHERE practitioner_id = {DemoDataSeeder.RileySatoId.Value}");
+        var act = () => new EscalationProcessor(db).ProcessNextAsync("worker");
+        await act.Should().NotThrowAsync();
+        db.ChangeTracker.Clear();
+        (await db.EscalationRuns.SingleAsync()).State.Should().Be(EscalationRunState.Failed);
+        (await db.EscalationEvents.CountAsync(row => row.Kind == EscalationEventKind.ProcessingFailed)).Should().Be(1);
+        (await db.AlertRecipientSelections.CountAsync(row => row.SelectionSource == RecipientSelectionSource.EscalationPolicy)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task BackupDeliveryFailurePreservesTheDeliveredOriginalRecipientsResponsePath()
+    {
+        await fixture.ResetAsync();
+        await using var db = fixture.CreateContext();
+        var approval = await EscalationPersistenceTests.SeedApprovalAsync(db, 0, DemoDataSeeder.RileySatoId);
+        await new EscalationProcessor(db).ProcessNextAsync("worker");
+        var dispatch = OutboxDispatchProcessorTests.CreateProcessor(db, TimeProvider.System);
+        (await dispatch.ProcessNextAsync("dispatch", default)).Processed.Should().BeTrue();
+        await new SimulationDispatchScenarioStore(db).SetAsync(approval.OrganizationId, NotificationChannel.SecureMessage,
+            SimulationDispatchScenario.ProviderOutage, DemoDataSeeder.MorganUserId, DateTimeOffset.UtcNow, default);
+        (await dispatch.ProcessNextAsync("dispatch", default)).PermanentlyFailed.Should().BeTrue();
+        db.ChangeTracker.Clear();
+        (await db.Alerts.SingleAsync()).State.Should().Be(AlertState.Active);
+        var response = await new RecipientResponseService(db, new PractitionerIdentityResolver(db), TimeProvider.System)
+            .RecordAsync(approval.OrganizationId, DemoDataSeeder.RileyUserId, "test", approval.AlertId,
+                new RecordRecipientResponseRequest(approval.AlertVersion.Value, "Accepted"), "late-original-acceptance", default);
+        response.Should().NotBeNull();
+        (await db.ResponsibilityAssignments.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task DueWorkerWaitsForConcurrentAcceptanceAndThenStopsWithoutActivation()
+    {
+        await fixture.ResetAsync();
+        await using var db = fixture.CreateContext();
+        var approval = await EscalationPersistenceTests.SeedApprovalAsync(db, 0);
+        var now = DateTimeOffset.UtcNow;
+        db.EscalationRuns.Add(EscalationRun.Schedule(EscalationRunId.New(), approval.OrganizationId, approval.AlertId,
+            approval.PolicyId, approval.PolicyVersion, now, now, approval.AlertVersion));
+        await db.SaveChangesAsync();
+        await using var acceptance = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM alerts WHERE id = {approval.AlertId.Value} FOR UPDATE");
+        var response = RecipientResponse.Record(RecipientResponseId.New(), approval.OrganizationId, approval.AlertId,
+            approval.AlertVersion, DemoDataSeeder.MayaChenId, RecipientResponseType.Accepted, DemoDataSeeder.JordanUserId,
+            now, "simulation-responsibility-accepted");
+        db.RecipientResponses.Add(response);
+        db.ResponsibilityAssignments.Add(ResponsibilityAssignment.FromResponse(response)!);
+        await db.SaveChangesAsync();
+        await using var workerDb = fixture.CreateContext();
+        await workerDb.Database.OpenConnectionAsync();
+        var pid = ((Npgsql.NpgsqlConnection)workerDb.Database.GetDbConnection()).ProcessID;
+        var work = new EscalationProcessor(workerDb).ProcessNextAsync("race-worker");
+        try { await new ResponseLifecycleConcurrencyTests(fixture).WaitForCompletionOrLockAsync(work, pid); }
+        finally { await acceptance.CommitAsync(); }
+        await work;
+        db.ChangeTracker.Clear();
+        (await db.EscalationRuns.SingleAsync()).StopReason.Should().Be("StoppedByResponsibility");
+        (await db.AlertRecipientSelections.CountAsync(row => row.SelectionSource == RecipientSelectionSource.EscalationPolicy)).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("accept")]
+    [InlineData("cancel")]
+    [InlineData("resolve")]
+    public async Task QueuedBackupDispatchRechecksDurableStopConditions(string action)
+    {
+        await fixture.ResetAsync();
+        await using var db = fixture.CreateContext();
+        var approval = await EscalationPersistenceTests.SeedApprovalAsync(db, 0);
+        await new EscalationProcessor(db).ProcessNextAsync("worker");
+        var dispatch = OutboxDispatchProcessorTests.CreateProcessor(db, TimeProvider.System);
+        await dispatch.ProcessNextAsync("dispatch", default);
+        if (action != "cancel")
+        {
+            var response = RecipientResponse.Record(RecipientResponseId.New(), approval.OrganizationId, approval.AlertId,
+                approval.AlertVersion, DemoDataSeeder.MayaChenId, RecipientResponseType.Accepted, DemoDataSeeder.JordanUserId,
+                DateTimeOffset.UtcNow, "simulation-responsibility-accepted");
+            db.RecipientResponses.Add(response);
+            db.ResponsibilityAssignments.Add(ResponsibilityAssignment.FromResponse(response)!);
+            await db.SaveChangesAsync();
+        }
+        await using var lifecycleDb = fixture.CreateContext();
+        var lifecycle = new AlertLifecycleService(lifecycleDb, TimeProvider.System);
+        if (action == "resolve") await lifecycle.ResolveAsync(approval.OrganizationId, DemoDataSeeder.JordanUserId, "test",
+            approval.AlertId, new(approval.AlertVersion.Value), "resolve", default);
+        if (action == "cancel") await lifecycle.CancelAsync(approval.OrganizationId, DemoDataSeeder.JordanUserId, "test",
+            approval.AlertId, new(approval.AlertVersion.Value), "cancel", default);
+        (await dispatch.ProcessNextAsync("dispatch", default)).Processed.Should().BeTrue();
+        (await db.DeliveryAttempts.CountAsync()).Should().Be(1);
+    }
+
     [Fact]
     public async Task EscalationOutboxDispatchesOnlyNewSelectionAndOriginalOutboxNeverRedispatchesIt()
     {
@@ -38,8 +140,13 @@ public sealed class EscalationProcessorTests(MigratedPostgresFixture fixture)
         await fixture.ResetAsync();
         await using var db = fixture.CreateContext();
         var approval = await EscalationPersistenceTests.SeedApprovalAsync(db, responseType == RecipientResponseType.Acknowledged ? 0 : 3600);
-        var reason = responseType switch { RecipientResponseType.Accepted => "simulation-responsibility-accepted",
-            RecipientResponseType.Declined => "simulation-declined", RecipientResponseType.Unavailable => "simulation-unavailable", _ => "simulation-acknowledged" };
+        var reason = responseType switch
+        {
+            RecipientResponseType.Accepted => "simulation-responsibility-accepted",
+            RecipientResponseType.Declined => "simulation-declined",
+            RecipientResponseType.Unavailable => "simulation-unavailable",
+            _ => "simulation-acknowledged"
+        };
         var response = RecipientResponse.Record(RecipientResponseId.New(), approval.OrganizationId, approval.AlertId,
             approval.AlertVersion, DemoDataSeeder.MayaChenId, responseType, DemoDataSeeder.JordanUserId, DateTimeOffset.UtcNow, reason);
         db.RecipientResponses.Add(response);

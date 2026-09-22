@@ -125,6 +125,20 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
             return;
         }
         db.EscalationEvents.Add(run.Record(EscalationEventKind.StepDue, now));
+        // ponytail: DEMO table locks stabilize approved references; use row locks if import throughput matters.
+        await db.Database.ExecuteSqlRawAsync("LOCK TABLE practitioners, practitioner_roles IN SHARE MODE", ct);
+        var approvedIds = step.Recipients.Select(row => new PractitionerId(row.PractitionerId)).ToArray();
+        var practitioners = await db.Practitioners.AsNoTracking().Where(row => row.OrganizationId == run.OrganizationId
+            && row.IsActive && approvedIds.Contains(row.Id)).Select(row => row.Id).ToArrayAsync(ct);
+        var roles = await db.PractitionerRoles.AsNoTracking().Where(row => row.OrganizationId == run.OrganizationId
+            && approvedIds.Contains(row.PractitionerId)).ToArrayAsync(ct);
+        if (step.Recipients.Any(recipient => !practitioners.Contains(new PractitionerId(recipient.PractitionerId))
+            || (recipient.PractitionerRoleId is Guid role && !roles.Any(row => row.Id.Value == role && row.PractitionerId.Value == recipient.PractitionerId))))
+        {
+            run.Stop(EscalationEventKind.ProcessingFailed, now);
+            db.EscalationEvents.Add(run.Record(EscalationEventKind.ProcessingFailed, now));
+            return;
+        }
         var existing = await db.AlertRecipientSelections.Where(row => row.OrganizationId == run.OrganizationId
             && row.AlertId == run.AlertId && row.AlertVersion == run.AlertVersion).ToListAsync(ct);
         var selections = new List<AlertRecipientSelection>();
@@ -145,8 +159,12 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
         if (selections.Count > 0)
         {
             db.OutboxMessages.Add(OutboxMessage.Create(OutboxMessageId.New(), run.OrganizationId, "EscalationDispatchRequested",
-                alert.Id.Value, JsonSerializer.Serialize(new { alertId = alert.Id.Value, draftVersion = approval.AlertVersion.Value,
-                    recipientSelectionIds = selections.Select(row => row.Id.Value).ToArray() }),
+                alert.Id.Value, JsonSerializer.Serialize(new
+                {
+                    alertId = alert.Id.Value,
+                    draftVersion = approval.AlertVersion.Value,
+                    recipientSelectionIds = selections.Select(row => row.Id.Value).ToArray()
+                }),
                 $"escalation:{run.Id.Value:N}:step:{run.CurrentStep}", now));
             db.EscalationEvents.Add(run.Record(EscalationEventKind.DispatchQueued, now));
         }

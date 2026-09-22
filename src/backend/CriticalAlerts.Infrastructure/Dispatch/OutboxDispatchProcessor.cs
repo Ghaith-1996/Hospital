@@ -50,6 +50,8 @@ public sealed class OutboxDispatchProcessor(
             if (transaction is not null)
             {
                 await AlertMutationLock.AcquireAsync(db, message.OrganizationId, new AlertId(message.AggregateId), cancellationToken);
+                _ = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM outbox_messages WHERE id = {message.Id.Value} FOR UPDATE")
+                    .SingleAsync(cancellationToken);
                 await db.Entry(message).ReloadAsync(cancellationToken);
                 if (message.LeaseOwner != leaseOwner.Trim() || message.ProcessingState != OutboxProcessingState.Processing)
                     return new DispatchProcessingResult(false, false, false, message.Id.Value, "lease-lost");
@@ -134,6 +136,17 @@ public sealed class OutboxDispatchProcessor(
             .SingleOrDefaultAsync(
                 item => item.OrganizationId == message.OrganizationId && item.Id == payload.AlertId,
                 cancellationToken);
+        if (payload.RecipientSelectionIds is not null && alert is not null)
+        {
+            await db.Entry(alert).ReloadAsync(cancellationToken);
+            if (alert.ConfirmedDraftVersion?.Value == payload.DraftVersion && alert.DraftVersion.Value == payload.DraftVersion
+                && alert.State is AlertState.Resolved or AlertState.Cancelled)
+            {
+                message.MarkProcessed(leaseOwner, now);
+                await db.SaveChangesAsync(cancellationToken);
+                return new DispatchProcessingResult(true, false, false, message.Id.Value, "stopped-by-lifecycle");
+            }
+        }
         if (alert is null
             || alert.Id.Value != message.AggregateId
             || alert.DraftVersion.Value != payload.DraftVersion
@@ -269,7 +282,7 @@ public sealed class OutboxDispatchProcessor(
             return new DispatchProcessingResult(true, false, false, message.Id.Value, "processed");
         }
 
-        if (alert.State is AlertState.DispatchQueued or AlertState.Active)
+        if (message.EventType != "EscalationDispatchRequested" && alert.State is AlertState.DispatchQueued or AlertState.Active)
         {
             alert.MarkFailed(now, correlationId);
         }
@@ -582,7 +595,7 @@ public sealed class OutboxDispatchProcessor(
         string category,
         CancellationToken cancellationToken)
     {
-        if (alert is not null && alert.State is AlertState.DispatchQueued or AlertState.Active)
+        if (message.EventType != "EscalationDispatchRequested" && alert is not null && alert.State is AlertState.DispatchQueued or AlertState.Active)
         {
             alert.MarkFailed(now, $"dispatch:{message.Id.Value:N}");
         }

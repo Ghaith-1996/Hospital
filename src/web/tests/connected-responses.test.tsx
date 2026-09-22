@@ -6,6 +6,26 @@ import { PractitionerAlert, PractitionerInbox } from "../features/connected/prac
 import { LiveAlert } from "../features/connected/live-alert";
 vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlert: vi.fn(), getMyAlerts: vi.fn(), markMyAlertOpened: vi.fn(), recordMyAlertResponse: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn(), setEscalationPaused: vi.fn() }));
 afterEach(() => vi.clearAllMocks());
+test("a committed pause with lost response remains retryable after polling hides Pause", async () => {
+  const escalation: api.AlertLiveEscalation = { policyId: "policy", policyVersion: "DEMO-9", state: "Scheduled", currentStep: 1,
+    nextDueAtUtc: "2026-09-22T12:01:00Z", remainingDelaySeconds: null, stopReason: null, canPause: true, canResume: false, events: [] };
+  const live: api.AlertLive = { alertId: "sim", confirmedVersion: 9, alertState: "Active", outboxState: "Processed",
+    refreshedAtUtc: "2026-09-22T12:00:00Z", canResolve: false, canCancel: true, manualFallbackRequired: false, recipients: [], escalation };
+  vi.mocked(api.getAlertLive).mockResolvedValueOnce(live).mockResolvedValue({ ...live,
+    escalation: { ...escalation, state: "Paused", canPause: false, canResume: true, remainingDelaySeconds: 30 } });
+  vi.mocked(api.setEscalationPaused).mockRejectedValueOnce(new TypeError("lost response")).mockResolvedValue({} as api.AlertLifecycleResult);
+  render(<LiveAlert alertId="sim" pollMs={0} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Pause DEMO escalation" }));
+  await screen.findByText(/Outcome uncertain/);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+  await screen.findByText(/Escalation state: Paused/);
+  expect(screen.queryByRole("button", { name: "Pause DEMO escalation" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Retry Pause action" }));
+  await act(async () => {});
+  expect(api.setEscalationPaused).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(api.setEscalationPaused).mock.calls[1]).toEqual(vi.mocked(api.setEscalationPaused).mock.calls[0]);
+  expect(screen.getByRole("button", { name: "Resume DEMO escalation" })).toBeEnabled();
+});
 test("escalation uses server state and retries an uncertain pause with the exact same command", async () => {
   const live: api.AlertLive = { alertId: "sim", confirmedVersion: 9, alertState: "Active", outboxState: "Processed", refreshedAtUtc: "2026-09-22T12:00:00Z",
     canResolve: false, canCancel: true, manualFallbackRequired: false, recipients: [],
