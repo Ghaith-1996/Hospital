@@ -25,9 +25,20 @@ internal sealed class SimulationDispatchWorker(
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 using var scope = scopeFactory.CreateScope();
+                var escalation = scope.ServiceProvider.GetService<EscalationProcessor>();
+                var escalated = false;
+                if (escalation is not null)
+                {
+                    try { escalated = await escalation.ProcessNextAsync(leaseOwner, stoppingToken); }
+                    catch (Exception) when (!stoppingToken.IsCancellationRequested)
+                    {
+                        scope.ServiceProvider.GetRequiredService<CriticalAlerts.Infrastructure.Persistence.CriticalAlertsDbContext>().ChangeTracker.Clear();
+                        logger.LogWarning("Simulation escalation processing failed; durable leases permit recovery.");
+                    }
+                }
                 var processor = scope.ServiceProvider.GetRequiredService<IOutboxDispatchProcessor>();
                 var result = await processor.ProcessNextAsync(leaseOwner, stoppingToken);
-                if (!result.Processed && !result.Rescheduled && !result.PermanentlyFailed)
+                if (!escalated && !result.Processed && !result.Rescheduled && !result.PermanentlyFailed)
                 {
                     break;
                 }

@@ -34,3 +34,7 @@ Not yet run. No completion, migration, test-count, security or system-restart cl
 ### Task 4 — durable persistence
 Added nullable exact-version binding (legacy rows remain disabled), durable leases/pause delay, scoped uniqueness and append-only safe events. PostgreSQL tests first failed because policy/event mutation was allowed, then passed with database triggers. Full infrastructure suite: 70 passed, no skips. No historical migration changed. New migration is additive; policy activation status alone remains editable.
 
+
+### Tasks 5–7 — scheduler, activation and outbox
+Implemented PostgreSQL clock scheduling and recoverable claims, alert-before-run locking, exact approved backup activation and atomic identifier-only outbox. Activation and scheduling were tested together because they share the durable transaction. Three scheduler tests: two behavioral RED then three GREEN. Eight scheduler/dispatch tests exercise concurrency, restart leases, legacy exclusion, accepted responsibility, acknowledgement and negative response behavior. A dispatch test exposed original-recipient leakage into escalation; original and escalation jobs now select disjoint approved selections. Full infrastructure regression: 78 passed, no skips. Worker escalation is explicitly disabled by default and fails closed outside Development/Test or without simulated dispatch. No new provider or dependency.
+

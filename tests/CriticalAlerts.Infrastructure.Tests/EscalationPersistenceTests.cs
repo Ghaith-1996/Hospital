@@ -74,7 +74,7 @@ public sealed class EscalationPersistenceTests(MigratedPostgresFixture fixture)
 
     internal static async Task<ConfirmedEscalationPlan> SeedApprovalAsync(CriticalAlertsDbContext db, long delaySeconds = 60)
     {
-        var alertId = await OutboxDispatchProcessorTests.SeedConfirmedAlertAsync(db, NotificationChannel.SecureMessage);
+        var alertId = await OutboxDispatchProcessorTests.SeedConfirmedAlertAsync(db, NotificationChannel.SecureMessage, DemoDataSeeder.MayaChenId);
         var alert = await db.Alerts.SingleAsync(row => row.Id == alertId);
         var policy = await db.EscalationPolicies.SingleAsync(row => row.IsActive);
         var step = await db.EscalationSteps.SingleAsync(row => row.PolicyId == policy.Id);
