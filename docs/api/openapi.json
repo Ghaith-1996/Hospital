@@ -645,6 +645,16 @@
               "string"
             ]
           },
+          "escalationPlan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EscalationPlanView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "location": {
             "type": "string"
           },
@@ -760,6 +770,25 @@
       },
       "ConfirmAlertReviewRequest": {
         "properties": {
+          "escalationPlanRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationPolicyId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "escalationPolicyVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "expectedVersion": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -1321,6 +1350,142 @@
           "site",
           "sourceSystem",
           "specialty"
+        ],
+        "type": "object"
+      },
+      "EscalationPlanRecipient": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "department": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "directoryRevision": {
+            "type": "string"
+          },
+          "directorySourceUpdatedAtUtc": {
+            "format": "date-time",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "onCallSnapshot": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "practitionerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "practitionerRoleId": {
+            "format": "uuid",
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roleTitle": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "site": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "specialty": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "department",
+          "directoryRevision",
+          "directorySourceUpdatedAtUtc",
+          "displayName",
+          "onCallSnapshot",
+          "practitionerId",
+          "practitionerRoleId",
+          "roleTitle",
+          "site",
+          "specialty"
+        ],
+        "type": "object"
+      },
+      "EscalationPlanStepView": {
+        "properties": {
+          "delaySeconds": {
+            "format": "int64",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationPlanRecipient"
+            },
+            "type": "array"
+          },
+          "sequenceNumber": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "stepId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delaySeconds",
+          "recipients",
+          "sequenceNumber",
+          "stepId"
+        ],
+        "type": "object"
+      },
+      "EscalationPlanView": {
+        "properties": {
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/EscalationPlanStepView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "policyId",
+          "policyVersion",
+          "revision",
+          "steps"
         ],
         "type": "object"
       },

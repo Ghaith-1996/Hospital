@@ -149,7 +149,8 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     await signIn(page, jordan);
     const prepared = await prepareConfirmableAlert(page.request, "SIM-PAT-SYSTEM-C");
     const key = `phase85-system-${crypto.randomUUID()}`;
-    const confirm = () => page.request.post(`/api/v1/alerts/${prepared.alertId}/confirm`, { headers: { "Idempotency-Key": key }, data: { expectedVersion: prepared.draftVersion } });
+    const review = await (await page.request.get(`/api/v1/alerts/${prepared.alertId}/review`)).json();
+    const confirm = () => page.request.post(`/api/v1/alerts/${prepared.alertId}/confirm`, { headers: { "Idempotency-Key": key }, data: { expectedVersion: prepared.draftVersion, escalationPolicyId: review.escalationPlan.policyId, escalationPolicyVersion: review.escalationPlan.policyVersion, escalationPlanRevision: review.escalationPlan.revision } });
     const [first, replay] = await Promise.all([confirm(), confirm()]);
     expect(first.ok(), await first.text()).toBeTruthy();
     expect(replay.ok(), await replay.text()).toBeTruthy();

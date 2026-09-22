@@ -98,7 +98,7 @@ public sealed class AlertReviewTests(SeededPostgresApiFixture fixture)
         reviewRecipient.DirectoryRevision.Should().Be(maya.SelectionRevision);
         reviewRecipient.DirectorySourceUpdatedAtUtc.Should().Be(DateTimeOffset.Parse("2026-08-01T12:00:00Z"));
         reviewRecipient.IsStale.Should().BeFalse();
-        review.DemoEscalationPolicyVersion.Should().Be("DEMO");
+        review.DemoEscalationPolicyVersion.Should().Be("DEMO-1");
         review.DemoNotificationPolicyVersion.Should().Be("DEMO");
         reviewBody.Should().NotContain("sim-secure://");
         reviewBody.Should().NotContain("+1 555");

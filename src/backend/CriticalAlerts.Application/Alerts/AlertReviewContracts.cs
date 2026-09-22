@@ -38,9 +38,39 @@ public sealed record AlertReviewView(
     IReadOnlyList<AlertReviewCriticalField> CriticalFields,
     IReadOnlyList<AlertReviewRecipient> Recipients,
     string DemoEscalationPolicyVersion,
-    string DemoNotificationPolicyVersion);
+    string DemoNotificationPolicyVersion,
+    EscalationPlanView? EscalationPlan = null);
 
-public sealed record ConfirmAlertReviewRequest(int ExpectedVersion);
+public sealed record EscalationPlanRecipient(
+    Guid PractitionerId,
+    Guid? PractitionerRoleId,
+    string DisplayName,
+    string Specialty,
+    string? Department,
+    string? Site,
+    string? RoleTitle,
+    string Channel,
+    string DirectoryRevision,
+    DateTimeOffset? DirectorySourceUpdatedAtUtc,
+    string? OnCallSnapshot);
+
+public sealed record EscalationPlanStepView(
+    Guid StepId,
+    int SequenceNumber,
+    long DelaySeconds,
+    IReadOnlyList<EscalationPlanRecipient> Recipients);
+
+public sealed record EscalationPlanView(
+    Guid PolicyId,
+    string PolicyVersion,
+    string Revision,
+    IReadOnlyList<EscalationPlanStepView> Steps);
+
+public sealed record ConfirmAlertReviewRequest(
+    int ExpectedVersion,
+    Guid? EscalationPolicyId = null,
+    string? EscalationPolicyVersion = null,
+    string? EscalationPlanRevision = null);
 
 public sealed record ConfirmAlertReviewResult(
     Guid AlertId,

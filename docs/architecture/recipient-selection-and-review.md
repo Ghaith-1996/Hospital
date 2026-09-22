@@ -2,6 +2,14 @@
 
 ## Status and authority
 
+### Phase 9 exact escalation approval
+
+Phase 9 replaces the confirmation placeholder with an exact `escalationPlan`: policy ID/version, deterministic revision, step IDs/delays and future DEMO backup practitioner/role/channel evidence. Confirmation now requires `expectedVersion`, `escalationPolicyId`, `escalationPolicyVersion` and `escalationPlanRevision`. The same complete request is retained for uncertain retries. Missing or changed approval returns a safe conflict.
+
+Review and confirmation hold shared directory/policy table locks for consistent evidence; confirmation also uses the shared alert mutation lock. The DEMO implementation trades import concurrency for a small, explicit transaction boundary. It selects only eligible current backup-on-call entries for the exact organization/site/department, excludes manually selected pairs, and shows empty steps explicitly. It never guesses a replacement for expired roster evidence. No clinical content participates in this selection.
+
+Confirmation stores a separate immutable `confirmed_escalation_plans` row for the exact alert version in the same transaction as audit/idempotency/outbox. PostgreSQL rejects update/delete. The snapshot is absent for historical confirmations; those alerts are not escalation-enabled. The original dispatch payload remains `alertId` plus `draftVersion`; no message content is added. Subsequent sections describe the historical Phase 6 baseline where the Phase 9 contract above supersedes it.
+
 This document records the Phase 6 simulation behavior that precedes the Phase 7 worker. It does not create hospital policy or authorize clinical use. Production recipient eligibility, on-call ownership, directory freshness limits, communication channels, final confirmer roles, and confirmation wording are `REQUIRES_HOSPITAL_DECISION`.
 
 The Phase 6 implementation uses fictional directory and patient data exclusively. Phase 7 is separately scoped to consume the resulting identifier-only outbox item through deterministic local simulation adapters; this document does not authorize provider calls or recipient changes by the worker.

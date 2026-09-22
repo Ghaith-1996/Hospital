@@ -75,6 +75,8 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public DbSet<EscalationRun> EscalationRuns => Set<EscalationRun>();
 
+    public DbSet<ConfirmedEscalationPlan> ConfirmedEscalationPlans => Set<ConfirmedEscalationPlan>();
+
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();

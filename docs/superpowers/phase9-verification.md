@@ -17,8 +17,14 @@ Plan: `plans/2026-09-22-phase-9-escalation.md`. Baseline `9e312b2`; branch `feat
 
 ## Task status
 
-1. Specification/safety boundary written. Documentation-only; no behavioral test required.
-2–12. Pending.
+1. Complete in `df6c960`: specification/safety boundary. Documentation-only; `git diff --check` passed.
+2. Exact review/confirmation slice in verification. Added optional wire fields that are mandatory for new successful confirmations, safe conflicts, database-clock review, locked evidence, immutable exact-version snapshot storage, additive migration `20260922144312_Phase9ConfirmedEscalationPlan`, and connected review display/request binding. No worker automation yet.
+   - RED: two PostgreSQL tests failed because missing approval was accepted (200 rather than 409) and review lacked `escalationPlan`.
+   - RED: snapshot SQL mutation succeeded before the immutable-history trigger; failed as expected once Docker recovered. One preceding test run was an environment failure (Docker unavailable), not a behavioral RED.
+   - RED: frontend future-backup visibility test failed; four retained tests passed. Initial sandbox startup failure was rerun with authorized filesystem access.
+   - GREEN: 128 API integration tests, 67 infrastructure tests, 60 domain tests, 29 frontend tests (8 files); no failures/skips in these suites. Typecheck and lint passed. Infrastructure regression took 17m17s including container/database work.
+   - `dotnet format ... --no-restore`, OpenAPI regeneration, sensitive-data scan, active storage-safety scan and `git diff --check` passed. System replay scenario now sends the exact reviewed plan; system execution remains a later gate.
+3–12. Pending.
 
 ## Final gate
 

@@ -125,6 +125,31 @@ export type AlertReview = {
   recipients: AlertReviewRecipient[];
   demoEscalationPolicyVersion: string;
   demoNotificationPolicyVersion: string;
+  escalationPlan?: EscalationPlan | null;
+};
+
+export type EscalationPlan = {
+  policyId: string;
+  policyVersion: string;
+  revision: string;
+  steps: {
+    stepId: string;
+    sequenceNumber: number;
+    delaySeconds: number;
+    recipients: {
+      practitionerId: string;
+      practitionerRoleId: string | null;
+      displayName: string;
+      specialty: string;
+      department: string | null;
+      site: string | null;
+      roleTitle: string | null;
+      channel: string;
+      directoryRevision: string;
+      directorySourceUpdatedAtUtc: string | null;
+      onCallSnapshot: string | null;
+    }[];
+  }[];
 };
 
 export type ConfirmResult = {
@@ -368,11 +393,11 @@ export function createIdempotencyKey(): string {
   return `phase6-${randomUuid ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 }
 
-export function confirmAlertReview(alertId: string, expectedVersion: number, idempotencyKey: string): Promise<ConfirmResult> {
+export function confirmAlertReview(alertId: string, expectedVersion: number, idempotencyKey: string, plan: EscalationPlan): Promise<ConfirmResult> {
   return requestJson<ConfirmResult>(`/api/v1/alerts/${alertId}/confirm`, {
     method: "POST",
     headers: { "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ expectedVersion }),
+    body: JSON.stringify({ expectedVersion, escalationPolicyId: plan.policyId, escalationPolicyVersion: plan.policyVersion, escalationPlanRevision: plan.revision }),
   });
 }
 
