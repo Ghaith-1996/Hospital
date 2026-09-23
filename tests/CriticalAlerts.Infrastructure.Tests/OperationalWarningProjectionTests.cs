@@ -1,6 +1,6 @@
 using CriticalAlerts.Domain;
-using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Delivery;
+using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Infrastructure.Dispatch;
 using CriticalAlerts.Infrastructure.Persistence;
 using CriticalAlerts.Infrastructure.Responses;
