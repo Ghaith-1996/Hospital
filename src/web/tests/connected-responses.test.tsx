@@ -6,6 +6,31 @@ import { PractitionerAlert, PractitionerInbox } from "../features/connected/prac
 import { LiveAlert } from "../features/connected/live-alert";
 vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlert: vi.fn(), getMyAlerts: vi.fn(), markMyAlertOpened: vi.fn(), recordMyAlertResponse: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn(), setEscalationPaused: vi.fn() }));
 afterEach(() => vi.clearAllMocks());
+function escalationLive(): api.AlertLive {
+  return {
+    alertId: "sim",
+    confirmedVersion: 9,
+    alertState: "Active",
+    outboxState: "Processed",
+    refreshedAtUtc: "2026-09-22T12:00:00Z",
+    canResolve: false,
+    canCancel: true,
+    manualFallbackRequired: false,
+    recipients: [],
+    escalation: {
+      policyId: "policy",
+      policyVersion: "DEMO-9",
+      state: "Scheduled",
+      currentStep: 1,
+      nextDueAtUtc: "2026-09-22T12:01:00Z",
+      remainingDelaySeconds: null,
+      stopReason: null,
+      canPause: true,
+      canResume: false,
+      events: [],
+    },
+  };
+}
 test("a committed pause with lost response remains retryable after polling hides Pause", async () => {
   const escalation: api.AlertLiveEscalation = { policyId: "policy", policyVersion: "DEMO-9", state: "Scheduled", currentStep: 1,
     nextDueAtUtc: "2026-09-22T12:01:00Z", remainingDelaySeconds: null, stopReason: null, canPause: true, canResume: false, events: [] };
