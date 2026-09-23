@@ -2,7 +2,6 @@ using System.Text.Json;
 using CriticalAlerts.Application.Audit;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Reliability;
-using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
