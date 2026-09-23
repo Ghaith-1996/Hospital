@@ -1491,6 +1491,41 @@
         ],
         "type": "object"
       },
+      "EscalationOnCallEvidence": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSynchronizedAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceRecordId": {
+            "type": "string"
+          },
+          "sourceSystem": {
+            "type": "string"
+          },
+          "startsAtUtc": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignmentId",
+          "endsAtUtc",
+          "lastSynchronizedAtUtc",
+          "sourceRecordId",
+          "sourceSystem",
+          "startsAtUtc"
+        ],
+        "type": "object"
+      },
       "EscalationOverrideRequest": {
         "properties": {
           "expectedVersion": {
@@ -1534,6 +1569,16 @@
           },
           "displayName": {
             "type": "string"
+          },
+          "onCallEvidence": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EscalationOnCallEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "onCallSnapshot": {
             "type": [
