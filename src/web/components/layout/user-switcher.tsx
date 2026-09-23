@@ -39,7 +39,7 @@ export function UserSwitcher() {
         if (!window.dispatchEvent(guard)) return;
         setOpen(false);
         const principal = await switchIdentity(identity.simulationHandle);
-        if (principal) router.replace(principal.roles.some(role => role === "Practitioner" || role === "Physician") ? "/my-alerts" : "/alerts/new");
+        if (principal) router.replace(principal.roles.includes("Auditor") ? "/admin/audit" : principal.roles.some(role => role === "Practitioner" || role === "Physician") ? "/my-alerts" : "/alerts/new");
       }}><span><span>{identity.displayName}</span><span>{identity.roles.join(", ")}</span></span></button>)}
     </div>}
   </div>;

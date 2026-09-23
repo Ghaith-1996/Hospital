@@ -26,6 +26,8 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
 
         services.AddAuthorization(options =>
         {
+            options.AddPolicy(AuthorizationPolicies.AuditReader, policy => policy.RequireAuthenticatedUser()
+                .RequireRole(AuthorizationRoles.Auditor, AuthorizationRoles.SystemAdministrator));
             options.AddPolicy(AuthorizationPolicies.Operator, policy => policy.RequireRole(AuthorizationRoles.Operator));
             options.AddPolicy(AuthorizationPolicies.Physician, policy => policy.RequireRole(AuthorizationRoles.Physician));
             options.AddPolicy(AuthorizationPolicies.ClinicalSupervisor, policy => policy.RequireRole(AuthorizationRoles.ClinicalSupervisor));
@@ -93,6 +95,13 @@ internal static class DevelopmentAuthenticationServiceCollectionExtensions
     {
         response.StatusCode = statusCode;
         response.ContentType = "application/problem+json";
-        await response.WriteAsJsonAsync(new { type = "about:blank", title, status = statusCode, detail });
+        await response.WriteAsJsonAsync(new
+        {
+            type = "about:blank",
+            title,
+            status = statusCode,
+            detail,
+            correlationId = response.Headers["X-Correlation-ID"].ToString()
+        });
     }
 }

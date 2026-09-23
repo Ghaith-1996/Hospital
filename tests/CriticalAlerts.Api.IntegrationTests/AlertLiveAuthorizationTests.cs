@@ -20,6 +20,57 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-30T16:00:00Z");
 
     [Fact]
+    public async Task OperationalWarningProjectionDoesNotReflectPayloadShapedFailureCategories()
+    {
+        var prepared = await CreateLiveAlertAsync();
+        await using var db = fixture.CreateContext();
+        const string sentinel = "SIM-PATIENT-PHASE10-SENTINEL";
+        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE delivery_attempts SET failure_category = {sentinel} WHERE alert_id = {prepared.AlertId} AND status = 'Failed'");
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        using var response = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Contains(sentinel, StringComparison.Ordinal).Should().BeFalse("failure categories are a closed technical vocabulary");
+        body.Should().Contain("delivery-failed");
+    }
+
+    [Theory]
+    [InlineData("DeliveryFailed")]
+    [InlineData("ProviderUnavailable")]
+    [InlineData("DirectoryStale")]
+    [InlineData("DispatchDelayed")]
+    public async Task OperationalWarningUsesDurableFactsAndFixedSafeRecovery(string code)
+    {
+        var prepared = await CreateLiveAlertAsync();
+        await using var db = fixture.CreateContext();
+        if (code == "ProviderUnavailable")
+            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE delivery_attempts SET failure_category = 'provider-unavailable' WHERE alert_id = {prepared.AlertId} AND status = 'Failed'");
+        if (code == "DirectoryStale")
+            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE directory_source_records SET is_stale = true WHERE practitioner_id = {DemoDataSeeder.MayaChenId.Value}");
+        if (code == "DispatchDelayed")
+            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE outbox_messages SET processing_state = 'Pending', next_attempt_at_utc = clock_timestamp() - interval '1 hour' WHERE aggregate_id = {prepared.AlertId}");
+        try
+        {
+            await new CriticalAlerts.Infrastructure.Responses.AlertLiveQueryService(db, TimeProvider.System)
+                .GetAsync(DemoDataSeeder.OrganizationId, new AlertId(prepared.AlertId), default);
+            using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+            using var response = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            using var document = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var warnings = document.RootElement.GetProperty("operationalWarnings").EnumerateArray();
+            var warning = warnings.Single(w => w.GetProperty("code").GetString() == code);
+            warning.GetProperty("recommendedApplicationAction").GetString().Should().NotBeNullOrWhiteSpace();
+            warning.ToString().Contains("SIM-PAT-LIVE-PROTECTED", StringComparison.Ordinal).Should().BeFalse();
+            document.RootElement.TryGetProperty("escalation", out _).Should().BeTrue();
+        }
+        finally
+        {
+            if (code == "DirectoryStale")
+                await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE directory_source_records SET is_stale = false WHERE practitioner_id = {DemoDataSeeder.MayaChenId.Value}");
+        }
+    }
+
+    [Fact]
     public async Task LiveRouteAllowsOperatorsAndAdministratorsButDeniesPractitionersAndAnonymousUsers()
     {
         var prepared = await CreateLiveAlertAsync();

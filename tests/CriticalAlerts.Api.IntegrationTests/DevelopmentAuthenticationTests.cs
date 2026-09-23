@@ -268,6 +268,16 @@ public sealed class SeededPostgresApiFixture : IAsyncLifetime
     public HttpClient CreateClient()
         => factory!.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
 
+    internal WebApplicationFactory<Program> WithAssistance(bool enabled) => factory!.WithWebHostBuilder(builder =>
+    {
+        builder.UseSetting("Features:SpeechTranscription", enabled.ToString());
+        builder.UseSetting("Features:AlertStructuringSuggestions", enabled.ToString());
+        builder.UseSetting("Speech:Provider", "Simulated");
+        builder.UseSetting("AlertStructuring:Provider", "Simulated");
+    });
+
+    internal IServiceScope CreateServiceScope() => factory!.Services.CreateScope();
+
     public async Task<HttpClient> CreateSignedInClientAsync(string simulationHandle)
     {
         var client = CreateClient();
@@ -406,6 +416,8 @@ internal sealed class CapturingLoggerProvider : ILoggerProvider
             Func<TState, Exception?, string> formatter)
         {
             var message = $"{categoryName} {logLevel} {eventId.Id} {formatter(state, exception)}";
+            if (state is IEnumerable<KeyValuePair<string, object?>> properties)
+                message += " " + string.Join(" ", properties.Select(property => property.Key + "=" + property.Value));
             if (exception is not null)
             {
                 message += $" {exception.GetType().Name}: {exception.Message}";

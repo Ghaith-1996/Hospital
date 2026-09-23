@@ -1,6 +1,10 @@
 # Logging Policy
 
-Status: Phase 8 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
+Status: Phase 10 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
+
+## Phase 10 allowlist extension
+
+The [implemented boundary](../architecture/observability.md) supersedes historical logging allowances below: exclude display names, provider references, organization/actor/resource identifiers, raw exceptions, URLs/query strings and arbitrary payloads. Only source-generated CriticalAlerts.Operations events are enabled. Their fields are finite operation/state, status code and effective opaque correlation ID. The metric tag is operation only, from a closed mapping; no identifiers. Audit has a separate authorized projection. Framework diagnostics are suppressed. Runtime sentinel and MeterListener verification is mandatory. Telemetry stays local; production destination/access/retention/exporter/SIEM remain REQUIRES_HOSPITAL_DECISION.
 
 ## Purpose
 
@@ -95,3 +99,9 @@ Phase 8 response and lifecycle audit metadata is limited to opaque organization,
 
 Log access, centralized storage, cross-border transfer, retention, deletion, legal hold, SIEM integration, alert thresholds, and incident-response ownership are `REQUIRES_HOSPITAL_DECISION`. Until approved, keep simulation logs local, minimize retention, and do not send them to external services.
 
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
+
+Phase 11 forbids audio bytes/digests, transcripts, source text, suggestions, evidence snippets, provider response/error text and keys in logs, audit metadata or metric labels. Committed audits allow only transcription/structuring requested/completed/failed/applied/stale actions with simulation/version metadata. Metrics reuse finite operation labels; no alert/user/patient IDs become metric tags. Runtime sentinel tests exercise successful Apply, failure and stale paths. Evaluation logs contain aggregate counts/rates only; fixtures are fictional and raw evaluation/media/browser artifacts are excluded from git and Docker. Logging may never be enabled to troubleshoot raw provider bodies.

@@ -6,6 +6,31 @@ import { PractitionerAlert, PractitionerInbox } from "../features/connected/prac
 import { LiveAlert } from "../features/connected/live-alert";
 vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlert: vi.fn(), getMyAlerts: vi.fn(), markMyAlertOpened: vi.fn(), recordMyAlertResponse: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn(), setEscalationPaused: vi.fn() }));
 afterEach(() => vi.clearAllMocks());
+function escalationLive(): api.AlertLive {
+  return {
+    alertId: "sim",
+    confirmedVersion: 9,
+    alertState: "Active",
+    outboxState: "Processed",
+    refreshedAtUtc: "2026-09-22T12:00:00Z",
+    canResolve: false,
+    canCancel: true,
+    manualFallbackRequired: false,
+    recipients: [],
+    escalation: {
+      policyId: "policy",
+      policyVersion: "DEMO-9",
+      state: "Scheduled",
+      currentStep: 1,
+      nextDueAtUtc: "2026-09-22T12:01:00Z",
+      remainingDelaySeconds: null,
+      stopReason: null,
+      canPause: true,
+      canResume: false,
+      events: [],
+    },
+  };
+}
 test("a committed pause with lost response remains retryable after polling hides Pause", async () => {
   const escalation: api.AlertLiveEscalation = { policyId: "policy", policyVersion: "DEMO-9", state: "Scheduled", currentStep: 1,
     nextDueAtUtc: "2026-09-22T12:01:00Z", remainingDelaySeconds: null, stopReason: null, canPause: true, canResume: false, events: [] };
@@ -46,6 +71,26 @@ test("escalation uses server state and retries an uncertain pause with the exact
   expect(api.setEscalationPaused).toHaveBeenCalledTimes(2);
   expect(vi.mocked(api.setEscalationPaused).mock.calls[0]).toEqual(vi.mocked(api.setEscalationPaused).mock.calls[1]);
   expect(vi.mocked(api.setEscalationPaused).mock.calls[0].slice(0, 3)).toEqual(["sim", 9, true]);
+});
+test("operational warning guidance is safe and preserves escalation controls", async () => {
+  vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", operationalWarnings: [{
+    code: "ProviderUnavailable", title: "Provider unavailable", explanation: "The simulated notification provider is unavailable.",
+    recommendedApplicationAction: "Refresh status. Do not create a duplicate alert. REQUIRES_HOSPITAL_DECISION.", requiresHospitalFallback: true,
+  }] } as api.AlertLive);
+  render(<LiveAlert alertId="sim" pollMs={0} />);
+  expect(await screen.findByRole("heading", { name: "Provider unavailable" })).toBeVisible();
+  expect(screen.getByText(/Do not create a duplicate alert/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Pause DEMO escalation" })).toBeVisible();
+});
+test("untrusted warning text never reaches the live screen", async () => {
+  const sentinel = "SIM-APPROVED-MESSAGE-DO-NOT-LOG";
+  vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", operationalWarnings: [{
+    code: "ProviderUnavailable", title: sentinel, explanation: sentinel,
+    recommendedApplicationAction: sentinel, requiresHospitalFallback: true,
+  }] } as api.AlertLive);
+  render(<LiveAlert alertId="sim" pollMs={0} />);
+  expect(await screen.findByRole("heading", { name: "Provider unavailable" })).toBeVisible();
+  expect(document.body.textContent?.includes(sentinel)).toBe(false);
 });
 test("live polling stops on unmount", async () => {
   vi.useFakeTimers();

@@ -45,3 +45,16 @@ postgres-data/
 *.swp
 Thumbs.db
 .DS_Store
+
+# Phase 10 operational artifacts (never commit)
+*.dump
+*.backup
+*.log
+
+# Phase 11 local evaluation and transient media
+artifacts/ai-evaluation/
+*.wav
+*.mp3
+*.ogg
+*.webm
+*.m4a

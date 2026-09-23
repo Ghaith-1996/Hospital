@@ -2244,3 +2244,15 @@ p {
     display: block;
   }
 }
+
+.assistance-panel { border-left: 3px solid var(--border-strong); }
+.assistance-panel p { line-height: 1.6; }
+.assistance-panel select { max-width: 100%; padding: .55rem; border: 1px solid var(--border); border-radius: .4rem; background: var(--surface); }
+.assistance-panel button { margin: .4rem .5rem .4rem 0; }
+.assistance-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
+.assistance-columns > section, .assistance-field { min-width: 0; padding: .8rem; border: 1px solid var(--border); border-radius: .5rem; }
+.assistance-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.6; }
+.assistance-field p { overflow-wrap: anywhere; }
+.assistance-panel mark { background: #fff1bc; color: #302700; }
+.assistance-panel h2:focus { outline: 2px solid #1d4ed8; outline-offset: 4px; }
+@media (max-width: 760px) { .assistance-columns { grid-template-columns: 1fr; } }

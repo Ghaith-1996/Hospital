@@ -265,6 +265,7 @@ export type AlertLiveEscalation = {
 };
 
 export type AlertLive = {
+  operationalWarnings?: OperationalWarning[];
   alertId: string;
   confirmedVersion: number;
   alertState: string;
@@ -451,6 +452,19 @@ export function recordMyAlertResponse(
     body: JSON.stringify({ expectedVersion, responseType, reasonCode }),
   });
 }
+
+export type OperationalWarning = { code: string; title: string; explanation: string; recommendedApplicationAction: string; requiresHospitalFallback: boolean };
+
+export const operationalWarningMessages: Readonly<Record<string, readonly [string, string]>> = {
+  ProviderUnavailable: ["Provider unavailable", "The simulated notification provider is unavailable. Refresh status. Do not create a duplicate alert. Manual fallback: REQUIRES_HOSPITAL_DECISION."],
+  DispatchDelayed: ["Dispatch delayed", "The confirmed alert remains durable. Refresh status before retrying. If delay persists, follow the approved manual fallback procedure: REQUIRES_HOSPITAL_DECISION."],
+  DeliveryFailed: ["Delivery failed", "Review attempts and refresh status. Delivery does not establish responsibility. Do not create a duplicate alert. Manual fallback: REQUIRES_HOSPITAL_DECISION."],
+  DirectoryStale: ["Directory stale", "Selected directory information is marked stale. Review directory freshness and source evidence before another recipient action."],
+  DirectorySynchronizationFailed: ["Directory synchronization failed", "Review the latest safe synchronization status and validate a new import. Directory fallback: REQUIRES_HOSPITAL_DECISION."],
+  DatabaseUnavailable: ["Database unavailable", "Check readiness and refresh status before retrying. Recovery authority: REQUIRES_HOSPITAL_DECISION."],
+  EscalationProcessingDelayed: ["Escalation processing delayed", "Refresh status and review the confirmed plan. Do not edit workflow state. Manual fallback: REQUIRES_HOSPITAL_DECISION."],
+  EscalationExhausted: ["Escalation steps exhausted", "Review attempts and responsibility status. If responsibility remains unassigned, use the approved fallback: REQUIRES_HOSPITAL_DECISION."],
+};
 
 export function getAlertLive(alertId: string): Promise<AlertLive> {
   return requestJson<AlertLive>(`/api/v1/alerts/${alertId}/live`);

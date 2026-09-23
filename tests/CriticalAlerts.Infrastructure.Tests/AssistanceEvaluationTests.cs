@@ -1,0 +1,43 @@
+using CriticalAlerts.Application.Assistance;
+using FluentAssertions;
+using Xunit;
+
+namespace CriticalAlerts.Infrastructure.Tests;
+
+public sealed class AssistanceEvaluationMetricTests
+{
+    [Fact]
+    public void LeadingDecimalsAndExponentsCannotReceiveCreditForDifferentNumbers()
+    {
+        EvaluationMetrics.NumericTokens("SIMULATION: .5 mg, -.5 mg, ,5 mg and 1e-3 mg").Should().Equal(".5", "-.5", ",5", "1e-3");
+        EvaluationMetrics.ExactMatches(EvaluationMetrics.NumericTokens("SIMULATION: .5 mg"), EvaluationMetrics.NumericTokens("SIMULATION: 5 mg")).Should().Be(0);
+    }
+    [Fact]
+    public void ExistingSectionWithMissingCriticalFactStillCountsAsOmission()
+    {
+        EvaluationFact[] facts = [new("situation", "82/54 mmHg"), new("background", "no pain")];
+        SuggestedField[] fields = [new("situation", "fictional pressure", [new(0, 18)], null, false), new("background", "no pain", [], null, false)];
+        EvaluationMetrics.OmittedFacts(facts, fields).Should().Be(1);
+        EvaluationMetrics.OmittedFacts(facts, [fields[0] with { Value = "fictional pressure 82/54 mmHg" }, fields[1]]).Should().Be(0);
+    }
+    [Fact]
+    public void WordErrorCountsSubstitutionDeletionAndInsertion()
+    {
+        EvaluationMetrics.WordErrors("fictional value 8.2 mmol/L", "fictional value 82").Should().Be(2);
+        EvaluationMetrics.WordErrors("no pain", "pain").Should().Be(1);
+        EvaluationMetrics.WordErrors("no pain", "no fictional pain").Should().Be(1);
+    }
+    [Fact]
+    public void NumbersAndUnitsAreExactAndMultiplicityMatters()
+    {
+        EvaluationMetrics.ExactMatches(["8.2|mmol/L", "82|mmHg"], ["82|mmol/L", "82|mmHg"]).Should().Be(1);
+        EvaluationMetrics.ExactMatches(["82", "82"], ["82"]).Should().Be(1);
+        EvaluationMetrics.ExactMatches(["8,2|mmol/L"], ["8.2|mmol/L"]).Should().Be(0);
+    }
+    [Fact]
+    public void EmptyDenominatorIsUnavailableRatherThanPerfect()
+    {
+        EvaluationMetrics.Rate(0, 0).Should().BeNull();
+        EvaluationMetrics.Rate(1, 2).Should().Be(0.5m);
+    }
+}

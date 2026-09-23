@@ -6,6 +6,7 @@ using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Policies;
 using CriticalAlerts.Domain.Reliability;
+using CriticalAlerts.Infrastructure.Observability;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,8 @@ public sealed class OutboxDispatchProcessor(
     ISimulationDispatchScenarioStore scenarioStore,
     TimeProvider time,
     IOptions<DispatchWorkerOptions> options,
-    ILogger<OutboxDispatchProcessor> logger) : IOutboxDispatchProcessor
+    ILogger<OutboxDispatchProcessor> logger,
+    ILoggerFactory? loggerFactory = null) : IOutboxDispatchProcessor
 {
     private readonly IReadOnlyDictionary<NotificationChannel, INotificationChannel> channelsByType =
         channels.ToDictionary(channel => channel.ChannelType);
@@ -76,7 +78,8 @@ public sealed class OutboxDispatchProcessor(
         }
         catch (Exception)
         {
-            logger.LogWarning("Simulation dispatch worker encountered a retryable internal failure.");
+            CriticalAlertsOperationalLog.WorkerState(
+                loggerFactory?.CreateLogger(CriticalAlertsOperationalLog.Category) ?? logger, "dispatch", true);
             var alert = await FindAlertForFailureAsync(message, cancellationToken);
             return await RetryOrFailAsync(message, alert, leaseOwner.Trim(), now, workerOptions, "worker-error", cancellationToken);
         }

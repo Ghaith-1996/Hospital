@@ -13,6 +13,9 @@ $activePaths = @(
 $patterns = @(
     '\blocalStorage\b',
     '\bsessionStorage\b',
+    '\bindexedDB\b',
+    '\bcaches\.(open|put|add|addAll)\b',
+    '\bserviceWorker\.register\b',
     'PrototypeProvider',
     'usePrototype',
     'prototype-store'

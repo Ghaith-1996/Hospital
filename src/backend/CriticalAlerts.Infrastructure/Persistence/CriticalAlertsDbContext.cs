@@ -1,4 +1,5 @@
 using CriticalAlerts.Domain.Alerts;
+using CriticalAlerts.Domain.Assistance;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Identity;
@@ -78,6 +79,8 @@ public sealed class CriticalAlertsDbContext : DbContext
     public DbSet<ConfirmedEscalationPlan> ConfirmedEscalationPlans => Set<ConfirmedEscalationPlan>();
     public DbSet<EscalationEvent> EscalationEvents => Set<EscalationEvent>();
 
+    public DbSet<AssistanceResult> AssistanceResults => Set<AssistanceResult>();
+
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -88,6 +91,7 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        RejectSnapshotMutation();
         try
         {
             return base.SaveChanges(acceptAllChangesOnSuccess);
@@ -102,6 +106,7 @@ public sealed class CriticalAlertsDbContext : DbContext
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
+        RejectSnapshotMutation();
         try
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
@@ -110,6 +115,15 @@ public sealed class CriticalAlertsDbContext : DbContext
         {
             throw new DbUpdateConcurrencyException("The alert draft version has changed. Reload the alert before editing.", exception);
         }
+    }
+
+    private void RejectSnapshotMutation()
+    {
+        ChangeTracker.DetectChanges();
+        if (ChangeTracker.Entries().Any(entry =>
+            (entry.Entity is AssistanceResult or ConfirmedEscalationPlan or EscalationEvent)
+            && entry.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Confirmed and protected evidence records are immutable.");
     }
 
     // EF may insert the revision before checking the parent alert's xmin concurrency token.

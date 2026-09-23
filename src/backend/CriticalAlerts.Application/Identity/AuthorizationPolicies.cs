@@ -17,6 +17,7 @@ public static class AuthorizationRoles
 
 public static class AuthorizationPolicies
 {
+    public const string AuditReader = "AuditReader";
     public const string Operator = "Operator";
     public const string Physician = "Physician";
     public const string ClinicalSupervisor = "ClinicalSupervisor";

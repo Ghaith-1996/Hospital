@@ -11,6 +11,23 @@ namespace CriticalAlerts.Api.IntegrationTests;
 [Collection(SeededPostgresApiCollection.Name)]
 public sealed class DirectoryAuthorizationAndImportTests(SeededPostgresApiFixture fixture)
 {
+    [Theory]
+    [InlineData(DemoDataSeeder.JordanHandle, 200)]
+    [InlineData(DemoDataSeeder.MorganHandle, 200)]
+    [InlineData(DemoDataSeeder.RileyHandle, 403)]
+    public async Task LatestSyncStatusIsSafeAndRoleRestricted(string handle, int expected)
+    {
+        using var client = await fixture.CreateSignedInClientAsync(handle);
+        using var response = await client.GetAsync("/api/v1/directory/sync-status");
+        ((int)response.StatusCode).Should().Be(expected);
+        if (expected == 200)
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            document.RootElement.GetProperty("status").GetString().Should().Be("Succeeded");
+            document.RootElement.TryGetProperty("errorSummary", out _).Should().BeFalse();
+            document.RootElement.GetProperty("sourceSystem").GetString().Should().Be("SIM-DIRECTORY");
+        }
+    }
     [Fact]
     public async Task UnauthenticatedDirectorySearchReturnsUnauthorized()
     {

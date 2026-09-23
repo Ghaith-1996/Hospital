@@ -1,10 +1,14 @@
 ﻿# Critical Clinician Alert Platform
 
-Status: Phase 9 adds simulation-only escalation to the connected frontend and backend. PostgreSQL owns saved workflow state, exact future-recipient approvals and UTC scheduling. Technical verification and human acceptance are separate gates. This repository remains public; this phase does not change GitHub settings.
+Status: Phase 11 adds simulation-only, opt-in AI assistance to the Phase 9 escalation and Phase 10 audit/observability platform. Phase 10 was explicitly accepted on 2026-09-19; the supplied Phase 11 plan is authorized. PostgreSQL owns saved workflow state, exact future-recipient approvals, UTC scheduling and append-only audit. This repository remains public; no GitHub settings were changed.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 provides a fictional practitioner directory and CSV adapter. Phases 5–6 add protected drafting, critical-field confirmation, exact recipient review and idempotent dispatch approval. Phases 7–8 add simulated delivery, responses, responsibility and lifecycle controls. Phase 9 binds approval to the exact DEMO escalation policy, steps and future backup recipients, activates only those snapshots through the existing outbox, and adds durable Pause/Resume and a safe live timeline. Real providers, hospital connectors, SCIM, Graph, FHIR, AI, Entra SSO, production identity, external callbacks and Phase 10 remain out of scope.
+Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Phase 8 adds simulation practitioner responses, call-unit requests, operator resolve/cancel actions, a safe manual-fallback placeholder, and a read-only operator status surface. AI suggestions in Phase 11 are optional, simulated, and require explicit human review. Real providers, hospital connectors, SCIM, Graph, FHIR, Entra SSO, production identity, external callbacks, and production escalation remain out of scope.
+
+## Phase 10 audit and observability
+
+Phase 10 adds audit and observability to the current Phase 9 simulation. Its [design](docs/superpowers/specs/2026-09-19-phase-10-audit-observability-design.md), [plan](docs/superpowers/plans/2026-09-19-phase-10-audit-observability.md) and [observability architecture](docs/architecture/observability.md) define the extension. No production monitoring, retention approval or hospital policy is implied.
 
 ## Connected simulation frontend
 
@@ -84,3 +88,13 @@ The web Dockerfile installs both root and web build dependencies. Its API rewrit
 - PostgreSQL development/test image: `postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636`.
 
 These are local development/test pins selected for this scaffold. They do not approve hospital identity, privacy, retention, security, clinical, escalation, communications, hosting, or production integration decisions; those remain `REQUIRES_HOSPITAL_DECISION` where documented.
+
+## Operations and recovery
+
+Use the repository-specific [local development](docs/runbooks/local-development.md), [notification provider outage](docs/runbooks/notification-provider-outage.md), [directory synchronization failure](docs/runbooks/directory-sync-failure.md), and [database restore test](docs/runbooks/database-restore-test.md) runbooks. The restore exercise is real PostgreSQL tooling against an isolated fictional source and unique target, with success/failure cleanup. It does not configure production backups or approve recovery objectives.
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit `da7f444`. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Its prior branch passed a local gate at `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; this PR has since been rebased onto the current Phase 9 main, so post-rebase verification remains pending. Project-owner Phase 11 acceptance also remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain `REQUIRES_HOSPITAL_DECISION`. No Phase 12.
+
+Speech/structuring remain disabled by default. Local configuration, immutable history, human Apply, safe failure recovery and evaluation commands are in [Speech and AI suggestions](docs/architecture/speech-and-ai-suggestions.md). `scripts/run-ai-evaluation.ps1` runs fictional deterministic evaluation; `scripts/system-e2e.ps1 -EnableAssistance -TestPattern 'Phase11:'` runs the connected simulation. Neither enables a real provider. See the [Phase 11 verification record](docs/superpowers/phase11-verification.md) for the prior branch's exact scope and the post-rebase verification status.

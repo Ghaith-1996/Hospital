@@ -4,6 +4,10 @@ Status: Not approved. Every unchecked item requires evidence and named human app
 
 This checklist prevents a simulation baseline from being mistaken for production authorization. The project must not launch because software tests pass alone.
 
+## Phase 10 production decisions remain open
+
+Every item remains REQUIRES_HOSPITAL_DECISION: audit retention; audit export/legal hold; production audit reviewers; central log destination; log retention; SIEM integration; metric exporter; alert thresholds; incident severity; support/on-call ownership; provider outage fallback route; directory outage fallback; database RPO; database RTO; backup retention; disaster recovery authority. Local logging/metrics and measured fictional restore durations do not close these gates.
+
 ## Intended use and workflow
 
 - [ ] Product intended use is written and legally/clinically reviewed: `REQUIRES_HOSPITAL_DECISION`.
@@ -83,3 +87,9 @@ This checklist prevents a simulation baseline from being mistaken for production
 - [ ] Written hospital authorization exists.
 - [ ] Clinical safety, privacy, security, legal, IT, operational, and product owners sign off.
 - [ ] The pilot has success metrics, training, support contacts, incident response, and a rollback/downtime plan.
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
+
+Phase 11 does not approve real speech/LLM processing. REQUIRES_HOSPITAL_DECISION: written permission for real data; provider/residency/subprocessor/retention/training terms; raw audio policy; supported clinical terminology/languages; production accuracy and uncertainty thresholds; operator training/correction policy; AI incident ownership; real-provider monitoring and rollback. The Azure adapter is a disabled, opt-in fictional test path. Normal CI and browser gates must remain network-free with simulated providers.

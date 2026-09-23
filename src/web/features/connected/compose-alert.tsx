@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import * as api from "../../lib/alerts";
 import { PageHeader } from "../../components/ui/page-header";
 import { ApiError, Field, Loading, useServerQuery, useUnsavedChanges } from "./common";
+import { AssistancePanel } from "./assistance-panel";
 import { DraftFields, type DraftContent } from "./draft-fields";
 
 export function ComposeAlert({ alertId }: { alertId: string }) {
@@ -26,7 +27,9 @@ function ComposeForm({ draft, onSaved, onConflict }: { draft: api.AlertDraft; on
   const [message, setMessage] = React.useState(draft.approvedMessage ?? "");
   const [normalized, setNormalized] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<unknown>(null);
-  const [busy, setBusy] = React.useState(false);
+  const [commandBusy, setBusy] = React.useState(false);
+  const [assistanceBusy, setAssistanceBusy] = React.useState(false);
+  const busy = commandBusy || assistanceBusy;
   const [stale, setStale] = React.useState(false);
   const lock = React.useRef(false);
   const router = useRouter();
@@ -35,7 +38,7 @@ function ComposeForm({ draft, onSaved, onConflict }: { draft: api.AlertDraft; on
   const normalizedDirty = Object.entries(normalized).some(([id, value]) => draft.criticalFields.find(field => field.fieldId === id)?.normalizedValue !== value);
   const releaseDirty = useUnsavedChanges(contentDirty || messageDirty || normalizedDirty);
   async function command(run: () => Promise<api.AlertDraft>, next?: () => void) {
-    if (lock.current || stale) return;
+    if (lock.current || stale || assistanceBusy) return;
     lock.current = true; setBusy(true); setError(null); onConflict(null);
     try { const value = await run(); if (!normalizedDirty) releaseDirty(); onSaved(value); next?.(); }
     catch (failure) {
@@ -65,7 +68,10 @@ function ComposeForm({ draft, onSaved, onConflict }: { draft: api.AlertDraft; on
       <form onSubmit={event => { event.preventDefault(); void command(() => api.updateAlertDraft(draft.alertId, { ...content, expectedVersion: draft.draftVersion })); }}>
         <fieldset disabled={busy || stale}><DraftFields value={content} onChange={setContent} /><div className="form-actions"><button type="submit" disabled={!contentDirty || normalizedDirty}>Save source and SBAR</button></div></fieldset>
       </form>
-      <section className="detail-card"><h2>Approved Message</h2><Field label="Approved secure message" multiline value={message} onChange={setMessage} />
+      <AssistancePanel draft={draft} disabled={commandBusy || stale || contentDirty || messageDirty || normalizedDirty} onBusy={setAssistanceBusy} onApplied={value => {
+        setContent(contentFrom(value)); setMessage(value.approvedMessage ?? ""); setNormalized({}); releaseDirty(); onSaved(value);
+      }} />
+      <section className="detail-card"><h2>Approved Message</h2><Field label="Approved secure message" readOnly={busy || stale} multiline value={message} onChange={setMessage} />
         <button type="button" disabled={busy || stale || normalizedDirty || !messageDirty || !message.trim()} onClick={() => void command(() => api.setApprovedMessage(draft.alertId, draft.draftVersion, message))}>Approve and save message</button>
         <p>Saving the approved message creates a new version. Confirm the critical values again after message or recipient changes.</p>
       </section>

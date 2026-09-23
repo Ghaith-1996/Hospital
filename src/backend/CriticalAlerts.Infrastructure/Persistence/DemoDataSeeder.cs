@@ -30,6 +30,8 @@ public sealed class DemoDataSeeder
     public const string JordanHandle = "sim-operator-jordan";
     public const string MorganHandle = "sim-administrator-morgan";
     public const string RileyHandle = "sim-practitioner-riley";
+    public static readonly UserId AveryUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110504"));
+    public const string AveryHandle = "sim-auditor-avery";
     public static readonly PractitionerId MayaChenId = new(Guid.Parse("11111111-1111-4111-8111-111111110101"));
     public static readonly PractitionerId RileySatoId = new(Guid.Parse("11111111-1111-4111-8111-111111110108"));
     public static readonly PractitionerId TaylorKimId = new(Guid.Parse("11111111-1111-4111-8111-111111110111"));
@@ -50,6 +52,7 @@ public sealed class DemoDataSeeder
         {
             await EnsurePractitionerUserLinkAsync(cancellationToken);
             await EnsurePhase9PolicyAsync(cancellationToken);
+            await EnsureAuditorAsync(cancellationToken);
             return;
         }
 
@@ -87,11 +90,13 @@ public sealed class DemoDataSeeder
         var jordan = UserAccount.CreateSimulation(new UserId(Id("501")), OrganizationId, "Jordan Lee", JordanHandle, SeededAt);
         var morgan = UserAccount.CreateSimulation(new UserId(Id("502")), OrganizationId, "Morgan Ellis", MorganHandle, SeededAt);
         var riley = UserAccount.CreateSimulation(RileyUserId, OrganizationId, "Riley Sato", RileyHandle, SeededAt);
-        db.Users.AddRange(jordan, morgan, riley);
+        var avery = UserAccount.CreateSimulation(AveryUserId, OrganizationId, "Avery Auditor", AveryHandle, SeededAt);
+        db.Users.AddRange(jordan, morgan, riley, avery);
         db.UserRoles.AddRange(
             UserRole.Create(OrganizationId, jordan.Id, operatorRole.Id),
             UserRole.Create(OrganizationId, morgan.Id, administratorRole.Id),
-            UserRole.Create(OrganizationId, riley.Id, practitionerRole.Id));
+            UserRole.Create(OrganizationId, riley.Id, practitionerRole.Id),
+            UserRole.Create(OrganizationId, avery.Id, auditorRole.Id));
         db.ExternalIdentities.Add(ExternalIdentity.Create(
             new ExternalIdentityId(Id("601")),
             OrganizationId,
@@ -158,6 +163,14 @@ public sealed class DemoDataSeeder
         db.EscalationPolicies.Add(escalation);
         db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, escalation.Id, 1));
 
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureAuditorAsync(CancellationToken cancellationToken)
+    {
+        if (await db.Users.AnyAsync(user => user.Id == AveryUserId, cancellationToken)) return;
+        db.Users.Add(UserAccount.CreateSimulation(AveryUserId, OrganizationId, "Avery Auditor", AveryHandle, SeededAt));
+        db.UserRoles.Add(UserRole.Create(OrganizationId, AveryUserId, AuditorRoleId));
         await db.SaveChangesAsync(cancellationToken);
     }
 

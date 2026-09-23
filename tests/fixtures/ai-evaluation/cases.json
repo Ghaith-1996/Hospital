@@ -1,0 +1,370 @@
+[
+  {
+    "id": "SIM-EVAL-01",
+    "group": "English",
+    "scenario": "clear-en",
+    "reference": "SIMULATION: Situation: fictional pressure 82/54 mmHg\nBackground: fictional exercise\nAssessment: operator note\nRecommendation: requested callback",
+    "numbers": [
+      "82/54"
+    ],
+    "pairs": [
+      "82/54|mmHg"
+    ],
+    "missing": [],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "fictional pressure 82/54 mmHg",
+      "background": "fictional exercise",
+      "assessment": "operator note",
+      "recommendation": "requested callback"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "fictional pressure 82/54 mmHg"
+      },
+      {
+        "path": "background",
+        "text": "fictional exercise"
+      },
+      {
+        "path": "assessment",
+        "text": "operator note"
+      },
+      {
+        "path": "recommendation",
+        "text": "requested callback"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-02",
+    "group": "French",
+    "scenario": "clear-fr",
+    "reference": "SIMULATION: Situation: pression fictive 82/54 mmHg\nContexte: exercice fictif\nÉvaluation: note opérateur\nRecommandation: rappel demandé",
+    "numbers": [
+      "82/54"
+    ],
+    "pairs": [
+      "82/54|mmHg"
+    ],
+    "missing": [],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "pression fictive 82/54 mmHg",
+      "background": "exercice fictif",
+      "assessment": "note opérateur",
+      "recommendation": "rappel demandé"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "pression fictive 82/54 mmHg"
+      },
+      {
+        "path": "background",
+        "text": "exercice fictif"
+      },
+      {
+        "path": "assessment",
+        "text": "note opérateur"
+      },
+      {
+        "path": "recommendation",
+        "text": "rappel demandé"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-03",
+    "group": "CodeSwitch",
+    "scenario": "code-switch",
+    "reference": "SIMULATION: Situation: fictional pression 82/54 mmHg\nContexte: fictional exercise",
+    "numbers": [
+      "82/54"
+    ],
+    "pairs": [
+      "82/54|mmHg"
+    ],
+    "missing": [
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "fictional pression 82/54 mmHg",
+      "background": "fictional exercise"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "fictional pression 82/54 mmHg"
+      },
+      {
+        "path": "background",
+        "text": "fictional exercise"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-04",
+    "group": "English",
+    "scenario": "low-number",
+    "reference": "SIMULATION: Situation: fictional value 18 mmHg",
+    "numbers": [
+      "18"
+    ],
+    "pairs": [
+      "18|mmHg"
+    ],
+    "missing": [
+      "background",
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [
+      "situation"
+    ],
+    "approvedFields": {
+      "situation": "fictional value 18 mmHg"
+    },
+    "expectedFacts": []
+  },
+  {
+    "id": "SIM-EVAL-05",
+    "group": "English",
+    "scenario": "missing-unit",
+    "reference": "SIMULATION: Situation: fictional value 82",
+    "numbers": [
+      "82"
+    ],
+    "pairs": [],
+    "missing": [
+      "background",
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "fictional value 82"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "fictional value 82"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-06",
+    "group": "English",
+    "scenario": "abbreviation",
+    "reference": "SIMULATION: Assessment: fictional MS?",
+    "numbers": [],
+    "pairs": [],
+    "missing": [
+      "situation",
+      "background",
+      "recommendation"
+    ],
+    "ambiguous": [
+      "assessment"
+    ],
+    "approvedFields": {
+      "assessment": "fictional MS?"
+    },
+    "expectedFacts": []
+  },
+  {
+    "id": "SIM-EVAL-07",
+    "group": "English",
+    "scenario": "decimal",
+    "reference": "SIMULATION: Situation: fictional value 8.2 mmol/L",
+    "numbers": [
+      "8.2"
+    ],
+    "pairs": [
+      "8.2|mmol/L"
+    ],
+    "missing": [
+      "background",
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "fictional value 8.2 mmol/L"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "fictional value 8.2 mmol/L"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-08",
+    "group": "English",
+    "scenario": "negation",
+    "reference": "SIMULATION: Situation: no fictional pain reported",
+    "numbers": [],
+    "pairs": [],
+    "missing": [
+      "background",
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "no fictional pain reported"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "no fictional pain reported"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-09",
+    "group": "English",
+    "scenario": "contradiction",
+    "reference": "SIMULATION: Situation: fictional pain denied\nSituation: fictional pain reported",
+    "numbers": [],
+    "pairs": [],
+    "missing": [
+      "background",
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [
+      "situation"
+    ],
+    "approvedFields": {
+      "situation": "fictional pain denied\nfictional pain reported"
+    },
+    "expectedFacts": []
+  },
+  {
+    "id": "SIM-EVAL-10",
+    "group": "English",
+    "scenario": "provider-outage",
+    "reference": "SIMULATION: fictional unavailable recording",
+    "numbers": [],
+    "pairs": [],
+    "missing": [],
+    "ambiguous": [],
+    "failure": true,
+    "approvedFields": {},
+    "expectedFacts": []
+  },
+  {
+    "id": "SIM-EVAL-11",
+    "group": "English",
+    "scenario": null,
+    "reference": "SIMULATION: Situation: fictional noisy recording [unclear]? 18 or 80\nRecommendation: requested manual review",
+    "numbers": [
+      "18",
+      "80"
+    ],
+    "pairs": [],
+    "missing": [
+      "background",
+      "assessment"
+    ],
+    "ambiguous": [
+      "situation"
+    ],
+    "approvedFields": {
+      "situation": "fictional noisy recording [unclear]? 18 or 80",
+      "recommendation": "requested manual review"
+    },
+    "expectedFacts": [
+      {
+        "path": "recommendation",
+        "text": "requested manual review"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-12",
+    "group": "French",
+    "scenario": null,
+    "reference": "SIMULATION: Situation: valeur fictive 8,2 mmol/L à 08:30 le 2026-09-19; côté gauche\nContexte: aucune douleur",
+    "numbers": [
+      "8,2",
+      "08:30",
+      "2026-09-19"
+    ],
+    "pairs": [
+      "8,2|mmol/L"
+    ],
+    "missing": [
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "valeur fictive 8,2 mmol/L à 08:30 le 2026-09-19; côté gauche",
+      "background": "aucune douleur"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "valeur fictive 8,2 mmol/L à 08:30 le 2026-09-19; côté gauche"
+      },
+      {
+        "path": "background",
+        "text": "aucune douleur"
+      }
+    ]
+  },
+  {
+    "id": "SIM-EVAL-13",
+    "group": "English",
+    "scenario": null,
+    "reference": "SIMULATION: fictional unlabelled note; no recommendation stated",
+    "numbers": [],
+    "pairs": [],
+    "missing": [
+      "situation",
+      "background",
+      "assessment",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {},
+    "expectedFacts": []
+  },
+  {
+    "id": "SIM-EVAL-14",
+    "group": "CodeSwitch",
+    "scenario": null,
+    "reference": "SIMULATION: Situation: fictional dose 5 mg, côté droit; no fictional pain\nAssessment: medication-like term requires human review",
+    "numbers": [
+      "5"
+    ],
+    "pairs": [
+      "5|mg"
+    ],
+    "missing": [
+      "background",
+      "recommendation"
+    ],
+    "ambiguous": [],
+    "approvedFields": {
+      "situation": "fictional dose 5 mg, côté droit; no fictional pain",
+      "assessment": "medication-like term requires human review"
+    },
+    "expectedFacts": [
+      {
+        "path": "situation",
+        "text": "fictional dose 5 mg, côté droit; no fictional pain"
+      },
+      {
+        "path": "assessment",
+        "text": "medication-like term requires human review"
+      }
+    ]
+  }
+]

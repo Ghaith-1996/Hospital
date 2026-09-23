@@ -21,8 +21,9 @@ public sealed class EscalationApiTests(SeededPostgresApiFixture fixture)
         using var anonymous = fixture.CreateClient();
         using var unauthenticated = await Send(anonymous, Guid.NewGuid(), 1, "pause", Guid.NewGuid().ToString());
         unauthenticated.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        var prepared = await new AlertConfirmationTests(fixture).CreateConfirmableAlertAsync(client);
-        using var confirmed = await AlertConfirmationTests.ConfirmAsync(client, prepared.AlertId, prepared.Version, Guid.NewGuid().ToString());
+        var workflow = new AlertConfirmationTests(fixture);
+        var prepared = await workflow.CreateConfirmableAlertAsync(client);
+        using var confirmed = await workflow.ConfirmAsync(client, prepared.AlertId, prepared.Version, Guid.NewGuid().ToString());
         confirmed.StatusCode.Should().Be(HttpStatusCode.OK);
         await using (var db = fixture.CreateContext())
         {

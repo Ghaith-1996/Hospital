@@ -1,5 +1,8 @@
 param(
-    [switch]$SkipWebBuild
+    [switch]$SkipWebBuild,
+    [switch]$EnableAssistance,
+    [string]$TestPattern,
+    [ValidateRange(0, 60)][int]$ReviewPauseSeconds = 0
 )
 
 Set-StrictMode -Version Latest
@@ -24,6 +27,7 @@ $webRoot = Join-Path $repositoryRoot "src\web"
 $nextBin = Join-Path $webRoot "node_modules\next\dist\bin\next"
 $postgresImage = "postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636"
 $runId = [Guid]::NewGuid().ToString("N")
+$workerOwnerToken = [Guid]::NewGuid().ToString("N")
 $containerName = "critical-alerts-system-$runId"
 $database = "critical_alerts_test_system"
 $username = "system_$($runId.Substring(0, 12))"
@@ -71,6 +75,23 @@ function Stop-OwnedProcess([Diagnostics.Process]$Process) {
     try { Wait-Process -Id $Process.Id -Timeout 15 -ErrorAction SilentlyContinue } catch { }
 }
 
+function Test-OwnedWorkerProcess([int]$ProcessId) {
+    if ($IsWindows) {
+        $candidate = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+        return $null -ne $candidate -and $candidate.Name -eq "dotnet.exe" -and $candidate.CommandLine.Contains($workerDll)
+    }
+
+    $processDirectory = "/proc/$ProcessId"
+    if (-not (Test-Path -LiteralPath $processDirectory)) { return $false }
+    try {
+        $processEnvironment = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Join-Path $processDirectory "environ"))) -split "`0"
+        $processCommandLine = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Join-Path $processDirectory "cmdline")))
+        return ($processEnvironment -contains "SYSTEM_E2E_WORKER_OWNER=$workerOwnerToken") -and $processCommandLine.Contains($workerDll)
+    } catch {
+        return $false
+    }
+}
+
 function Test-PortClosed([int]$Port) {
     $client = [Net.Sockets.TcpClient]::new()
     try {
@@ -112,6 +133,13 @@ try {
     $env:SimulationResponses__Enabled = "true"
     $env:SimulationDispatch__Enabled = "true"
     $env:SimulationEscalation__Enabled = "true"
+    $env:SYSTEM_E2E_WORKER_OWNER = $workerOwnerToken
+    $env:Features__SpeechTranscription = $EnableAssistance.ToString().ToLowerInvariant()
+    $env:Features__AlertStructuringSuggestions = $EnableAssistance.ToString().ToLowerInvariant()
+    $env:Speech__Provider = if ($EnableAssistance) { 'Simulated' } else { 'Disabled' }
+    $env:AlertStructuring__Provider = if ($EnableAssistance) { 'Simulated' } else { 'Disabled' }
+    $env:SYSTEM_E2E_ASSISTANCE = $EnableAssistance.ToString().ToLowerInvariant()
+    $env:SimulationEscalation__PollIntervalMilliseconds = "200"
 
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database migrate
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database reset-demo --confirm-demo-reset
@@ -141,13 +169,27 @@ try {
     $env:SYSTEM_E2E_POSTGRES_DATABASE = $database
     $env:SYSTEM_E2E_POSTGRES_USER = $username
     $env:SYSTEM_E2E_SCREENSHOT_DIR = Join-Path $logRoot "screenshots"
-    & $npx playwright test --config playwright.system.config.ts
+    $testArguments = @("playwright", "test", "--config", "playwright.system.config.ts")
+    if ($TestPattern) { $testArguments += @("--grep", $TestPattern) }
+    & $npx @testArguments
     $exitCode = $LASTEXITCODE
+    if ($ReviewPauseSeconds -gt 0) { Start-Sleep -Seconds $ReviewPauseSeconds }
 } finally {
+    $workerPids = [Collections.Generic.List[int]]::new()
+    foreach ($workerId in @($env:SYSTEM_E2E_WORKER_IDS -split ',')) {
+        $parsedId = 0
+        if ([int]::TryParse($workerId, [ref]$parsedId)) { $workerPids.Add($parsedId) }
+    }
     if ($env:SYSTEM_E2E_WORKER_LEDGER -and (Test-Path -LiteralPath $env:SYSTEM_E2E_WORKER_LEDGER)) {
         foreach ($ownedId in Get-Content -LiteralPath $env:SYSTEM_E2E_WORKER_LEDGER) {
-            $restarted = Get-Process -Id ([int]$ownedId) -ErrorAction SilentlyContinue
-            if ($restarted -and $restarted.ProcessName -eq "dotnet") { $ownedProcesses.Add($restarted) }
+            $restartedId = 0
+            if ([int]::TryParse($ownedId, [ref]$restartedId) -and -not $workerPids.Contains($restartedId)) { $workerPids.Add($restartedId) }
+        }
+    }
+    foreach ($workerId in $workerPids) {
+        if (Test-OwnedWorkerProcess $workerId) {
+            $workerProcess = Get-Process -Id $workerId -ErrorAction SilentlyContinue
+            if ($workerProcess) { $ownedProcesses.Add($workerProcess) }
         }
     }
     for ($index = $ownedProcesses.Count - 1; $index -ge 0; $index--) {
@@ -157,9 +199,10 @@ try {
     docker rm --force $containerName 2>$null | Out-Null
     $containerRemaining = docker ps --all --quiet --filter "name=^/${containerName}$"
     $liveOwnedProcesses = @($ownedProcesses | Where-Object { -not $_.HasExited }).Count
+    $liveWorkerProcesses = @($workerPids | Where-Object { Test-OwnedWorkerProcess $_ }).Count
     $portsClosed = [int]((Test-PortClosed $postgresPort) -and (Test-PortClosed $apiPort) -and (Test-PortClosed $webPort))
     Write-Output "SYSTEM_E2E_TEARDOWN container_remaining=$([int](-not [string]::IsNullOrWhiteSpace($containerRemaining))) live_owned_processes=$liveOwnedProcesses ports_closed=$portsClosed logs=$logRoot"
-    if (-not [string]::IsNullOrWhiteSpace($containerRemaining) -or $liveOwnedProcesses -ne 0 -or $portsClosed -ne 1) {
+    if (-not [string]::IsNullOrWhiteSpace($containerRemaining) -or $liveOwnedProcesses -ne 0 -or $liveWorkerProcesses -ne 0 -or $portsClosed -ne 1) {
         throw "System E2E teardown verification failed."
     }
 }

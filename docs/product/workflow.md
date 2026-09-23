@@ -1,10 +1,14 @@
 # Workflow Specification
 
-Status: Simulation workflow through Phase 9 approved DEMO escalation. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
+Status: Simulation workflow through Phase 11 opt-in AI suggestions, Phase 10 audit/observability and Phase 9 DEMO escalation. It is not a hospital-approved clinical workflow, responsibility-transfer rule, escalation policy, or fallback procedure.
 
 Phase 9 review explicitly lists the policy/version, DEMO delay and exact future backup recipients. Confirmation binds their revision to the alert version; changed policy/directory evidence requires new review. Only those approved snapshots can activate after the database deadline or a new decline/unavailable response. Delivery, opening and acknowledgement do not stop escalation. Exact-version responsibility acceptance, resolution or cancellation takes precedence. Authorized operators can pause/resume with durable remaining delay; they cannot separately permanently stop escalation. The live page displays timeline, provenance and manual fallback. All production timing, responsibility, escalation authority and fallback policy remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 6 creates an identifier-only `AlertDispatchRequested` outbox item in the same transaction as the state, audit, and idempotency records. Phase 7 processes that item only through a Development/Test simulation worker and deterministic local adapters. Phase 8 lets the explicitly linked fictional practitioner record opening, acknowledgement, a call-unit request, and one terminal disposition for an addressed alert. An authorized simulation operator can cancel an active alert or resolve it only after an active exact-version responsibility assignment; a delivery failure exposes a manual-fallback placeholder without selecting or contacting a real route. Production choices remain `REQUIRES_HOSPITAL_DECISION`.
+
+## Phase 10 authorized extension
+
+The September 19, 2026 owner request supersedes the historical no-Phase-10 boundary below. The [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) extends completed Phase 9 with authorized audit review and safe operational warnings. Preserve exact confirmation, independent delivery/responsibility and durable escalation. Failures provide application recovery guidance without duplicate alerts, replacement recipients or invented fallback. No browser persistence, clinical interpretation or real provider. Phase 10 verification is recorded in the [verification package](../superpowers/phase10-verification.md); the owner accepted Phase 10 on September 19, 2026.
 
 ## Connected frontend surface
 
@@ -12,7 +16,7 @@ Phase 8.5 retains the visual redesign and connects operator, practitioner, direc
 
 The browser holds unsaved forms in memory with navigation warnings. It submits exact versions and manually selected recipients/channels, displays the server review, and confirms with an idempotency key. The local worker processes the durable outbox through simulated adapters. The live page reads the safe API projection, including distinct delivery/opening/acknowledgement/acceptance states and the unresolved manual-fallback placeholder. No browser timer fabricates dispatch or escalation.
 
-The historical prototype design is superseded by `docs/superpowers/specs/2026-09-05-phase-0-8-reintegration-design.md`. Production policy remains `REQUIRES_HOSPITAL_DECISION`; no Phase 9 automation is included.
+The historical prototype design is superseded by `docs/superpowers/specs/2026-09-05-phase-0-8-reintegration-design.md`. Production policy remains `REQUIRES_HOSPITAL_DECISION`; the Phase 9 automation remains simulation-only.
 
 ## Workflow identity
 
@@ -185,3 +189,9 @@ The following are intentionally unresolved and must not be inferred from this si
 - `REQUIRES_HOSPITAL_DECISION`: escalation delays, retries, stop conditions, overrides, and manual fallback.
 - `REQUIRES_HOSPITAL_DECISION`: permitted patient information, retention, access, audit review, and deletion.
 - `REQUIRES_HOSPITAL_DECISION`: approved identity, directory, scheduling, communications, and integration sources.
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit `da7f444`. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Its prior branch passed a local gate on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; post-rebase verification against the current Phase 9 main and project-owner Phase 11 acceptance remain pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain `REQUIRES_HOSPITAL_DECISION`. No Phase 12.
+
+Phase 11 compose: save/discard edits before assistance. Optional recording (or a fixed fictional sample) produces a separate transcript. Review nullable confidence and uncertainty, then explicitly choose Use transcript as source. This makes a new editable source revision. Suggest SBAR structure reads that exact saved source and shows evidence alongside proposed fields. Apply copies only supported unambiguous fields, preserving manual values for omitted fields. Urgency, recipients and approved message stay under human control; nothing dispatches. Confirm every saved critical number/unit and the full-source review attestation before normal final confirmation. Stale results cannot apply; refresh the draft and request again deliberately. Outages or unsupported microphone formats retain typing. See architecture/speech-and-ai-suggestions.md for exact behavior and limitations.

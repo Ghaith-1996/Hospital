@@ -1,5 +1,17 @@
 # Phase Definition of Done
 
+## Phase 10 technical gate — passed; owner approved
+
+The [Phase 10 design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md) and [plan](../superpowers/plans/2026-09-19-phase-10-audit-observability.md) implement the owner's September 19 request on completed Phase 9.
+
+- [x] Role-restricted, scoped, bounded audit API/UI; strict metadata projection; audited reads; PostgreSQL append-only enforcement.
+- [x] Runtime sentinel and metric-tag tests; structured local observability; truthful non-disclosing health.
+- [x] Safe actionable warnings preserving all Phase 9 state and unresolved hospital fallback.
+- [x] Four repo-specific runbooks; actual pg_dump/pg_restore exercise with source protection and success/failure cleanup.
+- [x] Complete backend/PostgreSQL/web/OpenAPI/security/dependency/browser/system/container/fresh-migration checks with exact results in the [verification package](../superpowers/phase10-verification.md).
+- [x] No protected telemetry, persistent browser state, invented policy, or real providers. Phase 11 AI assistance is governed by its separate explicit authorization and safety boundary.
+- [x] Owner explicitly approved Phase 10 at documentation closure `8117d26f38419f352cc824441cb076ce3e325288` on 2026-09-19, authorizing this acceptance record before Phase 11.
+
 ## Phase 0: specification and repository rules
 
 Historical phase checklists record their original scope and verification dates, including the now-retired frontend prototype. They are not claims that those screens remain active. Current architecture is Phase 8.5; [phase approval evidence](phase-approval-evidence.md) distinguishes technical closure, continuation/publication authorization, tags, and final acceptance. No blanket Phase 0–8 approval is claimed.
@@ -324,3 +336,7 @@ The earlier frontend prototype replaced connected screens with a local store. Ph
 - [ ] Project owner accepts the integrated Phase 0–8 simulation baseline.
 
 No Phase 9, real provider, hospital connection, production identity or real data is authorized. Missing hospital decisions remain `REQUIRES_HOSPITAL_DECISION`. Repository visibility/settings remain unchanged; the direct request requires a public repository.
+
+## Phase 11 authorized work
+
+The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit `da7f444`. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation has been rebased onto the current Phase 9 main; the prior branch's passing gate does not verify this rebased tree. Post-rebase verification and project-owner Phase 11 acceptance remain pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain `REQUIRES_HOSPITAL_DECISION`. No Phase 12. See [historical Phase 11 verification](../superpowers/phase11-verification.md) for the exact pre-rebase source and results.

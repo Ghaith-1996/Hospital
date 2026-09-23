@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../.."),
   reactStrictMode: true,
+  async headers() {
+    return [{ source: "/:path*", headers: [{ key: "Permissions-Policy", value: "microphone=(self), camera=()" }] }];
+  },
   async rewrites() {
     const apiBase = process.env.CRITICAL_ALERTS_API_URL ?? "http://127.0.0.1:5080";
     if (apiBase.length === 0) {

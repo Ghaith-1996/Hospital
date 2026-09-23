@@ -12,7 +12,10 @@ public sealed record AlertLiveView(
     bool CanCancel,
     bool ManualFallbackRequired,
     IReadOnlyList<AlertLiveRecipientView> Recipients,
-    AlertLiveEscalationView? Escalation = null);
+    AlertLiveEscalationView? Escalation = null)
+{
+    public IReadOnlyList<OperationalWarning> OperationalWarnings { get; init; } = [];
+}
 
 public sealed record AlertLiveEscalationView(Guid PolicyId, string PolicyVersion, string State, int CurrentStep,
     DateTimeOffset? NextDueAtUtc, double? RemainingDelaySeconds, string? StopReason, bool CanPause, bool CanResume,
