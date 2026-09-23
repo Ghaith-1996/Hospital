@@ -14,7 +14,8 @@ public sealed class RestoreValidationTests(MigratedPostgresFixture fixture)
         var after = await RestoreValidation.ValidateAsync(fixture.ConnectionString, "Test");
         after.Should().BeEquivalentTo(before);
         before.Counts["organizations"].Should().BeGreaterThan(0);
-        before.Counts.Should().ContainKeys("audit_events", "outbox_messages", "escalation_runs", "alert_escalation_plans");
+        before.Counts.Should().ContainKeys("audit_events", "outbox_messages", "escalation_runs",
+            "confirmed_escalation_plans", "alert_assistance_results");
         before.Migrations.Should().Contain("20260919150045_Phase10AuditProtection");
     }
 
