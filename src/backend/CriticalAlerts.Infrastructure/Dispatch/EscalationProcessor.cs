@@ -54,6 +54,17 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
         {
             run.Stop(decision.Value, now);
             db.EscalationEvents.Add(run.Record(decision.Value, now));
+            AddAudit(run, decision.Value switch
+            {
+                EscalationEventKind.Exhausted => "escalation-exhausted",
+                EscalationEventKind.ProcessingFailed => "escalation-processing-failed",
+                _ => "escalation-stopped",
+            }, decision.Value switch
+            {
+                EscalationEventKind.Exhausted => "exhausted",
+                EscalationEventKind.ProcessingFailed => "ProcessingFailed",
+                _ => "stopped",
+            }, now, new { stepSequence = run.CurrentStep, simulationOnly = true });
         }
         run.ReleaseLease(owner, now);
         await db.SaveChangesAsync(cancellationToken);
@@ -85,10 +96,14 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
             approval.PolicyId, approval.PolicyVersion, now.AddSeconds(plan?.Steps[0].DelaySeconds ?? 0), now, approval.AlertVersion);
         db.EscalationRuns.Add(run);
         db.EscalationEvents.Add(run.Record(EscalationEventKind.Scheduled, now));
+        AddAudit(run, "escalation-scheduled", "scheduled", now,
+            new { stepSequence = run.CurrentStep, simulationOnly = true });
         if (plan is null)
         {
             run.Stop(EscalationEventKind.ProcessingFailed, now);
             db.EscalationEvents.Add(run.Record(EscalationEventKind.ProcessingFailed, now));
+            AddAudit(run, "escalation-processing-failed", "ProcessingFailed", now,
+                new { stepSequence = run.CurrentStep, simulationOnly = true });
         }
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -167,6 +182,10 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
                 }),
                 $"escalation:{run.Id.Value:N}:step:{run.CurrentStep}", now));
             db.EscalationEvents.Add(run.Record(EscalationEventKind.DispatchQueued, now));
+            AddAudit(run, "escalation-recipients-activated", "activated", now,
+                new { stepSequence = run.CurrentStep, recipientCount = selections.Count, simulationOnly = true });
+            AddAudit(run, "escalation-dispatch-queued", "scheduled", now,
+                new { stepSequence = run.CurrentStep, recipientCount = selections.Count, simulationOnly = true });
         }
         var next = plan.Steps.SingleOrDefault(row => row.SequenceNumber == run.CurrentStep + 1);
         run.Advance(next is null ? null : TimeSpan.FromSeconds(next.DelaySeconds), negatives, now);
@@ -184,4 +203,9 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
             throw new DomainException("The approved DEMO escalation plan is invalid.");
         return plan;
     }
+
+    private void AddAudit(EscalationRun run, string action, string outcome, DateTimeOffset now, object metadata)
+        => db.AuditEvents.Add(AuditEvent.Record(
+            AuditEventId.New(), run.OrganizationId, "worker", null, action, "EscalationRun", run.Id.Value,
+            outcome, Guid.NewGuid().ToString("N"), JsonSerializer.Serialize(metadata), now));
 }

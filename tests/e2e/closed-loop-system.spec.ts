@@ -85,10 +85,10 @@ test.describe.serial("Phase 8.5 real closed loop", () => {
     const inboxLink = page.getByRole("link", { name: new RegExp(`Open alert ${alertId}`, "i") });
     await expect(inboxLink).toBeVisible();
     await inboxLink.click();
-    await expect(page.getByText("Opened: PendingNotObserved")).toBeVisible();
+    await expect(page.getByText("Opened: PendingNotObserved").first()).toBeVisible();
     await capture(page, "05-practitioner-alert.png");
     await page.getByRole("button", { name: "Record opened" }).click();
-    await expect(page.getByText("Opened: Occurred")).toBeVisible();
+    await expect(page.getByText("Opened: Occurred").first()).toBeVisible();
     await expect(page.getByText("Acknowledged: Not recorded")).toBeVisible();
     await page.getByRole("button", { name: "Acknowledge" }).click();
     await expect(page.getByText(/Acknowledged: 20/)).toBeVisible();
