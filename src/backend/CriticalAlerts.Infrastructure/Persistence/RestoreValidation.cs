@@ -60,7 +60,8 @@ public static partial class RestoreValidation
         }
 
         if (await Scalar("SELECT count(*) FROM pg_constraint WHERE connamespace = 'public'::regnamespace AND contype = 'f' AND NOT convalidated") != 0
-            || await Scalar("SELECT count(*) FROM pg_trigger WHERE tgrelid = 'audit_events'::regclass AND tgname = 'immutable_audit_events' AND NOT tgisinternal AND tgenabled IN ('O','A')") != 1)
+            || await Scalar("SELECT count(*) FROM pg_trigger WHERE tgrelid = 'audit_events'::regclass AND tgname = 'immutable_audit_events' AND NOT tgisinternal AND tgenabled IN ('O','A')") != 1
+            || await Scalar("SELECT count(*) FROM pg_trigger WHERE tgrelid = 'alert_assistance_results'::regclass AND tgname = 'assistance_immutable' AND NOT tgisinternal AND tgenabled IN ('O','A')") != 1)
             throw new InvalidOperationException("Restore constraint verification failed.");
         await transaction.CommitAsync(cancellationToken);
         return new(applied, counts);

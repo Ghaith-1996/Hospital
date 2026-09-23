@@ -96,6 +96,9 @@ try {
     $mutation = & docker exec $container psql --username $user --dbname $restoreDatabase --set ON_ERROR_STOP=1 --set VERBOSITY=sqlstate --command "UPDATE audit_events SET action = action WHERE false" 2>&1
     if ($LASTEXITCODE -eq 0 -or ($mutation -join ' ') -notmatch '23514') { throw "Restored append-only audit protection failed." }
     Write-Output "RESTORE_TEST audit_append_only_verified=true"
+    $assistanceMutation = & docker exec $container psql --username $user --dbname $restoreDatabase --set ON_ERROR_STOP=1 --set VERBOSITY=sqlstate --command "UPDATE alert_assistance_results SET kind = kind WHERE false" 2>&1
+    if ($LASTEXITCODE -eq 0 -or ($assistanceMutation -join ' ') -notmatch '23514') { throw "Restored assistance evidence immutability failed." }
+    Write-Output "RESTORE_TEST assistance_immutability_verified=true"
     if ($TestFailurePoint -eq "AfterRestore") { throw "Injected simulation restore failure." }
     $timer.Restart()
     $env:ConnectionStrings__CriticalAlerts = "Host=127.0.0.1;Port=$port;Database=$restoreDatabase;Username=$user;Password=$($env:POSTGRES_PASSWORD)"
