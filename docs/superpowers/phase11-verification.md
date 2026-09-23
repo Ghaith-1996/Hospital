@@ -1,6 +1,6 @@
 # Phase 11 verification and owner review
 
-Status: implementation and final local verification complete on 2026-09-19. Project-owner review and acceptance remain pending.
+Status: The pre-rebase implementation and local verification completed on 2026-09-19. This PR has since been rebased onto the current Phase 9 main; the recorded checks below describe the original reviewed source and do not verify the rebased tree. Post-rebase verification and project-owner Phase 11 acceptance remain pending.
 
 ## Exact baseline and scope
 
