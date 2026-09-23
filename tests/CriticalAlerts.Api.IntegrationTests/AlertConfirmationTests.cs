@@ -406,7 +406,8 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         HttpClient client,
         string patientReference = "SIM-PAT-CONFIRM-0001",
         string sourceText = "SIMULATION: confirmation source",
-        string approvedMessage = "SIMULATION: confirmation approved message")
+        string approvedMessage = "SIMULATION: confirmation approved message",
+        string directoryName = "Maya")
     {
         using var create = await client.PostAsJsonAsync(
             "/api/v1/alerts/drafts",
@@ -433,7 +434,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         var approvedDraft = await approved.Content.ReadFromJsonAsync<AlertDraftView>();
 
         var maya = (await client.GetFromJsonAsync<DirectoryPractitionerListItem[]>(
-            "/api/v1/directory/practitioners?q=Maya&includeInactive=false"))!.Single();
+            $"/api/v1/directory/practitioners?q={Uri.EscapeDataString(directoryName)}&includeInactive=false"))!.Single();
         using var recipients = await client.PutAsJsonAsync(
             $"/api/v1/alerts/{draft.AlertId:D}/recipients",
             new ReplaceAlertRecipientsRequest(

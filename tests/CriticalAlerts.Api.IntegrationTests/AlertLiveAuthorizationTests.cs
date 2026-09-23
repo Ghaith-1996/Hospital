@@ -51,7 +51,8 @@ public sealed class AlertLiveAuthorizationTests(SeededPostgresApiFixture fixture
             await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE outbox_messages SET processing_state = 'Pending', next_attempt_at_utc = clock_timestamp() - interval '1 hour' WHERE aggregate_id = {prepared.AlertId}");
         try
         {
-            await new CriticalAlerts.Infrastructure.Responses.AlertLiveQueryService(db).GetAsync(DemoDataSeeder.OrganizationId, new AlertId(prepared.AlertId), true, default);
+            await new CriticalAlerts.Infrastructure.Responses.AlertLiveQueryService(db, TimeProvider.System)
+                .GetAsync(DemoDataSeeder.OrganizationId, new AlertId(prepared.AlertId), default);
             using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
             using var response = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/live");
             response.StatusCode.Should().Be(HttpStatusCode.OK);

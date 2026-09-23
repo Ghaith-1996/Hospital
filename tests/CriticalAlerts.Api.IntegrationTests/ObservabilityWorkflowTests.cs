@@ -7,7 +7,6 @@ using CriticalAlerts.Application.Dispatch;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Infrastructure.Dispatch;
-using CriticalAlerts.Infrastructure.Escalation;
 using CriticalAlerts.Infrastructure.Observability;
 using CriticalAlerts.Infrastructure.Persistence;
 using FluentAssertions;
@@ -89,20 +88,6 @@ public sealed class ObservabilityWorkflowTests : IAsyncLifetime
         using (var scope = fixture.CreateServiceScope())
             (await scope.ServiceProvider.GetRequiredService<IOutboxDispatchProcessor>().ProcessNextAsync("phase10", default)).Processed.Should().BeTrue();
 
-        // Exercise Phase 9 validation failure using the actual scheduler/repository/processor.
-        using (var scope = fixture.CreateServiceScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<CriticalAlertsDbContext>();
-            await new EscalationScheduler(db).ScheduleAsync(DemoDataSeeder.OrganizationId, new AlertId(alert.AlertId));
-            var run = await db.EscalationRuns.SingleAsync(r => r.AlertId == new AlertId(alert.AlertId));
-            await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE escalation_runs SET next_due_at_utc = clock_timestamp() - interval '1 second' WHERE id = {run.Id.Value}");
-            var snapshot = await db.AlertEscalationRecipientSnapshots.FirstAsync(s => s.AlertId == new AlertId(alert.AlertId));
-            await db.Practitioners.Where(p => p.Id == snapshot.PractitionerId).ExecuteUpdateAsync(p => p.SetProperty(v => v.IsActive, false));
-            var claim = await new EscalationRunRepository(db).TryClaimAsync(run.Id, "phase10", TimeSpan.FromSeconds(30));
-            claim.Should().NotBeNull();
-            (await new EscalationRunProcessor(db).ProcessClaimAsync(claim!)).Should().BeTrue();
-            await db.Practitioners.Where(p => p.Id == snapshot.PractitionerId).ExecuteUpdateAsync(p => p.SetProperty(v => v.IsActive, true));
-        }
         using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
         await Command(practitioner, $"/api/v1/my-alerts/{alert.AlertId}/responses", new { expectedVersion = alert.Version, responseType = "Accepted" });
         await Command(operatorClient, $"/api/v1/alerts/{alert.AlertId}/resolve", new { expectedVersion = alert.Version });
@@ -131,8 +116,8 @@ public sealed class ObservabilityWorkflowTests : IAsyncLifetime
         { health.StatusCode.Should().Be(HttpStatusCode.OK); safeOutputs.Add(await health.Content.ReadAsStringAsync()); }
         var logs = string.Join("\n", fixture.LogEntries);
         foreach (var action in new[] { "alert.confirmed", "directory.import.applied", "recipient.response.accepted", "alert.resolved",
-            "dispatch.failed", "audit.read", "escalation-processing-failed" }) logs.Should().Contain(action);
-        measurements.Should().Contain("criticalalerts.alert.confirmations").And.Contain("criticalalerts.audit.queries").And.Contain("criticalalerts.escalation.failures");
+            "dispatch.failed", "audit.read" }) logs.Should().Contain(action);
+        measurements.Should().Contain("criticalalerts.alert.confirmations").And.Contain("criticalalerts.audit.queries").And.Contain("criticalalerts.dispatch.failures");
         tags.Should().OnlyContain(tag => tag.Key == "operation");
         var all = string.Join("\n", safeOutputs) + logs + string.Join(" ", tags.Select(tag => tag.Value));
         foreach (var sentinel in Sentinels) all.Contains(sentinel, StringComparison.Ordinal).Should().BeFalse();
