@@ -47,17 +47,55 @@ internal static class EscalationPlanReview
             .Where(row => row.OrganizationId == alert.OrganizationId && row.SiteId == alert.SiteId
                 && row.DepartmentId == alert.DepartmentId && row.Tier == OnCallTier.Backup
                 && row.StartsAtUtc <= now && now < row.EndsAtUtc).ToArrayAsync(ct);
+        var department = await db.Departments.AsNoTracking()
+            .SingleOrDefaultAsync(row => row.OrganizationId == alert.OrganizationId
+                && row.Id == alert.DepartmentId && row.SiteId == alert.SiteId, ct);
+        var site = await db.Sites.AsNoTracking()
+            .SingleOrDefaultAsync(row => row.OrganizationId == alert.OrganizationId && row.Id == alert.SiteId, ct);
+        if (department is null || site is null)
+        {
+            throw Changed();
+        }
+
+        var backupIds = backups.Select(row => row.PractitionerId).Distinct().ToArray();
+        var matchingRoles = await db.PractitionerRoles.AsNoTracking()
+            .Where(row => row.OrganizationId == alert.OrganizationId && row.DepartmentId == alert.DepartmentId
+                && backupIds.Contains(row.PractitionerId)).ToArrayAsync(ct);
+        var directoryById = directory.ToDictionary(row => row.PractitionerId);
         var manualPairs = alert.CurrentRecipients.Select(row => (row.PractitionerId.Value, row.Channel.ToString())).ToHashSet();
-        var recipients = directory.Where(row => backups.Any(backup => backup.PractitionerId.Value == row.PractitionerId)
-                && row.Selectable && !row.IsStale && row.AvailableChannels.Contains("SecureMessage")
-                && !manualPairs.Contains((row.PractitionerId, "SecureMessage")))
-            .OrderBy(row => row.PractitionerId)
-            .Select(row => new EscalationPlanRecipient(row.PractitionerId, row.PractitionerRoleId,
-                row.DisplayName, row.Specialty, row.Department, row.Site, row.RoleTitle, "SecureMessage",
-                row.SelectionRevision, row.LastSynchronizedAtUtc, "Backup")).ToArray();
+        var recipients = new List<EscalationPlanRecipient>();
+        foreach (var backup in backups.OrderByDescending(row => row.LastSynchronizedAtUtc).ThenBy(row => row.Id.Value))
+        {
+            if (!directoryById.TryGetValue(backup.PractitionerId.Value, out var practitioner)
+                || !practitioner.Selectable || practitioner.IsStale
+                || !practitioner.AvailableChannels.Contains("SecureMessage")
+                || manualPairs.Contains((practitioner.PractitionerId, "SecureMessage"))
+                || recipients.Any(row => row.PractitionerId == practitioner.PractitionerId))
+            {
+                continue;
+            }
+
+            var role = matchingRoles.Where(row => row.PractitionerId == backup.PractitionerId)
+                .OrderByDescending(row => row.IsPrimary)
+                .ThenBy(row => row.Title, StringComparer.Ordinal)
+                .ThenBy(row => row.Id.Value)
+                .FirstOrDefault();
+            if (role is null)
+            {
+                continue;
+            }
+
+            recipients.Add(new EscalationPlanRecipient(practitioner.PractitionerId, role.Id.Value,
+                practitioner.DisplayName, practitioner.Specialty, department.Name, site.Name, role.Title,
+                "SecureMessage", practitioner.SelectionRevision, backup.LastSynchronizedAtUtc,
+                $"Backup {backup.StartsAtUtc:yyyy-MM-ddTHH:mm:ssZ}–{backup.EndsAtUtc:yyyy-MM-ddTHH:mm:ssZ}",
+                new EscalationOnCallEvidence(backup.Id.Value, backup.SourceSystem, backup.SourceRecordId,
+                    backup.StartsAtUtc, backup.EndsAtUtc, backup.LastSynchronizedAtUtc)));
+        }
+        recipients.Sort((left, right) => left.PractitionerId.CompareTo(right.PractitionerId));
         // A pair appears once; subsequent steps without additional approved recipients exhaust safely.
         var planSteps = steps.Select((step, index) => new EscalationPlanStepView(step.Id.Value,
-            step.SequenceNumber, checked((long)step.Delay.TotalSeconds), index == 0 ? recipients : [])).ToArray();
+            step.SequenceNumber, checked((long)step.Delay.TotalSeconds), index == 0 ? recipients.ToArray() : [])).ToArray();
         var manualEvidence = alert.CurrentRecipients.OrderBy(row => row.PractitionerId.Value).ThenBy(row => row.Channel)
             .Select(row => new
             {

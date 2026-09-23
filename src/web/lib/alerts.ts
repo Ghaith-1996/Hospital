@@ -148,6 +148,14 @@ export type EscalationPlan = {
       directoryRevision: string;
       directorySourceUpdatedAtUtc: string | null;
       onCallSnapshot: string | null;
+      onCallEvidence?: {
+        assignmentId: string;
+        sourceSystem: string;
+        sourceRecordId: string;
+        startsAtUtc: string;
+        endsAtUtc: string;
+        lastSynchronizedAtUtc: string;
+      } | null;
     }[];
   }[];
 };

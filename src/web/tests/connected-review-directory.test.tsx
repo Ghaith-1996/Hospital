@@ -31,7 +31,9 @@ const escalationPlan = {
   steps: [{ stepId: "11111111-1111-4111-8111-111111110a04", sequenceNumber: 1, delaySeconds: 60,
     recipients: [{ practitionerId: "sim-backup", practitionerRoleId: "sim-backup-role", displayName: "Fictional Backup",
       specialty: "Emergency", department: "Fictional Emergency", site: "Fictional North", roleTitle: "Consultant",
-      channel: "SecureMessage", directoryRevision: "backup-revision", directorySourceUpdatedAtUtc: "2026-09-22T12:00:00Z", onCallSnapshot: "Backup" }] }],
+      channel: "SecureMessage", directoryRevision: "backup-revision", directorySourceUpdatedAtUtc: "2026-09-22T12:00:00Z", onCallSnapshot: "Backup",
+      onCallEvidence: { assignmentId: "sim-assignment", sourceSystem: "SIM-ROSTER", sourceRecordId: "SIM-BACKUP-1",
+        startsAtUtc: "2026-09-22T10:00:00Z", endsAtUtc: "2026-09-22T14:00:00Z", lastSynchronizedAtUtc: "2026-09-22T12:00:00Z" } }] }],
 };
 Object.assign(review, { escalationPlan });
 
@@ -41,6 +43,7 @@ test("shows exact future backups and binds their policy and revision on confirma
   render(<ReviewAlert alertId="sim-alert" />);
   expect(await screen.findByText("Fictional Backup")).toBeVisible();
   expect(screen.getByText(/60 seconds/)).toBeVisible();
+  expect(screen.getByText(/SIM-ROSTER \/ SIM-BACKUP-1/)).toHaveTextContent("2026-09-22T10:00:00Z to 2026-09-22T14:00:00Z");
   fireEvent.click(screen.getByLabelText(/I reviewed the exact/));
   fireEvent.click(screen.getByRole("button", { name: "Confirm & Dispatch" }));
   expect(api.confirmAlertReview).toHaveBeenCalledWith("sim-alert", 9, expect.any(String), escalationPlan);

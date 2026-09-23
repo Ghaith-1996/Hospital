@@ -52,7 +52,16 @@ public sealed record EscalationPlanRecipient(
     string Channel,
     string DirectoryRevision,
     DateTimeOffset? DirectorySourceUpdatedAtUtc,
-    string? OnCallSnapshot);
+    string? OnCallSnapshot,
+    EscalationOnCallEvidence? OnCallEvidence = null);
+
+public sealed record EscalationOnCallEvidence(
+    Guid AssignmentId,
+    string SourceSystem,
+    string SourceRecordId,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    DateTimeOffset LastSynchronizedAtUtc);
 
 public sealed record EscalationPlanStepView(
     Guid StepId,

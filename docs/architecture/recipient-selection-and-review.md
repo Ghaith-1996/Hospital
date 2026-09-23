@@ -1,4 +1,4 @@
-﻿# Recipient Selection and Exact Review
+# Recipient Selection and Exact Review
 
 ## Status and authority
 
@@ -7,6 +7,8 @@
 Phase 9 replaces the confirmation placeholder with an exact `escalationPlan`: policy ID/version, deterministic revision, step IDs/delays and future DEMO backup practitioner/role/channel evidence. Confirmation now requires `expectedVersion`, `escalationPolicyId`, `escalationPolicyVersion` and `escalationPlanRevision`. The same complete request is retained for uncertain retries. Missing or changed approval returns a safe conflict.
 
 Review and confirmation hold shared directory/policy table locks for consistent evidence; confirmation also uses the shared alert mutation lock. The DEMO implementation trades import concurrency for a small, explicit transaction boundary. It selects only eligible current backup-on-call entries for the exact organization/site/department, excludes manually selected pairs, and shows empty steps explicitly. It never guesses a replacement for expired roster evidence. No clinical content participates in this selection.
+
+Each DEMO backup snapshot uses the matched on-call assignment and a practitioner role in that assignment's department. Review shows the role's department and site plus the assignment's source record, UTC start/end window and synchronization time; confirmation binds this evidence into the immutable plan revision. When multiple current backup rows cover the same practitioner and location, the most recently synchronized row wins, with assignment ID breaking ties. A practitioner without a matching department role is excluded. At activation, a role that no longer belongs to the alert department fails safely instead of activating an incorrect recipient. These are simulation-only selection rules; production eligibility and roster authority remain `REQUIRES_HOSPITAL_DECISION`.
 
 Confirmation stores a separate immutable `confirmed_escalation_plans` row for the exact alert version in the same transaction as audit/idempotency/outbox. PostgreSQL rejects update/delete. The snapshot is absent for historical confirmations; those alerts are not escalation-enabled. The original dispatch payload remains `alertId` plus `draftVersion`; no message content is added. Subsequent sections describe the historical Phase 6 baseline where the Phase 9 contract above supersedes it.
 

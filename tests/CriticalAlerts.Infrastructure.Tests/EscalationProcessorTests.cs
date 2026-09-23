@@ -16,6 +16,21 @@ namespace CriticalAlerts.Infrastructure.Tests;
 public sealed class EscalationProcessorTests(MigratedPostgresFixture fixture)
 {
     [Fact]
+    public async Task ApprovedBackupRoleOutsideAlertDepartmentFailsWithoutActivation()
+    {
+        await fixture.ResetAsync();
+        await using var db = fixture.CreateContext();
+        await EscalationPersistenceTests.SeedApprovalAsync(db, 0, includeBackupRole: true);
+
+        await new EscalationProcessor(db).ProcessNextAsync("worker");
+
+        db.ChangeTracker.Clear();
+        (await db.EscalationRuns.SingleAsync()).State.Should().Be(EscalationRunState.Failed);
+        (await db.AlertRecipientSelections.CountAsync(row => row.SelectionSource == RecipientSelectionSource.EscalationPolicy))
+            .Should().Be(0);
+    }
+
+    [Fact]
     public async Task RemovedApprovedBackupRoleFailsDurablyWithoutSelectingItsReplacement()
     {
         await fixture.ResetAsync();

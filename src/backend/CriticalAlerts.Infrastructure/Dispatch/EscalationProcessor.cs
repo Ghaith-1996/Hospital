@@ -131,7 +131,7 @@ public sealed class EscalationProcessor(CriticalAlertsDbContext db)
         var practitioners = await db.Practitioners.AsNoTracking().Where(row => row.OrganizationId == run.OrganizationId
             && row.IsActive && approvedIds.Contains(row.Id)).Select(row => row.Id).ToArrayAsync(ct);
         var roles = await db.PractitionerRoles.AsNoTracking().Where(row => row.OrganizationId == run.OrganizationId
-            && approvedIds.Contains(row.PractitionerId)).ToArrayAsync(ct);
+            && row.DepartmentId == alert.DepartmentId && approvedIds.Contains(row.PractitionerId)).ToArrayAsync(ct);
         if (step.Recipients.Any(recipient => !practitioners.Contains(new PractitionerId(recipient.PractitionerId))
             || (recipient.PractitionerRoleId is Guid role && !roles.Any(row => row.Id.Value == role && row.PractitionerId.Value == recipient.PractitionerId))))
         {

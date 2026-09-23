@@ -4,6 +4,7 @@ using System.Text.Json;
 using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Domain;
+using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
 using FluentAssertions;
@@ -115,6 +116,71 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         (await db.OutboxMessages.AnyAsync(row => row.AggregateId == prepared.AlertId)).Should().BeFalse();
         (await db.Alerts.SingleAsync(row => row.Id == new AlertId(prepared.AlertId))).State
             .Should().Be(AlertState.PendingConfirmation);
+    }
+
+    [Fact]
+    public async Task BackupReviewAndApprovalUseTheMatchingAssignmentAndDepartmentRole()
+    {
+        await using var context = fixture.CreateContext();
+        var connectionString = context.Database.GetConnectionString()!;
+        await DatabaseOperations.ResetDemoAsync(connectionString, "Test", fixture.DataProtectionKey, confirmReset: true);
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            now = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond));
+            var matchingStart = now.AddHours(-2);
+            var matchingEnd = now.AddHours(2);
+            var matchingSync = now.AddMinutes(-10);
+            var emergencyRole = PractitionerRoleAssignment.Create(PractitionerRoleId.New(),
+                DemoDataSeeder.OrganizationId, DemoDataSeeder.RileySatoId,
+                DemoDataSeeder.EmergencyDepartmentId, "Fictional emergency cover", false,
+                "SIM-DIRECTORY", "SIM-ROLE-RILEY-EMERGENCY");
+            await using (var seed = fixture.CreateContext())
+            {
+                var medicine = await seed.Departments.SingleAsync(row => row.SimulationCode == "SIM-DEPT-MEDICINE");
+                seed.PractitionerRoles.Add(emergencyRole);
+                seed.OnCallAssignments.AddRange(
+                    OnCallAssignment.Create(OnCallAssignmentId.New(), DemoDataSeeder.OrganizationId,
+                        DemoDataSeeder.RileySatoId, DemoDataSeeder.NorthSiteId,
+                        DemoDataSeeder.EmergencyDepartmentId, OnCallTier.Backup,
+                        matchingStart, matchingEnd, "SIM-ROSTER", "SIM-MATCHED-BACKUP", matchingSync),
+                    OnCallAssignment.Create(OnCallAssignmentId.New(), DemoDataSeeder.OrganizationId,
+                        DemoDataSeeder.RileySatoId, DemoDataSeeder.NorthSiteId, medicine.Id,
+                        OnCallTier.Backup, now.AddHours(-1), now.AddHours(3),
+                        "SIM-ROSTER", "SIM-OTHER-DEPARTMENT", now.AddMinutes(-1)));
+                await seed.SaveChangesAsync();
+            }
+
+            using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+            var prepared = await CreateConfirmableAlertAsync(client);
+            var recipient = ReviewedPlans[prepared.AlertId].Steps.SelectMany(step => step.Recipients)
+                .Single(row => row.PractitionerId == DemoDataSeeder.RileySatoId.Value);
+            recipient.PractitionerRoleId.Should().Be(emergencyRole.Id.Value);
+            recipient.RoleTitle.Should().Be("Fictional emergency cover");
+            recipient.Department.Should().Be("Fictional Emergency Care");
+            recipient.Site.Should().Be("North Wing Simulation Site");
+            recipient.DirectorySourceUpdatedAtUtc.Should().Be(matchingSync);
+            recipient.OnCallSnapshot.Should().Contain(matchingStart.ToString("yyyy-MM-ddTHH:mm"))
+                .And.Contain(matchingEnd.ToString("yyyy-MM-ddTHH:mm"));
+            recipient.OnCallEvidence.Should().NotBeNull();
+            recipient.OnCallEvidence!.SourceSystem.Should().Be("SIM-ROSTER");
+            recipient.OnCallEvidence.SourceRecordId.Should().Be("SIM-MATCHED-BACKUP");
+            recipient.OnCallEvidence.StartsAtUtc.Should().Be(matchingStart);
+            recipient.OnCallEvidence.EndsAtUtc.Should().Be(matchingEnd);
+            recipient.OnCallEvidence.LastSynchronizedAtUtc.Should().Be(matchingSync);
+
+            using var confirmed = await ConfirmAsync(client, prepared.AlertId, prepared.Version, Guid.NewGuid().ToString("D"));
+            confirmed.StatusCode.Should().Be(HttpStatusCode.OK);
+            await using var verify = fixture.CreateContext();
+            var approval = await verify.ConfirmedEscalationPlans.SingleAsync(row => row.AlertId == new AlertId(prepared.AlertId));
+            var saved = JsonSerializer.Deserialize<EscalationPlanView>(approval.SnapshotJson)!;
+            saved.Steps.SelectMany(step => step.Recipients).Single(row => row.PractitionerId == DemoDataSeeder.RileySatoId.Value)
+                .Should().Be(recipient);
+        }
+        finally
+        {
+            await DatabaseOperations.ResetDemoAsync(connectionString, "Test", fixture.DataProtectionKey, confirmReset: true);
+        }
     }
 
     [Fact]
