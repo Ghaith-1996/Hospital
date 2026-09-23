@@ -166,8 +166,6 @@ public sealed class DemoDataSeeder
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task EnsurePhase9PolicyAsync(CancellationToken ct)
-
     private async Task EnsureAuditorAsync(CancellationToken cancellationToken)
     {
         if (await db.Users.AnyAsync(user => user.Id == AveryUserId, cancellationToken)) return;
@@ -175,6 +173,8 @@ public sealed class DemoDataSeeder
         db.UserRoles.Add(UserRole.Create(OrganizationId, AveryUserId, AuditorRoleId));
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    private async Task EnsurePhase9PolicyAsync(CancellationToken ct)
     {
         if (await db.EscalationPolicies.AnyAsync(row => row.OrganizationId == OrganizationId && row.Version == "DEMO-9", ct)) return;
         foreach (var old in await db.EscalationPolicies.Where(row => row.OrganizationId == OrganizationId && row.IsActive).ToArrayAsync(ct))
