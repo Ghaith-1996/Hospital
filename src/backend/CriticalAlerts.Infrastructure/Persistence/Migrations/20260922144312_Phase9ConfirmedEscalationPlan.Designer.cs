@@ -3,6 +3,7 @@ using System;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CriticalAlerts.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CriticalAlertsDbContext))]
-    partial class CriticalAlertsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922144312_Phase9ConfirmedEscalationPlan")]
+    partial class Phase9ConfirmedEscalationPlan
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -587,57 +590,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                     b.ToTable("delivery_events", (string)null);
                 });
 
-            modelBuilder.Entity("CriticalAlerts.Domain.Delivery.EscalationEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid?>("ActorUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("actor_user_id");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
-                        .HasColumnName("kind");
-
-                    b.Property<DateTimeOffset>("OccurredAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurred_at_utc");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("organization_id");
-
-                    b.Property<Guid?>("RecipientSelectionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("recipient_selection_id");
-
-                    b.Property<Guid>("RunId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("run_id");
-
-                    b.Property<int>("Sequence")
-                        .HasColumnType("integer")
-                        .HasColumnName("sequence");
-
-                    b.Property<int>("Step")
-                        .HasColumnType("integer")
-                        .HasColumnName("step");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RunId", "OrganizationId");
-
-                    b.HasIndex("OrganizationId", "RunId", "Sequence")
-                        .IsUnique();
-
-                    b.ToTable("escalation_events", (string)null);
-                });
-
             modelBuilder.Entity("CriticalAlerts.Domain.Delivery.EscalationRun", b =>
                 {
                     b.Property<Guid>("Id")
@@ -648,10 +600,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("alert_id");
 
-                    b.Property<int?>("AlertVersion")
-                        .HasColumnType("integer")
-                        .HasColumnName("alert_version");
-
                     b.Property<DateTimeOffset?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("completed_at_utc");
@@ -659,27 +607,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                     b.Property<int>("CurrentStep")
                         .HasColumnType("integer")
                         .HasColumnName("current_step");
-
-                    b.Property<int>("EventSequence")
-                        .HasColumnType("integer")
-                        .HasColumnName("event_sequence");
-
-                    b.Property<int>("HandledNegativeResponses")
-                        .HasColumnType("integer")
-                        .HasColumnName("handled_negative_responses");
-
-                    b.Property<DateTimeOffset?>("LeaseExpiresAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lease_expires_at_utc");
-
-                    b.Property<string>("LeaseOwner")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)")
-                        .HasColumnName("lease_owner");
-
-                    b.Property<DateTimeOffset>("NextCheckAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("next_check_at_utc");
 
                     b.Property<DateTimeOffset>("NextDueAtUtc")
                         .HasColumnType("timestamp with time zone")
@@ -699,10 +626,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(40)")
                         .HasColumnName("policy_version");
 
-                    b.Property<TimeSpan?>("RemainingDelay")
-                        .HasColumnType("interval")
-                        .HasColumnName("remaining_delay");
-
                     b.Property<DateTimeOffset>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("started_at_utc");
@@ -713,23 +636,11 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("state");
 
-                    b.Property<string>("StopReason")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("stop_reason");
-
                     b.HasKey("Id");
 
                     b.HasIndex("AlertId", "OrganizationId");
 
-                    b.HasIndex("NextCheckAtUtc", "LeaseExpiresAtUtc");
-
                     b.HasIndex("State", "NextDueAtUtc");
-
-                    b.HasIndex("OrganizationId", "AlertId", "AlertVersion")
-                        .IsUnique();
-
-                    b.HasIndex("OrganizationId", "AlertId", "AlertVersion", "PolicyId", "PolicyVersion");
 
                     b.ToTable("escalation_runs", (string)null);
                 });
@@ -2272,16 +2183,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CriticalAlerts.Domain.Delivery.EscalationEvent", b =>
-                {
-                    b.HasOne("CriticalAlerts.Domain.Delivery.EscalationRun", null)
-                        .WithMany()
-                        .HasForeignKey("RunId", "OrganizationId")
-                        .HasPrincipalKey("Id", "OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CriticalAlerts.Domain.Delivery.EscalationRun", b =>
                 {
                     b.HasOne("CriticalAlerts.Domain.Alerts.Alert", null)
@@ -2290,12 +2191,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("CriticalAlerts.Domain.Delivery.ConfirmedEscalationPlan", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId", "AlertId", "AlertVersion", "PolicyId", "PolicyVersion")
-                        .HasPrincipalKey("OrganizationId", "AlertId", "AlertVersion", "PolicyId", "PolicyVersion")
-                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CriticalAlerts.Domain.Delivery.RecipientResponse", b =>

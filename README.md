@@ -1,12 +1,14 @@
 ﻿# Critical Clinician Alert Platform
 
-Status: Phase 8.5 reconnects the redesigned frontend to the Phase 0–8 simulation backend. PostgreSQL owns saved drafts, recipients, dispatch, responses, and responsibility. Technical verification and human acceptance are separate gates. This repository remains public; this phase does not change GitHub settings.
+Status: Phase 9 adds simulation-only escalation to the connected frontend and backend. PostgreSQL owns saved workflow state, exact future-recipient approvals and UTC scheduling. Technical verification and human acceptance are separate gates. This repository remains public; this phase does not change GitHub settings.
 
 This workspace defines a human-confirmed, closed-loop clinician alert simulation. It is not a hospital system, not a replacement for an EHR, pager, switchboard, scheduling system, or downtime process, and it is not approved for clinical use.
 
-Phase 4 provides a fictional practitioner directory, CSV import adapter, validation/preview, and searchable directory UI. Phase 5 adds protected typed simulation alert drafting and SBAR confirmation. Phase 6 adds manual fictional-recipient selection, protected approved-message content, exact review, and idempotent human confirmation that creates an identifier-only outbox item. Phase 7 adds a Development/Test-only simulation worker, typed local channel adapters, deterministic provider-event scenarios, bounded retry, lease recovery, and safe delivery-status projection. Phase 8 adds simulation practitioner responses, call-unit requests, operator resolve/cancel actions, a safe manual-fallback placeholder, and a read-only operator status surface. Real providers, hospital connectors, SCIM, Graph, FHIR, AI features, Entra SSO, production identity, external callbacks, escalation automation, and Phase 9 remain out of scope.
+Phase 4 provides a fictional practitioner directory and CSV adapter. Phases 5–6 add protected drafting, critical-field confirmation, exact recipient review and idempotent dispatch approval. Phases 7–8 add simulated delivery, responses, responsibility and lifecycle controls. Phase 9 binds approval to the exact DEMO escalation policy, steps and future backup recipients, activates only those snapshots through the existing outbox, and adds durable Pause/Resume and a safe live timeline. Real providers, hospital connectors, SCIM, Graph, FHIR, AI, Entra SSO, production identity, external callbacks and Phase 10 remain out of scope.
 
 ## Connected simulation frontend
+
+The [Phase 9 design](docs/superpowers/specs/2026-09-22-phase-9-escalation-design.md) and [verification record](docs/superpowers/phase9-verification.md) describe the current boundary. Enable the existing worker's escalation processor with `SimulationEscalation__Enabled=true` together with `SimulationDispatch__Enabled=true` in Development/Test. Both default to disabled. Seeded `DEMO-9` uses one 60-second step and SecureMessage backups; these are fictional assumptions. Expired or missing on-call evidence yields an explicitly empty reviewed step, then manual fallback. No replacement recipient is looked up at expiry. Historical alerts without approved snapshots stay disabled.
 
 The server-controlled development identity switcher selects a seeded fictional identity. Create a draft at `/alerts/new`, save and confirm critical fields in compose, manually select directory recipients and channels, then review and confirm the exact server version. `/alerts/[id]/live` polls durable delivery and response state. `/my-alerts` uses the authenticated practitioner's backend mapping. Directory search and CSV preview/apply are connected; Reports and Settings remain unavailable. `/alerts` opens an existing alert by its server ID because the retained API has no operator-wide list endpoint.
 
@@ -77,7 +79,7 @@ The web Dockerfile installs both root and web build dependencies. Its API rewrit
 - .NET SDK: `10.0.100`, exact roll-forward disabled.
 - C#: `14.0`; target framework: `net10.0`.
 - Node.js: `24.16.0`; npm: `11.13.0`.
-- Next.js: `16.3.1`; React/React DOM: `19.2.1` (patched App Router baseline).
+- Next.js: `16.3.6`; React/React DOM: `19.2.1` (pinned security maintenance baseline).
 - Playwright: `1.60.0`, pinned to include the browser-extraction fix required by Node.js 24.16.0.
 - PostgreSQL development/test image: `postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636`.
 

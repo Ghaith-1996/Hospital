@@ -117,4 +117,13 @@ public enum EscalationRunState
     Running = 1,
     Completed = 2,
     Stopped = 3,
+    Paused = 4,
+    Exhausted = 5,
+    Failed = 6,
+}
+
+public enum EscalationEventKind
+{
+    Scheduled, StepDue, RecipientActivated, DispatchQueued, Paused, Resumed,
+    StoppedByResponsibility, StoppedByResolution, StoppedByCancellation, Exhausted, ProcessingFailed,
 }

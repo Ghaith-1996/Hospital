@@ -14,6 +14,10 @@ var developmentAuthenticationEnabled = builder.Configuration.GetValue("Developme
 DevelopmentAuthenticationGuard.EnsureAllowed(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
 var simulationDispatchEnabled = builder.Configuration.GetValue("SimulationDispatch:Enabled", false);
 SimulationDispatchEnvironmentGuard.EnsureAllowed(builder.Environment.EnvironmentName, simulationDispatchEnabled);
+var simulationEscalationEnabled = builder.Configuration.GetValue("SimulationEscalation:Enabled", false);
+SimulationDispatchEnvironmentGuard.EnsureAllowed(builder.Environment.EnvironmentName, simulationEscalationEnabled);
+if (simulationEscalationEnabled && !simulationDispatchEnabled)
+    throw new InvalidOperationException("Simulation escalation requires simulation dispatch.");
 
 if (simulationDispatchEnabled)
 {
@@ -31,6 +35,7 @@ if (simulationDispatchEnabled)
         .Bind(builder.Configuration.GetSection("SimulationDispatch"))
         .PostConfigure(options => options.Enabled = true);
     builder.Services.AddSimulationDispatch();
+    if (simulationEscalationEnabled) builder.Services.AddScoped<EscalationProcessor>();
     builder.Services.AddHostedService<SimulationDispatchWorker>();
 }
 else

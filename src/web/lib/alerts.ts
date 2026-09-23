@@ -125,6 +125,39 @@ export type AlertReview = {
   recipients: AlertReviewRecipient[];
   demoEscalationPolicyVersion: string;
   demoNotificationPolicyVersion: string;
+  escalationPlan?: EscalationPlan | null;
+};
+
+export type EscalationPlan = {
+  policyId: string;
+  policyVersion: string;
+  revision: string;
+  steps: {
+    stepId: string;
+    sequenceNumber: number;
+    delaySeconds: number;
+    recipients: {
+      practitionerId: string;
+      practitionerRoleId: string | null;
+      displayName: string;
+      specialty: string;
+      department: string | null;
+      site: string | null;
+      roleTitle: string | null;
+      channel: string;
+      directoryRevision: string;
+      directorySourceUpdatedAtUtc: string | null;
+      onCallSnapshot: string | null;
+      onCallEvidence?: {
+        assignmentId: string;
+        sourceSystem: string;
+        sourceRecordId: string;
+        startsAtUtc: string;
+        endsAtUtc: string;
+        lastSynchronizedAtUtc: string;
+      } | null;
+    }[];
+  }[];
 };
 
 export type ConfirmResult = {
@@ -221,6 +254,14 @@ export type AlertLiveRecipient = {
   callUnitRequestedAtUtc: string | null;
   lastResponseReasonCode: string | null;
   attempts: AlertLiveAttempt[];
+  selectionSources?: string[];
+};
+
+export type AlertLiveEscalation = {
+  policyId: string; policyVersion: string; state: string; currentStep: number;
+  nextDueAtUtc: string | null; remainingDelaySeconds: number | null; stopReason: string | null;
+  canPause: boolean; canResume: boolean;
+  events: { sequence: number; kind: string; step: number; occurredAtUtc: string; recipientSelectionId: string | null; actorUserId: string | null }[];
 };
 
 export type AlertLive = {
@@ -233,6 +274,7 @@ export type AlertLive = {
   canCancel: boolean;
   manualFallbackRequired: boolean;
   recipients: AlertLiveRecipient[];
+  escalation?: AlertLiveEscalation | null;
 };
 
 export type AlertLifecycleResult = {
@@ -368,11 +410,11 @@ export function createIdempotencyKey(): string {
   return `phase6-${randomUuid ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 }
 
-export function confirmAlertReview(alertId: string, expectedVersion: number, idempotencyKey: string): Promise<ConfirmResult> {
+export function confirmAlertReview(alertId: string, expectedVersion: number, idempotencyKey: string, plan: EscalationPlan): Promise<ConfirmResult> {
   return requestJson<ConfirmResult>(`/api/v1/alerts/${alertId}/confirm`, {
     method: "POST",
     headers: { "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ expectedVersion }),
+    body: JSON.stringify({ expectedVersion, escalationPolicyId: plan.policyId, escalationPolicyVersion: plan.policyVersion, escalationPlanRevision: plan.revision }),
   });
 }
 
@@ -412,6 +454,14 @@ export function recordMyAlertResponse(
 
 export function getAlertLive(alertId: string): Promise<AlertLive> {
   return requestJson<AlertLive>(`/api/v1/alerts/${alertId}/live`);
+}
+
+export function setEscalationPaused(alertId: string, expectedVersion: number, paused: boolean, idempotencyKey: string): Promise<AlertLifecycleResult> {
+  const action = paused ? "pause" : "resume";
+  return requestJson<AlertLifecycleResult>(`/api/v1/alerts/${alertId}/escalation/${action}`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ expectedVersion, reasonCode: `simulation-${action}-requested` }),
+  });
 }
 
 export function resolveAlert(

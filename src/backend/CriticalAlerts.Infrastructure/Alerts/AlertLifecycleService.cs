@@ -15,6 +15,58 @@ public sealed class AlertLifecycleService(
     CriticalAlertsDbContext db,
     TimeProvider time) : IAlertLifecycleService
 {
+    public async Task<AlertLifecycleResult?> SetEscalationPausedAsync(
+        OrganizationId organizationId, UserId actorUserId, string correlationId, AlertId alertId,
+        EscalationOverrideRequest request, string? idempotencyKey, bool paused, CancellationToken cancellationToken)
+    {
+        var key = RequireIdempotencyKey(idempotencyKey);
+        var operation = paused ? "escalation-pause" : "escalation-resume";
+        var expectedReason = paused ? "simulation-pause-requested" : "simulation-resume-requested";
+        if (request.ReasonCode != expectedReason)
+            throw Conflict("reason-code-invalid", "An allowlisted simulation reason code is required.");
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{operation}|{organizationId.Value:D}|{alertId.Value:D}|{request.ExpectedVersion}|{actorUserId.Value:D}|{expectedReason}")));
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await AlertMutationLock.AcquireAsync(db, organizationId, alertId, cancellationToken);
+        var existing = await FindIdempotencyAsync(organizationId, operation, key, hash, cancellationToken);
+        var target = paused ? EscalationRunState.Paused : EscalationRunState.Scheduled;
+        if (existing is not null)
+        {
+            return DecodeResult(existing, target.ToString(), replayed: true);
+        }
+        var alert = await db.Alerts.AsNoTracking().SingleOrDefaultAsync(row => row.OrganizationId == organizationId
+            && row.Id == alertId, cancellationToken);
+        if (alert is null) return null;
+        if (alert.ConfirmedDraftVersion?.Value != request.ExpectedVersion || alert.DraftVersion.Value != request.ExpectedVersion)
+            throw Conflict("alert-version-stale", "Reload the exact confirmed alert version.");
+        if (alert.State != AlertState.Active)
+            throw Conflict("alert-state-conflict", "Only active simulation escalation can be paused or resumed.");
+        var run = await db.EscalationRuns.FromSqlInterpolated($"""
+            SELECT * FROM escalation_runs WHERE organization_id = {organizationId.Value}
+                AND alert_id = {alertId.Value} AND alert_version = {request.ExpectedVersion} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken);
+        if (run is null) throw Conflict("lifecycle-conflict", "The approved escalation run is not available.");
+        // Reload because the same scoped context may have observed the run before obtaining the lock.
+        await db.Entry(run).ReloadAsync(cancellationToken);
+        if (await db.ResponsibilityAssignments.AnyAsync(row => row.OrganizationId == organizationId && row.AlertId == alertId
+                && row.AlertVersion == alert.ConfirmedDraftVersion!.Value && row.ReleasedAtUtc == null, cancellationToken)
+            || run.State != (paused ? EscalationRunState.Scheduled : EscalationRunState.Paused))
+            throw Conflict("lifecycle-conflict", "Escalation no longer permits this action. Reload live status.");
+        var now = await EscalationPlanReview.DatabaseNowAsync(db, cancellationToken);
+        if (paused) run.Pause(now); else run.Resume(now);
+        db.EscalationEvents.Add(run.Record(paused ? EscalationEventKind.Paused : EscalationEventKind.Resumed, now, actor: actorUserId));
+        var result = new AlertLifecycleResult(alertId.Value, request.ExpectedVersion, target.ToString(), false);
+        var record = IdempotencyRecord.Start(IdempotencyRecordId.New(), organizationId, operation, key, hash, now);
+        record.Complete(EncodeResult(result));
+        db.IdempotencyRecords.Add(record);
+        db.AuditEvents.Add(AuditEvent.Record(AuditEventId.New(), organizationId, "user", actorUserId,
+            paused ? "escalation.paused" : "escalation.resumed", "alert", alertId.Value, "succeeded", correlationId,
+            JsonSerializer.Serialize(new { alertVersion = request.ExpectedVersion, reasonCode = expectedReason, simulationOnly = true }), now));
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
     public Task<AlertLifecycleResult?> ResolveAsync(
         OrganizationId organizationId,
         UserId actorUserId,
@@ -267,6 +319,9 @@ public sealed class AlertLifecycleService(
         => $"{result.AlertId:D}|{result.ConfirmedVersion}|{result.State}";
 
     private static AlertLifecycleResult DecodeResult(IdempotencyRecord record, AlertState expectedState, bool replayed)
+        => DecodeResult(record, expectedState.ToString(), replayed);
+
+    private static AlertLifecycleResult DecodeResult(IdempotencyRecord record, string expectedState, bool replayed)
     {
         var parts = record.ResultReference.Split('|', StringSplitOptions.None);
         if (parts.Length != 3

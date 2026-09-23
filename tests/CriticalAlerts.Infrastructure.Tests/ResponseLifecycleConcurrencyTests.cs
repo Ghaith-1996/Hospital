@@ -103,7 +103,7 @@ public sealed class ResponseLifecycleConcurrencyTests(MigratedPostgresFixture fi
                 "SIM-response-race", default);
     }
 
-    private async Task WaitForCompletionOrLockAsync(Task task, int pid)
+    internal async Task WaitForCompletionOrLockAsync(Task task, int pid)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await using var monitor = new NpgsqlConnection(fixture.ConnectionString);

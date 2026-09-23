@@ -49,6 +49,7 @@ public sealed class DemoDataSeeder
         if (await db.Organizations.AnyAsync(organization => organization.Id == OrganizationId, cancellationToken))
         {
             await EnsurePractitionerUserLinkAsync(cancellationToken);
+            await EnsurePhase9PolicyAsync(cancellationToken);
             return;
         }
 
@@ -151,13 +152,24 @@ public sealed class DemoDataSeeder
 
         var template = AlertTemplate.CreateDemo(new AlertTemplateId(Id("a01")), OrganizationId, SeededAt);
         var notification = NotificationPolicy.CreateDemo(new NotificationPolicyId(Id("a02")), OrganizationId);
-        var escalation = EscalationPolicy.CreateDemo(new EscalationPolicyId(Id("a03")), OrganizationId);
+        var escalation = EscalationPolicy.CreatePhase9Demo(new EscalationPolicyId(Id("a05")), OrganizationId);
         db.AlertTemplates.Add(template);
         db.NotificationPolicies.Add(notification);
         db.EscalationPolicies.Add(escalation);
-        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a04")), OrganizationId, escalation.Id, 1));
+        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, escalation.Id, 1));
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsurePhase9PolicyAsync(CancellationToken ct)
+    {
+        if (await db.EscalationPolicies.AnyAsync(row => row.OrganizationId == OrganizationId && row.Version == "DEMO-9", ct)) return;
+        foreach (var old in await db.EscalationPolicies.Where(row => row.OrganizationId == OrganizationId && row.IsActive).ToArrayAsync(ct))
+            old.Deactivate();
+        var policy = EscalationPolicy.CreatePhase9Demo(new EscalationPolicyId(Id("a05")), OrganizationId);
+        db.EscalationPolicies.Add(policy);
+        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, policy.Id, 1));
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task EnsurePractitionerUserLinkAsync(CancellationToken cancellationToken)

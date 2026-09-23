@@ -372,7 +372,8 @@ public sealed class Alert
         AlertDraftVersion expectedVersion,
         IReadOnlyCollection<Practitioner> currentPractitioners,
         DateTimeOffset confirmedAtUtc,
-        string correlationId)
+        string correlationId,
+        string? escalationPolicyVersion = null)
     {
         EnsureExpectedVersion(expectedVersion);
         if (State != AlertState.PendingConfirmation)
@@ -410,11 +411,19 @@ public sealed class Alert
             }
         }
 
+        if (escalationPolicyVersion is not null)
+        {
+            if (!escalationPolicyVersion.StartsWith("DEMO", StringComparison.Ordinal) || escalationPolicyVersion.Length > 40)
+            {
+                throw new DomainException("An exact DEMO escalation policy version is required.");
+            }
+            DemoEscalationPolicyVersion = escalationPolicyVersion;
+        }
         ConfirmedDraftVersion = DraftVersion;
         ConfirmedByUserId = confirmingUserId;
         ConfirmedAtUtc = UtcInstant.Require(confirmedAtUtc, nameof(confirmedAtUtc));
         pendingDispatchRequests.Add(new AlertDispatchRequested(Id, OrganizationId, DraftVersion));
-        TransitionTo(AlertState.DispatchQueued, confirmingUserId, "human-confirmed", "DEMO", confirmedAtUtc, correlationId);
+        TransitionTo(AlertState.DispatchQueued, confirmingUserId, "human-confirmed", DemoEscalationPolicyVersion, confirmedAtUtc, correlationId);
     }
 
     public void MarkActive(DateTimeOffset occurredAtUtc, string correlationId)

@@ -26,6 +26,29 @@ test("renders disambiguation and freshness, disables inactive selections and req
   expect(api.replaceAlertRecipients).toHaveBeenCalledWith("sim-alert", 6, [{ practitionerId: "sim-maya", practitionerRoleId: "sim-role", channel: "Sms", directoryRevision: "revision-1" }]);
 });
 const review: api.AlertReview = { alertId: "sim-alert", draftVersion: 9, state: "PendingConfirmation", simulationPatientReference: "SIM-PAT-EXACT", location: "Fictional room", urgencyLabel: "DEMO Urgent", approvedMessage: "SIMULATION: exact approved message", criticalFields: [{ alertVersion: 9, fieldId: "pulse", originalValue: "118", normalizedValue: "118", unit: "beats/min", status: "Confirmed" }], recipients: [{ ...practitioner, channel: "SecureMessage", selectedAtUtc: "2026-09-05T12:00:00Z", directorySourceUpdatedAtUtc: practitioner.lastSynchronizedAtUtc, onCallSnapshot: "Primary SIM-ROSTER", directoryRevision: "revision-1", selectionSource: "Manual" }], demoEscalationPolicyVersion: "DEMO-E1", demoNotificationPolicyVersion: "DEMO-N1" };
+const escalationPlan = {
+  policyId: "11111111-1111-4111-8111-111111110a03", policyVersion: "DEMO-E1", revision: "exact-plan-1",
+  steps: [{ stepId: "11111111-1111-4111-8111-111111110a04", sequenceNumber: 1, delaySeconds: 60,
+    recipients: [{ practitionerId: "sim-backup", practitionerRoleId: "sim-backup-role", displayName: "Fictional Backup",
+      specialty: "Emergency", department: "Fictional Emergency", site: "Fictional North", roleTitle: "Consultant",
+      channel: "SecureMessage", directoryRevision: "backup-revision", directorySourceUpdatedAtUtc: "2026-09-22T12:00:00Z", onCallSnapshot: "Backup",
+      onCallEvidence: { assignmentId: "sim-assignment", sourceSystem: "SIM-ROSTER", sourceRecordId: "SIM-BACKUP-1",
+        startsAtUtc: "2026-09-22T10:00:00Z", endsAtUtc: "2026-09-22T14:00:00Z", lastSynchronizedAtUtc: "2026-09-22T12:00:00Z" } }] }],
+};
+Object.assign(review, { escalationPlan });
+
+test("shows exact future backups and binds their policy and revision on confirmation", async () => {
+  vi.mocked(api.getAlertReview).mockResolvedValue(review);
+  vi.mocked(api.confirmAlertReview).mockResolvedValue({ alertId: "sim-alert", confirmedVersion: 9, state: "DispatchQueued", replayed: false });
+  render(<ReviewAlert alertId="sim-alert" />);
+  expect(await screen.findByText("Fictional Backup")).toBeVisible();
+  expect(screen.getByText(/60 seconds/)).toBeVisible();
+  expect(screen.getByText(/SIM-ROSTER \/ SIM-BACKUP-1/)).toHaveTextContent("2026-09-22T10:00:00Z to 2026-09-22T14:00:00Z");
+  fireEvent.click(screen.getByLabelText(/I reviewed the exact/));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm & Dispatch" }));
+  expect(api.confirmAlertReview).toHaveBeenCalledWith("sim-alert", 9, expect.any(String), escalationPlan);
+});
+
 test("exact review prevents double click and reports queued without claiming delivery", async () => {
   vi.mocked(api.getAlertReview).mockResolvedValue(review);
   let complete!: (value: api.ConfirmResult) => void;

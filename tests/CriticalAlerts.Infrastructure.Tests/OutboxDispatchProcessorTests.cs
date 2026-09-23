@@ -169,9 +169,9 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
             .Should().Be(OutboxProcessingState.Processed);
     }
 
-    private static OutboxDispatchProcessor CreateProcessor(
+    internal static OutboxDispatchProcessor CreateProcessor(
         CriticalAlertsDbContext db,
-        MutableTimeProvider clock,
+        TimeProvider clock,
         int maxAttempts = 2)
         => new(
             db,
@@ -191,9 +191,10 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
             }),
             NullLogger<OutboxDispatchProcessor>.Instance);
 
-    private static async Task<AlertId> SeedConfirmedAlertAsync(
+    internal static async Task<AlertId> SeedConfirmedAlertAsync(
         CriticalAlertsDbContext db,
-        NotificationChannel channel)
+        NotificationChannel channel,
+        PractitionerId? selectedPractitioner = null)
     {
         var patientReference = $"SIM-PAT-{Guid.NewGuid():N}"[..18];
         var alert = Alert.CreateDraft(
@@ -225,6 +226,7 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
         var endpoint = await db.ContactEndpoints
             .AsNoTracking()
             .Where(item => item.OrganizationId == DemoDataSeeder.OrganizationId && item.Kind == endpointKind)
+            .Where(item => selectedPractitioner == null || item.PractitionerId == selectedPractitioner)
             .FirstAsync();
         var practitioner = await db.Practitioners.SingleAsync(item => item.Id == endpoint.PractitionerId);
         alert.ReplaceRecipients(

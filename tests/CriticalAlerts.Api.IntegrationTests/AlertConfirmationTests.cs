@@ -4,6 +4,7 @@ using System.Text.Json;
 using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Domain;
+using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
 using FluentAssertions;
@@ -15,6 +16,187 @@ namespace CriticalAlerts.Api.IntegrationTests;
 [Collection(SeededPostgresApiCollection.Name)]
 public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, EscalationPlanView> ReviewedPlans = new();
+
+    [Fact]
+    public async Task ConfirmedPlanCannotBeChangedOrDeletedThroughSql()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        using var confirmed = await ConfirmAsync(client, prepared.AlertId, prepared.Version, Guid.NewGuid().ToString("D"));
+        confirmed.EnsureSuccessStatusCode();
+        await using var db = fixture.CreateContext();
+        var update = () => db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE confirmed_escalation_plans SET revision = 'changed' WHERE alert_id = {prepared.AlertId}");
+        var delete = () => db.Database.ExecuteSqlInterpolatedAsync(
+            $"DELETE FROM confirmed_escalation_plans WHERE alert_id = {prepared.AlertId}");
+        await update.Should().ThrowAsync<Npgsql.PostgresException>();
+        await delete.Should().ThrowAsync<Npgsql.PostgresException>();
+    }
+
+    [Fact]
+    public async Task DirectoryEvidenceChangedAfterReviewRequiresNewApproval()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        await using var db = fixture.CreateContext();
+        try
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE practitioners SET specialty = 'SIMULATION changed evidence' WHERE id = {DemoDataSeeder.MayaChenId.Value}");
+            using var response = await ConfirmAsync(client, prepared.AlertId, prepared.Version, Guid.NewGuid().ToString("D"));
+            response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await db.ConfirmedEscalationPlans.AnyAsync(row => row.AlertId == new AlertId(prepared.AlertId))).Should().BeFalse();
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE practitioners SET specialty = 'Emergency' WHERE id = {DemoDataSeeder.MayaChenId.Value}");
+        }
+    }
+
+    [Fact]
+    public async Task ChangedPlanRevisionIsRejectedWithoutSavingApproval()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        var plan = ReviewedPlans[prepared.AlertId];
+        using var command = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{prepared.AlertId:D}/confirm")
+        {
+            Content = JsonContent.Create(new ConfirmAlertReviewRequest(prepared.Version,
+                plan.PolicyId, plan.PolicyVersion, new string('0', 64))),
+        };
+        command.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        using var response = await client.SendAsync(command);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        await using var db = fixture.CreateContext();
+        (await db.ConfirmedEscalationPlans.AnyAsync(row => row.AlertId == new AlertId(prepared.AlertId))).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExactApprovalPersistsOnceAndReplayBindsTheSamePlan()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        var plan = ReviewedPlans[prepared.AlertId];
+        var key = Guid.NewGuid().ToString("D");
+        using var first = await ConfirmAsync(client, prepared.AlertId, prepared.Version, key);
+        using var replay = await ConfirmAsync(client, prepared.AlertId, prepared.Version, key);
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await replay.Content.ReadFromJsonAsync<ConfirmAlertReviewResult>())!.Replayed.Should().BeTrue();
+        await using var db = fixture.CreateContext();
+        var snapshot = await db.ConfirmedEscalationPlans.SingleAsync(row => row.AlertId == new AlertId(prepared.AlertId));
+        snapshot.AlertVersion.Value.Should().Be(prepared.Version);
+        snapshot.PolicyId.Value.Should().Be(plan.PolicyId);
+        snapshot.PolicyVersion.Should().Be(plan.PolicyVersion);
+        snapshot.Revision.Should().Be(plan.Revision);
+        snapshot.SnapshotJson.Should().NotContain("SIM-PAT").And.NotContain("ciphertext").And.NotContain("SIMULATION:");
+        using var changed = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{prepared.AlertId:D}/confirm")
+        {
+            Content = JsonContent.Create(new ConfirmAlertReviewRequest(prepared.Version,
+                plan.PolicyId, plan.PolicyVersion, new string('0', 64))),
+        };
+        changed.Headers.Add("Idempotency-Key", key);
+        using var conflict = await client.SendAsync(changed);
+        conflict.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+    [Fact]
+    public async Task ConfirmationWithoutExactEscalationApprovalFailsClosed()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        using var command = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{prepared.AlertId:D}/confirm")
+        {
+            Content = JsonContent.Create(new { expectedVersion = prepared.Version }),
+        };
+        command.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        using var response = await client.SendAsync(command);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        await using var db = fixture.CreateContext();
+        (await db.OutboxMessages.AnyAsync(row => row.AggregateId == prepared.AlertId)).Should().BeFalse();
+        (await db.Alerts.SingleAsync(row => row.Id == new AlertId(prepared.AlertId))).State
+            .Should().Be(AlertState.PendingConfirmation);
+    }
+
+    [Fact]
+    public async Task BackupReviewAndApprovalUseTheMatchingAssignmentAndDepartmentRole()
+    {
+        await using var context = fixture.CreateContext();
+        var connectionString = context.Database.GetConnectionString()!;
+        await DatabaseOperations.ResetDemoAsync(connectionString, "Test", fixture.DataProtectionKey, confirmReset: true);
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            now = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond));
+            var matchingStart = now.AddHours(-2);
+            var matchingEnd = now.AddHours(2);
+            var matchingSync = now.AddMinutes(-10);
+            var emergencyRole = PractitionerRoleAssignment.Create(PractitionerRoleId.New(),
+                DemoDataSeeder.OrganizationId, DemoDataSeeder.RileySatoId,
+                DemoDataSeeder.EmergencyDepartmentId, "Fictional emergency cover", false,
+                "SIM-DIRECTORY", "SIM-ROLE-RILEY-EMERGENCY");
+            await using (var seed = fixture.CreateContext())
+            {
+                var medicine = await seed.Departments.SingleAsync(row => row.SimulationCode == "SIM-DEPT-MEDICINE");
+                seed.PractitionerRoles.Add(emergencyRole);
+                seed.OnCallAssignments.AddRange(
+                    OnCallAssignment.Create(OnCallAssignmentId.New(), DemoDataSeeder.OrganizationId,
+                        DemoDataSeeder.RileySatoId, DemoDataSeeder.NorthSiteId,
+                        DemoDataSeeder.EmergencyDepartmentId, OnCallTier.Backup,
+                        matchingStart, matchingEnd, "SIM-ROSTER", "SIM-MATCHED-BACKUP", matchingSync),
+                    OnCallAssignment.Create(OnCallAssignmentId.New(), DemoDataSeeder.OrganizationId,
+                        DemoDataSeeder.RileySatoId, DemoDataSeeder.NorthSiteId, medicine.Id,
+                        OnCallTier.Backup, now.AddHours(-1), now.AddHours(3),
+                        "SIM-ROSTER", "SIM-OTHER-DEPARTMENT", now.AddMinutes(-1)));
+                await seed.SaveChangesAsync();
+            }
+
+            using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+            var prepared = await CreateConfirmableAlertAsync(client);
+            var recipient = ReviewedPlans[prepared.AlertId].Steps.SelectMany(step => step.Recipients)
+                .Single(row => row.PractitionerId == DemoDataSeeder.RileySatoId.Value);
+            recipient.PractitionerRoleId.Should().Be(emergencyRole.Id.Value);
+            recipient.RoleTitle.Should().Be("Fictional emergency cover");
+            recipient.Department.Should().Be("Fictional Emergency Care");
+            recipient.Site.Should().Be("North Wing Simulation Site");
+            recipient.DirectorySourceUpdatedAtUtc.Should().Be(matchingSync);
+            recipient.OnCallSnapshot.Should().Contain(matchingStart.ToString("yyyy-MM-ddTHH:mm"))
+                .And.Contain(matchingEnd.ToString("yyyy-MM-ddTHH:mm"));
+            recipient.OnCallEvidence.Should().NotBeNull();
+            recipient.OnCallEvidence!.SourceSystem.Should().Be("SIM-ROSTER");
+            recipient.OnCallEvidence.SourceRecordId.Should().Be("SIM-MATCHED-BACKUP");
+            recipient.OnCallEvidence.StartsAtUtc.Should().Be(matchingStart);
+            recipient.OnCallEvidence.EndsAtUtc.Should().Be(matchingEnd);
+            recipient.OnCallEvidence.LastSynchronizedAtUtc.Should().Be(matchingSync);
+
+            using var confirmed = await ConfirmAsync(client, prepared.AlertId, prepared.Version, Guid.NewGuid().ToString("D"));
+            confirmed.StatusCode.Should().Be(HttpStatusCode.OK);
+            await using var verify = fixture.CreateContext();
+            var approval = await verify.ConfirmedEscalationPlans.SingleAsync(row => row.AlertId == new AlertId(prepared.AlertId));
+            var saved = JsonSerializer.Deserialize<EscalationPlanView>(approval.SnapshotJson)!;
+            saved.Steps.SelectMany(step => step.Recipients).Single(row => row.PractitionerId == DemoDataSeeder.RileySatoId.Value)
+                .Should().Be(recipient);
+        }
+        finally
+        {
+            await DatabaseOperations.ResetDemoAsync(connectionString, "Test", fixture.DataProtectionKey, confirmReset: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewExposesExactDemoPolicyAndFutureBackupPlan()
+    {
+        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
+        var prepared = await CreateConfirmableAlertAsync(client);
+        using var response = await client.GetAsync($"/api/v1/alerts/{prepared.AlertId:D}/review");
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        json.RootElement.TryGetProperty("escalationPlan", out var plan).Should().BeTrue();
+        plan.GetProperty("policyId").GetGuid().Should().NotBeEmpty();
+        plan.GetProperty("policyVersion").GetString().Should().StartWith("DEMO");
+        plan.GetProperty("revision").GetString().Should().NotBeNullOrWhiteSpace();
+        plan.GetProperty("steps").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
     [Fact]
     public async Task ConfirmationRequiresAKeyCreatesOneIdentifierOnlyOutboxAndReplaysSafely()
     {
@@ -201,7 +383,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         }
     }
 
-    private static async Task<HttpResponseMessage> ConfirmAsync(
+    internal static async Task<HttpResponseMessage> ConfirmAsync(
         HttpClient client,
         Guid alertId,
         int expectedVersion,
@@ -209,7 +391,8 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{alertId:D}/confirm")
         {
-            Content = JsonContent.Create(new ConfirmAlertReviewRequest(expectedVersion)),
+            Content = JsonContent.Create(new ConfirmAlertReviewRequest(expectedVersion,
+                ReviewedPlans[alertId].PolicyId, ReviewedPlans[alertId].PolicyVersion, ReviewedPlans[alertId].Revision)),
         };
         if (key is not null)
         {
@@ -219,7 +402,7 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
         return await client.SendAsync(request);
     }
 
-    private async Task<PreparedAlert> CreateConfirmableAlertAsync(
+    internal async Task<PreparedAlert> CreateConfirmableAlertAsync(
         HttpClient client,
         string patientReference = "SIM-PAT-CONFIRM-0001",
         string sourceText = "SIMULATION: confirmation source",
@@ -270,8 +453,13 @@ public sealed class AlertConfirmationTests(SeededPostgresApiFixture fixture)
             new SubmitAlertDraftRequest(confirmedDraft!.DraftVersion));
         submit.StatusCode.Should().Be(HttpStatusCode.OK);
         (await submit.Content.ReadFromJsonAsync<AlertDraftView>())!.State.Should().Be("PendingConfirmation");
+        var review = await client.GetFromJsonAsync<AlertReviewView>($"/api/v1/alerts/{draft.AlertId:D}/review");
+        if (review?.EscalationPlan is not null)
+        {
+            ReviewedPlans[draft.AlertId] = review.EscalationPlan;
+        }
         return new PreparedAlert(draft.AlertId, confirmedDraft.DraftVersion);
     }
 
-    private sealed record PreparedAlert(Guid AlertId, int Version);
+    internal sealed record PreparedAlert(Guid AlertId, int Version);
 }

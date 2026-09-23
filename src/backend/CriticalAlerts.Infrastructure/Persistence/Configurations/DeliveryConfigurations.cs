@@ -119,6 +119,23 @@ internal sealed class EscalationRunConfiguration : IEntityTypeConfiguration<Esca
     {
         builder.ToTable("escalation_runs");
         builder.HasKey(entity => entity.Id);
+        builder.HasAlternateKey(entity => new { entity.Id, entity.OrganizationId });
+        builder.Property(entity => entity.AlertVersion).HasColumnName("alert_version").HasConversion(
+            version => version.HasValue ? version.Value.Value : (int?)null,
+            value => value.HasValue ? new AlertDraftVersion(value.Value) : null);
+        builder.Property(entity => entity.LeaseOwner).HasColumnName("lease_owner").HasMaxLength(128);
+        builder.Property(entity => entity.LeaseExpiresAtUtc).HasColumnName("lease_expires_at_utc");
+        builder.Property(entity => entity.NextCheckAtUtc).HasColumnName("next_check_at_utc");
+        builder.Property(entity => entity.RemainingDelay).HasColumnName("remaining_delay");
+        builder.Property(entity => entity.StopReason).HasColumnName("stop_reason").HasMaxLength(64);
+        builder.Property(entity => entity.HandledNegativeResponses).HasColumnName("handled_negative_responses");
+        builder.Property(entity => entity.EventSequence).HasColumnName("event_sequence");
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.AlertId, entity.AlertVersion }).IsUnique();
+        builder.HasIndex(entity => new { entity.NextCheckAtUtc, entity.LeaseExpiresAtUtc });
+        builder.HasOne<ConfirmedEscalationPlan>().WithMany()
+            .HasForeignKey(entity => new { entity.OrganizationId, entity.AlertId, entity.AlertVersion, entity.PolicyId, entity.PolicyVersion })
+            .HasPrincipalKey(entity => new { entity.OrganizationId, entity.AlertId, entity.AlertVersion, entity.PolicyId, entity.PolicyVersion })
+            .OnDelete(DeleteBehavior.Restrict);
         builder.Property(entity => entity.Id).GuidId(value => new EscalationRunId(value), id => id.Value, "id");
         builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
         builder.Property(entity => entity.AlertId).GuidId(value => new AlertId(value), id => id.Value, "alert_id");
@@ -131,5 +148,27 @@ internal sealed class EscalationRunConfiguration : IEntityTypeConfiguration<Esca
         builder.Property(entity => entity.CompletedAtUtc).HasColumnName("completed_at_utc");
         builder.HasIndex(entity => new { entity.State, entity.NextDueAtUtc });
         builder.HasOne<Alert>().WithMany().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(alert => new { alert.Id, alert.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class EscalationEventConfiguration : IEntityTypeConfiguration<EscalationEvent>
+{
+    public void Configure(EntityTypeBuilder<EscalationEvent> builder)
+    {
+        builder.ToTable("escalation_events");
+        builder.HasKey(row => row.Id);
+        builder.Property(row => row.Id).HasColumnName("id");
+        builder.Property(row => row.RunId).GuidId(value => new EscalationRunId(value), id => id.Value, "run_id");
+        builder.Property(row => row.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
+        builder.Property(row => row.Sequence).HasColumnName("sequence");
+        builder.Property(row => row.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(40);
+        builder.Property(row => row.Step).HasColumnName("step");
+        builder.Property(row => row.OccurredAtUtc).HasColumnName("occurred_at_utc");
+        builder.Property(row => row.RecipientSelectionId).HasColumnName("recipient_selection_id");
+        builder.Property(row => row.ActorUserId).HasColumnName("actor_user_id").HasConversion(
+            value => value.HasValue ? value.Value.Value : (Guid?)null, value => value.HasValue ? new UserId(value.Value) : null);
+        builder.HasIndex(row => new { row.OrganizationId, row.RunId, row.Sequence }).IsUnique();
+        builder.HasOne<EscalationRun>().WithMany().HasForeignKey(row => new { row.RunId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
     }
 }

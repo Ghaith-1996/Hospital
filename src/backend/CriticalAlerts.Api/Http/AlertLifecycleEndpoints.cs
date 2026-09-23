@@ -22,6 +22,39 @@ internal static class AlertLifecycleEndpoints
             .RequireRateLimiting("api");
         group.MapPost("/{alertId:guid}/resolve", Resolve).WithIdempotencyHeader().Produces<AlertLifecycleResult>().WithApiErrors(400, 404, 409).Produces(413);
         group.MapPost("/{alertId:guid}/cancel", Cancel).WithIdempotencyHeader().Produces<AlertLifecycleResult>().WithApiErrors(400, 404, 409).Produces(413);
+        group.MapPost("/{alertId:guid}/escalation/pause", Pause).WithIdempotencyHeader().Produces<AlertLifecycleResult>().WithApiErrors(400, 404, 409).Produces(413);
+        group.MapPost("/{alertId:guid}/escalation/resume", Resume).WithIdempotencyHeader().Produces<AlertLifecycleResult>().WithApiErrors(400, 404, 409).Produces(413);
+    }
+
+    private static Task<IResult> Pause(ClaimsPrincipal principal, IAlertLifecycleService lifecycle, HttpContext context,
+        Guid alertId, EscalationOverrideRequest? request, CancellationToken ct)
+        => OverrideAsync(principal, lifecycle, context, alertId, request, true, ct);
+
+    private static Task<IResult> Resume(ClaimsPrincipal principal, IAlertLifecycleService lifecycle, HttpContext context,
+        Guid alertId, EscalationOverrideRequest? request, CancellationToken ct)
+        => OverrideAsync(principal, lifecycle, context, alertId, request, false, ct);
+
+    private static async Task<IResult> OverrideAsync(ClaimsPrincipal principal, IAlertLifecycleService lifecycle, HttpContext context,
+        Guid alertId, EscalationOverrideRequest? request, bool paused, CancellationToken ct)
+    {
+        if (!TryGetActor(principal, out var userId, out var organizationId))
+            return Results.Problem(statusCode: 401, title: "Unauthorized", detail: "authentication-required");
+        if (request is null) return Results.Problem(statusCode: 400, title: "Invalid escalation action", detail: "request-required");
+        try
+        {
+            var result = await lifecycle.SetEscalationPausedAsync(organizationId, userId, CorrelationId(context), new AlertId(alertId),
+                request, context.Request.Headers["Idempotency-Key"].ToString(), paused, ct);
+            return result is null ? Results.Problem(statusCode: 404, title: "Not found", detail: "alert-not-found") : Results.Ok(result);
+        }
+        catch (AlertLifecycleValidationException exception)
+        {
+            var status = exception.Code is "idempotency-key-required" or "idempotency-key-invalid" or "reason-code-invalid" ? 400 : 409;
+            return Results.Problem(statusCode: status, title: "Escalation action rejected", detail: exception.Code);
+        }
+        catch (DbUpdateException)
+        {
+            return Results.Problem(statusCode: 409, title: "Escalation action conflict", detail: "lifecycle-conflict");
+        }
     }
 
     private static Task<IResult> Resolve(
