@@ -46,7 +46,7 @@ public sealed class AuditQueryService(CriticalAlertsDbContext db) : IAuditQueryS
         db.AuditEvents.Add(AuditEvent.Record(AuditEventId.New(), organizationId, "user", actorUserId,
             "audit.read", "audit", Guid.NewGuid(), "succeeded", correlationId,
             JsonSerializer.Serialize(new { pageSize = query.PageSize, filtersUsed, resultCount = result.Events.Count }),
-            await new DatabaseClock(db).GetUtcNowAsync(cancellationToken)));
+            await db.Database.SqlQuery<DateTimeOffset>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync(cancellationToken)));
         // A failed append must not yield an unaudited successful response.
         await db.SaveChangesAsync(cancellationToken);
         return result;
