@@ -24,7 +24,7 @@ test("J: authorized audit and safe operational recovery evidence", async ({ page
   await expect.poll(() => dbScalar(`select count(*) from delivery_attempts where alert_id='${alert.alertId}' and status='Delivered'`), { timeout: 60_000 }).toBe("1");
   await expect.poll(() => dbScalar(`select count(*) from escalation_runs where alert_id='${alert.alertId}'`)).toBe("1");
   // Existing isolated-harness technique: make one exact confirmed step due, without changing policy or recipients.
-  await dbScalar(`update escalation_runs set next_check_at_utc=clock_timestamp()-interval '1 second' where alert_id='${alert.alertId}'`);
+  await dbScalar(`update escalation_runs set next_due_at_utc=clock_timestamp()-interval '1 second', next_check_at_utc=clock_timestamp()-interval '1 second' where alert_id='${alert.alertId}'`);
   await expect.poll(() => dbScalar(`select count(*) from audit_events where action='escalation-recipients-activated' and organization_id='11111111-1111-4111-8111-111111111111'`), { timeout: 60_000 }).not.toBe("0");
   await switchIdentity(page, riley);
   await command(page.request, `/api/v1/my-alerts/${alert.alertId}/responses`, { expectedVersion: alert.draftVersion, responseType: "Accepted" });
