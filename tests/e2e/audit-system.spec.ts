@@ -13,6 +13,11 @@ async function command(request: APIRequestContext, path: string, data: unknown) 
 
 test("J: authorized audit and safe operational recovery evidence", async ({ page }) => {
   await signIn(page, jordan);
+  await dbScalar(`INSERT INTO on_call_assignments
+    (id, organization_id, practitioner_id, site_id, department_id, tier, starts_at_utc, ends_at_utc, source_system, source_record_id, last_synchronized_at_utc)
+    VALUES (gen_random_uuid(), '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111110101',
+    '11111111-1111-4111-8111-111111111201', '11111111-1111-4111-8111-111111110301', 'Backup',
+    clock_timestamp() - interval '1 minute', clock_timestamp() + interval '1 day', 'SIM-SYSTEM-TEST', 'SIM-PHASE10-AUDIT-BACKUP', clock_timestamp())`);
   const alert = await prepareConfirmableAlert(page.request, "SIM-PAT-PHASE10-SENTINEL");
   const review = await apiJson(page.request, "get", `/api/v1/alerts/${alert.alertId}/review`);
   await command(page.request, `/api/v1/alerts/${alert.alertId}/confirm`, {
