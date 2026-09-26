@@ -47,30 +47,26 @@ public sealed class OutboxDispatchProcessor(
 
         try
         {
-            await using var transaction = message.EventType == "EscalationDispatchRequested"
-                ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
-            if (transaction is not null)
-            {
-                await AlertMutationLock.AcquireAsync(db, message.OrganizationId, new AlertId(message.AggregateId), cancellationToken);
-                _ = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM outbox_messages WHERE id = {message.Id.Value} FOR UPDATE")
-                    .SingleAsync(cancellationToken);
-                await db.Entry(message).ReloadAsync(cancellationToken);
-                if (message.LeaseOwner != leaseOwner.Trim() || message.ProcessingState != OutboxProcessingState.Processing)
-                    return new DispatchProcessingResult(false, false, false, message.Id.Value, "lease-lost");
-            }
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await AlertMutationLock.AcquireAsync(db, message.OrganizationId, new AlertId(message.AggregateId), cancellationToken);
+            _ = await db.Database.SqlQuery<Guid>($"SELECT id AS \"Value\" FROM outbox_messages WHERE id = {message.Id.Value} FOR UPDATE")
+                .SingleAsync(cancellationToken);
+            await db.Entry(message).ReloadAsync(cancellationToken);
+            if (message.LeaseOwner != leaseOwner.Trim() || message.ProcessingState != OutboxProcessingState.Processing)
+                return new DispatchProcessingResult(false, false, false, message.Id.Value, "lease-lost");
             var result = await ProcessMessageAsync(message, leaseOwner.Trim(), now, workerOptions, cancellationToken);
-            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return result;
         }
         catch (DispatchValidationException)
         {
-            var alert = await FindAlertForFailureAsync(message, cancellationToken);
-            return await PermanentlyFailAsync(message, alert, leaseOwner.Trim(), now, "dispatch-validation", cancellationToken);
+            return await PersistWorkerFailureAsync(message, leaseOwner.Trim(), now, workerOptions,
+                "dispatch-validation", permanent: true, cancellationToken);
         }
         catch (DomainException)
         {
-            var alert = await FindAlertForFailureAsync(message, cancellationToken);
-            return await PermanentlyFailAsync(message, alert, leaseOwner.Trim(), now, "domain-validation", cancellationToken);
+            return await PersistWorkerFailureAsync(message, leaseOwner.Trim(), now, workerOptions,
+                "domain-validation", permanent: true, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -80,8 +76,8 @@ public sealed class OutboxDispatchProcessor(
         {
             CriticalAlertsOperationalLog.WorkerState(
                 loggerFactory?.CreateLogger(CriticalAlertsOperationalLog.Category) ?? logger, "dispatch", true);
-            var alert = await FindAlertForFailureAsync(message, cancellationToken);
-            return await RetryOrFailAsync(message, alert, leaseOwner.Trim(), now, workerOptions, "worker-error", cancellationToken);
+            return await PersistWorkerFailureAsync(message, leaseOwner.Trim(), now, workerOptions,
+                "worker-error", permanent: false, cancellationToken);
         }
     }
 
@@ -288,6 +284,7 @@ public sealed class OutboxDispatchProcessor(
         if (message.EventType != "EscalationDispatchRequested" && alert.State is AlertState.DispatchQueued or AlertState.Active)
         {
             alert.MarkFailed(now, correlationId);
+            await FailOpenEscalationRunAsync(alert, now, cancellationToken);
         }
 
         message.MarkFailed(leaseOwner, now, "delivery-failed");
@@ -590,65 +587,73 @@ public sealed class OutboxDispatchProcessor(
         return new DispatchProcessingResult(false, true, false, message.Id.Value, "rescheduled");
     }
 
-    private async Task<DispatchProcessingResult> PermanentlyFailAsync(
-        OutboxMessage message,
-        Alert? alert,
-        string leaseOwner,
-        DateTimeOffset now,
-        string category,
-        CancellationToken cancellationToken)
-    {
-        if (message.EventType != "EscalationDispatchRequested" && alert is not null && alert.State is AlertState.DispatchQueued or AlertState.Active)
-        {
-            alert.MarkFailed(now, $"dispatch:{message.Id.Value:N}");
-        }
-
-        message.MarkFailed(leaseOwner, now, category);
-        AddAudit(
-            message.OrganizationId,
-            alert?.Id.Value ?? message.AggregateId,
-            "dispatch.failed",
-            "failed",
-            $"dispatch:{message.Id.Value:N}",
-            now,
-            new { error = category });
-        await db.SaveChangesAsync(cancellationToken);
-        return new DispatchProcessingResult(false, false, true, message.Id.Value, "permanently-failed");
-    }
-
-    private async Task<DispatchProcessingResult> RetryOrFailAsync(
-        OutboxMessage message,
-        Alert? alert,
+    private async Task<DispatchProcessingResult> PersistWorkerFailureAsync(
+        OutboxMessage claimedMessage,
         string leaseOwner,
         DateTimeOffset now,
         DispatchWorkerOptions workerOptions,
         string category,
+        bool permanent,
         CancellationToken cancellationToken)
     {
-        if (message.AttemptCount >= workerOptions.MaxAttempts)
+        db.ChangeTracker.Clear();
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var alertId = new AlertId(claimedMessage.AggregateId);
+        await AlertMutationLock.AcquireAsync(db, claimedMessage.OrganizationId, alertId, cancellationToken);
+        var message = await db.OutboxMessages.FromSqlInterpolated($"SELECT * FROM outbox_messages WHERE id = {claimedMessage.Id.Value} FOR UPDATE")
+            .SingleAsync(cancellationToken);
+        if (message.LeaseOwner != leaseOwner || message.ProcessingState != OutboxProcessingState.Processing)
         {
-            return await PermanentlyFailAsync(message, alert, leaseOwner, now, category, cancellationToken);
+            return new DispatchProcessingResult(false, false, false, message.Id.Value, "lease-lost");
         }
 
-        message.ScheduleRetry(leaseOwner, now, now.Add(workerOptions.RetryDelay), category);
-        if (alert is not null)
+        var alert = await db.Alerts.SingleOrDefaultAsync(item => item.OrganizationId == message.OrganizationId
+            && item.Id == alertId, cancellationToken);
+        var shouldFail = permanent || message.AttemptCount >= workerOptions.MaxAttempts;
+        if (shouldFail)
         {
-            AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.retry-scheduled", "succeeded", $"dispatch:{message.Id.Value:N}", now, new
+            if (message.EventType != "EscalationDispatchRequested" && alert is not null)
             {
-                reason = category,
-            });
+                if (alert.State is AlertState.DispatchQueued or AlertState.Active)
+                    alert.MarkFailed(now, $"dispatch:{message.Id.Value:N}");
+                if (alert.State == AlertState.Failed)
+                    await FailOpenEscalationRunAsync(alert, now, cancellationToken);
+            }
+            message.MarkFailed(leaseOwner, now, category);
+            AddAudit(message.OrganizationId, alert?.Id.Value ?? message.AggregateId, "dispatch.failed", "failed",
+                $"dispatch:{message.Id.Value:N}", now, new { error = category });
         }
-
+        else
+        {
+            message.ScheduleRetry(leaseOwner, now, now.Add(workerOptions.RetryDelay), category);
+            if (alert is not null)
+            {
+                AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.retry-scheduled", "succeeded",
+                    $"dispatch:{message.Id.Value:N}", now, new { reason = category });
+            }
+        }
         await db.SaveChangesAsync(cancellationToken);
-        return new DispatchProcessingResult(false, true, false, message.Id.Value, "rescheduled");
+        await transaction.CommitAsync(cancellationToken);
+        return shouldFail
+            ? new DispatchProcessingResult(false, false, true, message.Id.Value, "permanently-failed")
+            : new DispatchProcessingResult(false, true, false, message.Id.Value, "rescheduled");
     }
 
-    private Task<Alert?> FindAlertForFailureAsync(
-        OutboxMessage message,
-        CancellationToken cancellationToken)
-        => db.Alerts.SingleOrDefaultAsync(
-            item => item.OrganizationId == message.OrganizationId && item.Id == new AlertId(message.AggregateId),
-            cancellationToken);
+    private async Task FailOpenEscalationRunAsync(Alert alert, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (alert.ConfirmedDraftVersion is not AlertDraftVersion version) return;
+        var run = await db.EscalationRuns.FromSqlInterpolated($"""
+            SELECT * FROM escalation_runs
+            WHERE organization_id = {alert.OrganizationId.Value} AND alert_id = {alert.Id.Value}
+                AND alert_version = {version.Value} AND state IN ('Scheduled', 'Running', 'Paused', 'Exhausted')
+            FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken);
+        if (run is null) return;
+        run.Stop(EscalationEventKind.ProcessingFailed, now);
+        db.EscalationEvents.Add(run.Record(EscalationEventKind.ProcessingFailed, now));
+        AddAudit(alert.OrganizationId, alert.Id.Value, "escalation-processing-failed", "ProcessingFailed",
+            $"escalation:{run.Id.Value:N}", now, new { stepSequence = run.CurrentStep, simulationOnly = true });
+    }
 
     private async Task<NotificationPolicy> LoadPolicyAsync(
         Alert alert,
