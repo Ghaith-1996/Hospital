@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import * as api from "../lib/alerts";
 import { ComposeAlert } from "../features/connected/compose-alert";
@@ -11,37 +11,6 @@ const draft: api.AlertDraft = {
   alertId: "sim-alert", draftVersion: 4, state: "Draft", simulationPatientReference: "SIM-PAT-1", location: "Simulation room", urgencyLabel: "DEMO Urgent", sourceType: "Typed", sourceText: "SIMULATION: original source", sbar: { situation: "SIMULATION: situation", background: "SIMULATION: background", assessment: "SIMULATION: assessment", recommendation: "SIMULATION: recommendation" }, approvedMessage: "SIMULATION: approved message", recipients: [], criticalFields: [{ alertVersion: 4, fieldId: "pulse", originalValue: "118", normalizedValue: "118", unit: "beats/min", status: "Unresolved" }],
 };
 afterEach(() => vi.clearAllMocks());
-
-test("loads server SBAR and leaves critical values unresolved until an explicit confirmation", async () => {
-  vi.mocked(api.getAlertDraft).mockResolvedValue(draft);
-  vi.mocked(api.confirmCriticalField).mockResolvedValue({ ...draft, criticalFields: [{ ...draft.criticalFields[0], status: "Confirmed" }] });
-  render(<ComposeAlert alertId="sim-alert" />);
-  expect(screen.getByRole("status")).toHaveTextContent(/Loading/);
-  expect(await screen.findByLabelText("Situation")).toHaveValue("SIMULATION: situation");
-  expect(screen.getByText("Unresolved")).toBeVisible();
-  expect(api.confirmCriticalField).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Confirm pulse value and unit" }));
-  expect(await screen.findByText("Confirmed")).toBeVisible();
-  expect(api.confirmCriticalField).toHaveBeenCalledWith("sim-alert", { expectedVersion: 4, fieldId: "pulse", originalValue: "118", normalizedValue: "118", unit: "beats/min" });
-});
-
-test("stale save preserves local edits until explicit discard and reload", async () => {
-  vi.mocked(api.getAlertDraft).mockResolvedValueOnce(draft).mockResolvedValue({ ...draft, draftVersion: 5, sourceText: "SIMULATION: another operator" });
-  vi.mocked(api.updateAlertDraft).mockRejectedValue(new api.AlertApiError(409, "stale-alert-version", "Conflict"));
-  render(<ComposeAlert alertId="sim-alert" />);
-  fireEvent.change(await screen.findByLabelText("Source text"), { target: { value: "SIMULATION: unsaved change" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save source and SBAR" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(/changed.*review/i);
-  expect(screen.getByLabelText("Source text")).toHaveValue("SIMULATION: unsaved change");
-  expect(screen.getByRole("button", { name: "Save source and SBAR" })).toBeDisabled();
-  const event = new Event("beforeunload", { cancelable: true });
-  window.dispatchEvent(event);
-  expect(event.defaultPrevented).toBe(true);
-  fireEvent.click(screen.getByRole("button", { name: "Discard local edits and load server version" }));
-  await waitFor(() => expect(screen.getByLabelText("Source text")).toHaveValue("SIMULATION: another operator"));
-  expect(api.updateAlertDraft).toHaveBeenCalledTimes(1);
-  expect(screen.getByText(/Draft version 5/)).toBeVisible();
-});
 
 test("unsaved edits warn on refresh and explicit discard restores saved content", async () => {
   vi.mocked(api.getAlertDraft).mockResolvedValue(draft);

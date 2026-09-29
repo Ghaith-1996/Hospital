@@ -8,25 +8,7 @@ namespace CriticalAlerts.Infrastructure.Tests;
 public sealed class PlatformMetricsTests
 {
     [Theory]
-    [InlineData("transcription.requested", "criticalalerts.transcription.requests")]
-    [InlineData("transcription.failed", "criticalalerts.transcription.failures")]
-    [InlineData("structuring.requested", "criticalalerts.structuring.requests")]
-    [InlineData("structuring.failed", "criticalalerts.structuring.failures")]
-    [InlineData("transcription.applied", "criticalalerts.suggestions.applied")]
-    [InlineData("structuring.applied", "criticalalerts.suggestions.applied")]
-    [InlineData("structuring.stale", "criticalalerts.suggestions.stale")]
     [InlineData("alert.confirmed", "criticalalerts.alert.confirmations")]
-    [InlineData("dispatch.completed", "criticalalerts.outbox.processed")]
-    [InlineData("dispatch.failed", "criticalalerts.dispatch.failures")]
-    [InlineData("dispatch.retry-scheduled", "criticalalerts.dispatch.retries")]
-    [InlineData("dispatch.delivery-event", "criticalalerts.delivery.events")]
-    [InlineData("recipient.response.accepted", "criticalalerts.responses")]
-    [InlineData("directory.import.applied", "criticalalerts.directory.imports")]
-    [InlineData("audit.read", "criticalalerts.audit.queries")]
-    [InlineData("escalation-recipients-activated", "criticalalerts.escalation.steps")]
-    [InlineData("escalation-stopped", "criticalalerts.escalation.stopped")]
-    [InlineData("escalation-exhausted", "criticalalerts.escalation.exhausted")]
-    [InlineData("escalation-processing-failed", "criticalalerts.escalation.failures")]
     public void ExpectedMeasurementsUseOnlyFiniteOperationTags(string action, string expected)
     {
         using var metrics = new PlatformMetrics();

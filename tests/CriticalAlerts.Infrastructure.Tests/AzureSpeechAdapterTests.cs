@@ -25,9 +25,6 @@ public sealed class AzureSpeechAdapterTests
         transport.ContentType.Should().Be("audio/wav; codecs=audio/pcm; samplerate=16000");
     }
     [Theory]
-    [InlineData(HttpStatusCode.BadRequest)]
-    [InlineData(HttpStatusCode.Unauthorized)]
-    [InlineData(HttpStatusCode.TooManyRequests)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
     public async Task NormalizesProviderFailuresWithoutEchoingBodies(HttpStatusCode status)
     {

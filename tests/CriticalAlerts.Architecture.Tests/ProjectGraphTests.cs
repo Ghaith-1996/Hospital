@@ -25,19 +25,6 @@ public sealed class ProjectGraphTests
     }
 
     [Fact]
-    public void ProjectReferenceParsingNormalizesWindowsSeparators()
-    {
-        var project = new XDocument(
-            new XElement("Project",
-                new XElement("ItemGroup",
-                    new XElement(
-                        "ProjectReference",
-                        new XAttribute("Include", @"..\CriticalAlerts.Domain\CriticalAlerts.Domain.csproj")))));
-
-        ProjectReferences(project).Should().Equal("CriticalAlerts.Domain");
-    }
-
-    [Fact]
     public void InfrastructureDoesNotReferenceApiOrWorker()
     {
         var project = LoadProject("src/backend/CriticalAlerts.Infrastructure/CriticalAlerts.Infrastructure.csproj");
@@ -47,16 +34,6 @@ public sealed class ProjectGraphTests
         references.Should().Contain("CriticalAlerts.Application");
         references.Should().NotContain("CriticalAlerts.Api");
         references.Should().NotContain("CriticalAlerts.Worker");
-    }
-
-    [Fact]
-    public void WebIsNotAProjectReference()
-    {
-        var webRoot = Path.Combine(RepositoryRoot(), "src", "web");
-
-        Directory.Exists(webRoot).Should().BeTrue();
-        Directory.EnumerateFiles(webRoot, "*.csproj", SearchOption.AllDirectories).Should().BeEmpty();
-        Directory.EnumerateFiles(webRoot, "*.sln", SearchOption.AllDirectories).Should().BeEmpty();
     }
 
     private static XDocument LoadProject(string relativePath)

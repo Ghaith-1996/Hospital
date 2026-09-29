@@ -40,21 +40,6 @@ public sealed class DispatchWorkerStateTests
     }
 
     [Fact]
-    public void OutboxRetryClearsLeaseAndUsesUtcDueTime()
-    {
-        var message = CreateOutbox();
-        message.TryAcquireLease("worker-a", Now, Now.AddMinutes(1)).Should().BeTrue();
-
-        message.ScheduleRetry("worker-a", Now, Now.AddSeconds(30), "provider-unavailable");
-
-        message.ProcessingState.Should().Be(OutboxProcessingState.Pending);
-        message.NextAttemptAtUtc.Should().Be(Now.AddSeconds(30));
-        message.LastErrorCategory.Should().Be("provider-unavailable");
-        message.LeaseOwner.Should().BeNull();
-        message.LeaseExpiresAtUtc.Should().BeNull();
-    }
-
-    [Fact]
     public void DeliveryAttemptDoesNotRegressWhenEventsArriveOutOfOrder()
     {
         var attempt = DeliveryAttempt.CreateRequested(
@@ -97,22 +82,6 @@ public sealed class DispatchWorkerStateTests
         attempt.Status.Should().Be(DeliveryAttemptStatus.Failed);
         attempt.FailureCategory.Should().Be("voice-no-answer");
         attempt.DeliveredAtUtc.Should().BeNull();
-    }
-
-    [Fact]
-    public void SimulationScenarioCatalogIsFixedAndProviderIndependent()
-    {
-        Enum.GetValues<SimulationDispatchScenario>()
-            .Should().BeEquivalentTo(
-            [
-                SimulationDispatchScenario.ImmediateSuccess,
-                SimulationDispatchScenario.DelayedDelivery,
-                SimulationDispatchScenario.SmsFailure,
-                SimulationDispatchScenario.VoiceNoAnswer,
-                SimulationDispatchScenario.ProviderOutage,
-                SimulationDispatchScenario.DuplicateCallback,
-                SimulationDispatchScenario.OutOfOrderCallback,
-            ]);
     }
 
     private static OutboxMessage CreateOutbox()

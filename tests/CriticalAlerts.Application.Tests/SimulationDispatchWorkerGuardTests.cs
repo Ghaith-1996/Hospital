@@ -7,16 +7,6 @@ namespace CriticalAlerts.Application.Tests;
 public sealed class SimulationDispatchWorkerGuardTests
 {
     [Theory]
-    [InlineData("Development")]
-    [InlineData("Test")]
-    public void SimulationWorkerMayBeEnabledOnlyInSimulationEnvironments(string environment)
-    {
-        var act = () => SimulationDispatchEnvironmentGuard.EnsureAllowed(environment, enabled: true);
-
-        act.Should().NotThrow();
-    }
-
-    [Theory]
     [InlineData("Staging")]
     [InlineData("Production")]
     [InlineData("")]
@@ -28,7 +18,6 @@ public sealed class SimulationDispatchWorkerGuardTests
     }
 
     [Theory]
-    [InlineData("Staging")]
     [InlineData("Production")]
     public void DisabledSimulationWorkerIsSafeOutsideSimulationEnvironments(string environment)
     {

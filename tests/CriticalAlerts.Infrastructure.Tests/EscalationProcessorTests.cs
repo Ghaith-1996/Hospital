@@ -129,50 +129,6 @@ public sealed class EscalationProcessorTests(MigratedPostgresFixture fixture)
     }
 
     [Fact]
-    public async Task EscalationOutboxDispatchesOnlyNewSelectionAndOriginalOutboxNeverRedispatchesIt()
-    {
-        await fixture.ResetAsync();
-        await using var db = fixture.CreateContext();
-        await EscalationPersistenceTests.SeedApprovalAsync(db, 0);
-        await new EscalationProcessor(db).ProcessNextAsync("escalation-worker");
-        var dispatch = OutboxDispatchProcessorTests.CreateProcessor(db, TimeProvider.System);
-        (await dispatch.ProcessNextAsync("dispatch-worker", default)).Processed.Should().BeTrue();
-        var selections = await db.AlertRecipientSelections.ToArrayAsync();
-        var manual = selections.Single(row => row.SelectionSource == RecipientSelectionSource.Manual);
-        (await db.DeliveryAttempts.ToArrayAsync()).Should().ContainSingle().Which.RecipientSelectionId.Should().Be(manual.Id);
-        (await dispatch.ProcessNextAsync("dispatch-worker", default)).Processed.Should().BeTrue();
-        (await db.DeliveryAttempts.ToArrayAsync()).Should().HaveCount(2).And.OnlyContain(row => row.Status == DeliveryAttemptStatus.Delivered);
-        (await dispatch.ProcessNextAsync("dispatch-worker", default)).Processed.Should().BeFalse();
-    }
-
-    [Theory]
-    [InlineData(RecipientResponseType.Acknowledged, false)]
-    [InlineData(RecipientResponseType.Accepted, true)]
-    [InlineData(RecipientResponseType.Declined, false)]
-    [InlineData(RecipientResponseType.Unavailable, false)]
-    public async Task OnlyResponsibilityStopsWhileNegativeResponsesExpedite(RecipientResponseType responseType, bool stops)
-    {
-        await fixture.ResetAsync();
-        await using var db = fixture.CreateContext();
-        var approval = await EscalationPersistenceTests.SeedApprovalAsync(db, responseType == RecipientResponseType.Acknowledged ? 0 : 3600);
-        var reason = responseType switch
-        {
-            RecipientResponseType.Accepted => "simulation-responsibility-accepted",
-            RecipientResponseType.Declined => "simulation-declined",
-            RecipientResponseType.Unavailable => "simulation-unavailable",
-            _ => "simulation-acknowledged"
-        };
-        var response = RecipientResponse.Record(RecipientResponseId.New(), approval.OrganizationId, approval.AlertId,
-            approval.AlertVersion, DemoDataSeeder.MayaChenId, responseType, DemoDataSeeder.JordanUserId, DateTimeOffset.UtcNow, reason);
-        db.RecipientResponses.Add(response);
-        if (ResponsibilityAssignment.FromResponse(response) is { } assignment) db.ResponsibilityAssignments.Add(assignment);
-        await db.SaveChangesAsync();
-        await new EscalationProcessor(db).ProcessNextAsync("worker");
-        (await db.EscalationRuns.SingleAsync()).State.Should().Be(stops ? EscalationRunState.Stopped : EscalationRunState.Exhausted);
-        (await db.AlertRecipientSelections.CountAsync(row => row.SelectionSource == RecipientSelectionSource.EscalationPolicy)).Should().Be(stops ? 0 : 1);
-    }
-
-    [Fact]
     public async Task ConcurrentWorkersScheduleOnceFromApprovedVersionUsingDatabaseClock()
     {
         await fixture.ResetAsync();

@@ -23,6 +23,16 @@ The approved phase is the only phase in scope. At the end of every phase, report
 
 The master plan does not create hospital policy. A recommendation from that document is a simulation proposal unless an authorized human approves it. Use `REQUIRES_HOSPITAL_DECISION` for any missing real workflow, escalation, privacy, security, identity, directory, communications, retention, hosting, or integration decision.
 
+## Testing policy
+
+These rules take precedence over earlier testing guidance in phase plans and documentation.
+
+Never write unit tests after you write code.
+
+- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
+
+- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
+
 ## Safety invariants
 
 - Use fictional hospital, employee, practitioner, patient, phone, and clinical data only.

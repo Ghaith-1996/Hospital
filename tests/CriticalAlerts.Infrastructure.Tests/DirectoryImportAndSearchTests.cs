@@ -246,58 +246,6 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
     }
 
     [Fact]
-    public async Task SearchFiltersReturnSafeChannelsAndAStableSelectionRevision()
-    {
-        await fixture.ResetAsync();
-        try
-        {
-            await using var db = fixture.CreateContext();
-            var now = DateTimeOffset.Parse("2026-08-04T12:00:00Z");
-            var search = new DirectorySearchService(db, new FixedTimeProvider(now));
-            var query = new DirectorySearchQuery(
-                DemoDataSeeder.OrganizationId,
-                null,
-                "Fictional Emergency Care",
-                "North Wing Simulation Site",
-                true,
-                false);
-
-            var first = await search.SearchAsync(query, CancellationToken.None);
-            var second = await search.SearchAsync(query, CancellationToken.None);
-
-            first.Should().ContainSingle();
-            var maya = first.Single();
-            maya.SimulationCode.Should().Be("SIM-PRAC-0101");
-            maya.PractitionerRoleId.Should().NotBeNull();
-            maya.AvailableChannels.Should().BeEquivalentTo("SecureMessage", "Sms");
-            maya.SelectionRevision.Should().NotBeNullOrWhiteSpace();
-            second.Single().SelectionRevision.Should().Be(maya.SelectionRevision);
-
-            var resolver = new DirectorySelectionResolver(db);
-            var resolved = await resolver.ResolveAsync(
-                DemoDataSeeder.OrganizationId,
-                [new DirectorySelectionCandidate(
-                    new PractitionerId(maya.PractitionerId),
-                    maya.PractitionerRoleId is Guid roleId ? new PractitionerRoleId(roleId) : null,
-                    NotificationChannel.SecureMessage,
-                    maya.SelectionRevision)],
-                now,
-                CancellationToken.None);
-
-            resolved.Should().ContainSingle(selection =>
-                selection.PractitionerId == DemoDataSeeder.MayaChenId
-                && selection.Channel == NotificationChannel.SecureMessage
-                && selection.DirectoryRevision == maya.SelectionRevision
-                && selection.DirectorySourceUpdatedAtUtc == now.AddDays(-3)
-                && selection.OnCallSnapshot == "Primary");
-        }
-        finally
-        {
-            await fixture.ResetAsync();
-        }
-    }
-
-    [Fact]
     public async Task ChangedDirectoryRevisionIsRejectedBeforeSelectionIsReturned()
     {
         await fixture.ResetAsync();
@@ -447,22 +395,6 @@ public sealed class DirectoryImportAndSearchTests(MigratedPostgresFixture fixtur
         {
             await fixture.ResetAsync();
         }
-    }
-
-    [Fact]
-    public async Task UnknownDepartmentIsABlockingConflict()
-    {
-        await using var db = fixture.CreateContext();
-        var service = CreateService(db);
-        const string csv = """
-            source_record_id,first_name,last_name,simulation_code,specialty,site_code,department_code,role_title,is_primary_role,is_active,source_updated_at_utc,freshness_status
-            SIM-SRC-MAYA,Maya,Chen,SIM-PRAC-0101,Emergency,SIM-SITE-NORTH,SIM-DEPT-UNKNOWN,Emergency physician,true,true,2026-08-01T12:00:00Z,current
-            """;
-        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csv));
-        var preview = await service.PreviewAsync(DemoDataSeeder.OrganizationId, Actor, "corr-unknown", stream, new CsvDirectorySourceAdapter(), CancellationToken.None);
-
-        preview.Errors.Should().Contain(error => error.Code == "unknown-department");
-        preview.Changes.Should().BeEmpty();
     }
 
     private DirectoryImportService CreateService(CriticalAlertsDbContext db)

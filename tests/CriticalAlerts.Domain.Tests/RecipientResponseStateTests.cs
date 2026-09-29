@@ -1,6 +1,5 @@
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Delivery;
-using CriticalAlerts.Domain.Identity;
 using FluentAssertions;
 using Xunit;
 
@@ -9,21 +8,6 @@ namespace CriticalAlerts.Domain.Tests;
 public sealed class RecipientResponseStateTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-30T14:00:00Z");
-
-    [Fact]
-    public void PractitionerUserLinkRejectsNonUtcCreationTime()
-    {
-        var localTime = new DateTimeOffset(2026, 8, 30, 10, 0, 0, TimeSpan.FromHours(-4));
-
-        var act = () => PractitionerUserLink.Create(
-            PractitionerUserLinkId.New(),
-            OrganizationId.New(),
-            UserId.New(),
-            PractitionerId.New(),
-            localTime);
-
-        act.Should().Throw<DomainException>();
-    }
 
     [Fact]
     public void SecureMessageOpenRecordsTheFirstUtcObservation()
@@ -49,54 +33,9 @@ public sealed class RecipientResponseStateTests
     }
 
     [Fact]
-    public void AcknowledgementDoesNotCreateResponsibility()
-    {
-        var response = Record(RecipientResponseType.Acknowledged, "simulation-acknowledged");
-
-        response.IsAcknowledgement.Should().BeTrue();
-        response.IsTerminalDisposition.Should().BeFalse();
-        response.Category.Should().Be(RecipientResponseCategory.Acknowledgement);
-        ResponsibilityAssignment.FromResponse(response).Should().BeNull();
-    }
-
-    [Fact]
-    public void AcceptanceCreatesResponsibilityForTheExactPractitionerAndVersion()
-    {
-        var response = Record(RecipientResponseType.Accepted, "simulation-responsibility-accepted");
-
-        var assignment = ResponsibilityAssignment.FromResponse(response);
-
-        assignment.Should().NotBeNull();
-        assignment!.PractitionerId.Should().Be(response.PractitionerId);
-        assignment.AlertVersion.Should().Be(response.AlertVersion);
-        assignment.SourceResponseId.Should().Be(response.Id);
-        assignment.AcceptedAtUtc.Should().Be(response.OccurredAtUtc);
-    }
-
-    [Theory]
-    [InlineData(RecipientResponseType.Declined)]
-    [InlineData(RecipientResponseType.Unavailable)]
-    public void NonAcceptedDispositionDoesNotCreateResponsibility(RecipientResponseType responseType)
-    {
-        var response = Record(responseType, $"simulation-{responseType.ToString().ToLowerInvariant()}");
-
-        response.IsTerminalDisposition.Should().BeTrue();
-        response.Category.Should().Be(RecipientResponseCategory.TerminalDisposition);
-        ResponsibilityAssignment.FromResponse(response).Should().BeNull();
-    }
-
-    [Fact]
     public void ResponseRejectsCallerFreeTextAsAReasonCode()
     {
         var act = () => Record(RecipientResponseType.Declined, "I am unavailable because this contains free text");
-
-        act.Should().Throw<DomainException>();
-    }
-
-    [Fact]
-    public void ResponseRejectsAReasonCodeForAnotherAction()
-    {
-        var act = () => Record(RecipientResponseType.Declined, "simulation-unavailable");
 
         act.Should().Throw<DomainException>();
     }

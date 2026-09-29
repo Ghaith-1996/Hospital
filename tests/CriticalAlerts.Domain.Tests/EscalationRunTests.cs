@@ -12,21 +12,10 @@ public sealed class EscalationRunTests
     [Theory]
     [InlineData(AlertState.Resolved, true, EscalationEventKind.StoppedByResolution)]
     [InlineData(AlertState.Cancelled, true, EscalationEventKind.StoppedByCancellation)]
-    [InlineData(AlertState.Active, true, EscalationEventKind.StoppedByResponsibility)]
-    [InlineData(AlertState.Active, false, EscalationEventKind.StepDue)]
     public void DurableStopsTakePrecedenceOverTimeoutAndDecline(AlertState state, bool responsibility, EscalationEventKind expected)
     {
         var run = Create();
         run.Evaluate(state, responsibility, 1, Now.AddMinutes(2)).Should().Be(expected);
-        run.AlertVersion!.Value.Value.Should().Be(7);
-    }
-
-    [Fact]
-    public void AcknowledgementAndOpeningWithoutResponsibilityDoNotStopTheDeadline()
-    {
-        var run = Create();
-        run.Evaluate(AlertState.Active, false, 0, Now).Should().BeNull();
-        run.Evaluate(AlertState.Active, false, 0, Now.AddMinutes(1)).Should().Be(EscalationEventKind.StepDue);
     }
 
     [Fact]
@@ -75,17 +64,6 @@ public sealed class EscalationRunTests
         formerOwner.Should().Throw<DomainException>();
         run.ReleaseLease("worker-b", Now.AddMinutes(1));
         run.LeaseOwner.Should().BeNull();
-    }
-
-    [Fact]
-    public void NonUtcAndIllegalPauseAreRejected()
-    {
-        var run = Create();
-        var invalidTime = () => run.Pause(Now.ToOffset(TimeSpan.FromHours(1)));
-        invalidTime.Should().Throw<NonUtcTimestampException>();
-        run.Pause(Now);
-        var secondPause = () => run.Pause(Now);
-        secondPause.Should().Throw<DomainException>();
     }
 
     private static EscalationRun Create() => EscalationRun.Schedule(

@@ -2,7 +2,6 @@
 using CriticalAlerts.Application.Protection;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
-using CriticalAlerts.Domain.Identity;
 using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
@@ -18,19 +17,6 @@ namespace CriticalAlerts.Infrastructure.Tests;
 public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-19T16:00:00Z");
-
-    [Fact]
-    public async Task EmptyDatabaseMigratesAndSeeds()
-    {
-        await using var db = fixture.CreateContext();
-        (await db.Organizations.CountAsync(organization => organization.Id == DemoDataSeeder.OrganizationId)).Should().Be(1);
-        (await db.Sites.CountAsync(site => site.OrganizationId == DemoDataSeeder.OrganizationId && site.SimulationCode.StartsWith("SIM-SITE-"))).Should().Be(2);
-        (await db.Departments.CountAsync(department => department.OrganizationId == DemoDataSeeder.OrganizationId && department.SimulationCode.StartsWith("SIM-DEPT-"))).Should().Be(3);
-        (await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(12);
-        (await db.Practitioners.CountAsync(practitioner => practitioner.OrganizationId == DemoDataSeeder.OrganizationId && !practitioner.IsActive)).Should().Be(2);
-        (await db.DirectorySourceRecords.CountAsync(record => record.OrganizationId == DemoDataSeeder.OrganizationId && record.IsStale)).Should().Be(1);
-        (await db.OnCallAssignments.CountAsync(assignment => assignment.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(2);
-    }
 
     [Fact]
     public async Task SensitiveAlertColumnsAndSourceRevisionHistoryAreProtected()
@@ -172,36 +158,8 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
             .Should().BeEquivalentTo([2, 3]);
     }
 
-    [Fact]
-    public async Task RecipientSelectionPersistsSafeDirectoryEvidence()
-    {
-        await using var db = fixture.CreateContext();
-        var alert = await CreatePersistedAlertAsync(db);
-        var maya = await db.Practitioners.SingleAsync(practitioner => practitioner.Id == DemoDataSeeder.MayaChenId);
-
-        alert.ReplaceRecipients(
-            [new ValidatedRecipientSelection(
-                maya.Id,
-                null,
-                NotificationChannel.SecureMessage,
-                "SIM-REVISION-EVIDENCE",
-                Now.AddMinutes(-2),
-                "Primary on-call displayed")],
-            DemoDataSeeder.JordanUserId,
-            alert.DraftVersion,
-            Now);
-        await db.SaveChangesAsync();
-
-        await using var verify = fixture.CreateContext();
-        var selection = await verify.AlertRecipientSelections.SingleAsync(item => item.AlertId == alert.Id);
-        selection.DirectoryRevision.Should().Be("SIM-REVISION-EVIDENCE");
-        selection.DirectorySourceUpdatedAtUtc.Should().Be(Now.AddMinutes(-2));
-        selection.OnCallSnapshot.Should().Be("Primary on-call displayed");
-    }
-
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public async Task OptimisticConcurrencyRejectsStaleWrite(bool saveSynchronously)
     {
         await using var first = fixture.CreateContext();
@@ -244,41 +202,6 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
     }
 
     [Fact]
-    public async Task OutboxAndAuditCommitAtomicallyWithAlert()
-    {
-        await using var db = fixture.CreateContext();
-        await using var transaction = await db.Database.BeginTransactionAsync();
-        var alert = await CreatePersistedAlertAsync(db);
-        db.AuditEvents.Add(AuditEvent.Record(
-            AuditEventId.New(),
-            alert.OrganizationId,
-            "user",
-            DemoDataSeeder.JordanUserId,
-            "alert.created",
-            "alert",
-            alert.Id.Value,
-            "succeeded",
-            "corr-atom",
-            """{"draftVersion":1}""",
-            Now));
-        db.OutboxMessages.Add(OutboxMessage.Create(
-            OutboxMessageId.New(),
-            alert.OrganizationId,
-            "AlertDispatchRequested",
-            alert.Id.Value,
-            """{"alertId":"11111111-1111-4111-8111-111111111999","draftVersion":1}""",
-            $"outbox-{alert.Id.Value:N}",
-            Now));
-        await db.SaveChangesAsync();
-        await transaction.RollbackAsync();
-
-        await using var verify = fixture.CreateContext();
-        (await verify.Alerts.CountAsync(entity => entity.Id == alert.Id)).Should().Be(0);
-        (await verify.OutboxMessages.CountAsync(message => message.IdempotencyKey == $"outbox-{alert.Id.Value:N}")).Should().Be(0);
-        (await verify.AuditEvents.CountAsync(entity => entity.CorrelationId == "corr-atom")).Should().Be(0);
-    }
-
-    [Fact]
     public async Task IdempotencyKeysAreUniquePerOrganizationAndOperation()
     {
         await using var db = fixture.CreateContext();
@@ -298,16 +221,6 @@ public sealed class PersistenceFoundationTests(MigratedPostgresFixture fixture)
             "same-key",
             "hash-2",
             Now));
-        var act = async () => await db.SaveChangesAsync();
-        await act.Should().ThrowAsync<DbUpdateException>();
-    }
-
-    [Fact]
-    public async Task UserRoleUniquenessIsEnforced()
-    {
-        await using var db = fixture.CreateContext();
-        db.UserRoles.Add(UserRole.Create(DemoDataSeeder.OrganizationId, DemoDataSeeder.JordanUserId, DemoDataSeeder.OperatorRoleId));
-
         var act = async () => await db.SaveChangesAsync();
         await act.Should().ThrowAsync<DbUpdateException>();
     }

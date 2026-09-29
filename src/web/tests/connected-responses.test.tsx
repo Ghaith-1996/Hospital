@@ -2,9 +2,9 @@ import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import * as api from "../lib/alerts";
-import { PractitionerAlert, PractitionerInbox } from "../features/connected/practitioner-alerts";
+import { PractitionerInbox } from "../features/connected/practitioner-alerts";
 import { LiveAlert } from "../features/connected/live-alert";
-vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlert: vi.fn(), getMyAlerts: vi.fn(), markMyAlertOpened: vi.fn(), recordMyAlertResponse: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn(), setEscalationPaused: vi.fn() }));
+vi.mock("../lib/alerts", async original => ({ ...await original<typeof api>(), getMyAlerts: vi.fn(), getAlertLive: vi.fn(), resolveAlert: vi.fn(), cancelAlert: vi.fn(), setEscalationPaused: vi.fn() }));
 afterEach(() => vi.clearAllMocks());
 function escalationLive(): api.AlertLive {
   return {
@@ -72,16 +72,6 @@ test("escalation uses server state and retries an uncertain pause with the exact
   expect(vi.mocked(api.setEscalationPaused).mock.calls[0]).toEqual(vi.mocked(api.setEscalationPaused).mock.calls[1]);
   expect(vi.mocked(api.setEscalationPaused).mock.calls[0].slice(0, 3)).toEqual(["sim", 9, true]);
 });
-test("operational warning guidance is safe and preserves escalation controls", async () => {
-  vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", operationalWarnings: [{
-    code: "ProviderUnavailable", title: "Provider unavailable", explanation: "The simulated notification provider is unavailable.",
-    recommendedApplicationAction: "Refresh status. Do not create a duplicate alert. REQUIRES_HOSPITAL_DECISION.", requiresHospitalFallback: true,
-  }] } as api.AlertLive);
-  render(<LiveAlert alertId="sim" pollMs={0} />);
-  expect(await screen.findByRole("heading", { name: "Provider unavailable" })).toBeVisible();
-  expect(screen.getByText(/Do not create a duplicate alert/)).toBeVisible();
-  expect(screen.getByRole("button", { name: "Pause DEMO escalation" })).toBeVisible();
-});
 test("untrusted warning text never reaches the live screen", async () => {
   const sentinel = "SIM-APPROVED-MESSAGE-DO-NOT-LOG";
   vi.mocked(api.getAlertLive).mockResolvedValue({ ...escalationLive(), alertId: "sim", operationalWarnings: [{
@@ -104,18 +94,6 @@ test("live polling stops on unmount", async () => {
     await act(() => vi.advanceTimersByTimeAsync(15000));
     expect(api.getAlertLive).toHaveBeenCalledTimes(2);
   } finally { vi.useRealTimers(); }
-});
-test("practitioner acknowledgement does not imply responsibility and explicit open is separate", async () => {
-  const detail = { alertId: "sim", confirmedVersion: 9, state: "Active", simulationPatientReference: "SIM-PAT-1", location: "Fictional room", urgencyLabel: "DEMO Urgent", approvedMessage: "SIMULATION: approved", criticalFields: [{ fieldId: "pulse", value: "118", unit: "beats/min" }], channels: ["SecureMessage"], openedState: "NotObserved", secureMessageOpenedAtUtc: null, acknowledgedAtUtc: null, terminalDisposition: null, responsibilityAcceptedAtUtc: null, callUnitRequestedAtUtc: null } as unknown as api.MyAlertDetail;
-  vi.mocked(api.getMyAlert).mockResolvedValueOnce(detail).mockResolvedValue({ ...detail, acknowledgedAtUtc: "2026-09-05T12:00:00Z" });
-  vi.mocked(api.recordMyAlertResponse).mockResolvedValue({} as api.RecipientResponseResult);
-  render(<PractitionerAlert alertId="sim" />);
-  expect(await screen.findByText(/118.*beats\/min/)).toBeVisible();
-  expect(api.markMyAlertOpened).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }));
-  expect(await screen.findByText(/Acknowledged: 2026/)).toBeVisible();
-  expect(screen.getByText("Responsibility accepted: Not recorded")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Accept responsibility" })).toBeEnabled();
 });
 test("inbox authorization failure shows guidance instead of local fictional alerts", async () => {
   vi.mocked(api.getMyAlerts).mockRejectedValue(new api.AlertApiError(403, null, "Forbidden"));

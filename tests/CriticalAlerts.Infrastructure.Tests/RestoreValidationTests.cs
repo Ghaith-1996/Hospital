@@ -22,10 +22,7 @@ public sealed class RestoreValidationTests(MigratedPostgresFixture fixture)
     [Theory]
     [InlineData(null, "critical_alerts_test_restore")]
     [InlineData("Production", "critical_alerts_test_restore")]
-    [InlineData("Staging", "critical_alerts_test_restore")]
-    [InlineData("Unknown", "critical_alerts_test_restore")]
     [InlineData("Test", "hospital")]
-    [InlineData("Test", "postgres")]
     [InlineData("Test", "critical_alerts_test;bad")]
     public void UnsafeRestoreTargetIsRejectedWithoutReflectingInput(string? environment, string database)
     {

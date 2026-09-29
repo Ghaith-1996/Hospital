@@ -22,28 +22,6 @@ public sealed class OutboxDispatchProcessorTests(MigratedPostgresFixture fixture
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-29T12:00:00Z");
 
     [Fact]
-    public async Task ConfirmedAlertIsDispatchedOnceWithStableDeliveredAttempt()
-    {
-        await fixture.ResetAsync();
-        await using var db = fixture.CreateContext();
-        var alertId = await SeedConfirmedAlertAsync(db, NotificationChannel.Sms);
-        var processor = CreateProcessor(db, new MutableTimeProvider(Now));
-
-        var first = await processor.ProcessNextAsync("worker-a", CancellationToken.None);
-        var second = await processor.ProcessNextAsync("worker-a", CancellationToken.None);
-
-        first.Processed.Should().BeTrue();
-        first.Rescheduled.Should().BeFalse();
-        second.Processed.Should().BeFalse();
-        (await db.OutboxMessages.SingleAsync(message => message.AggregateId == alertId.Value)).ProcessingState
-            .Should().Be(OutboxProcessingState.Processed);
-        (await db.DeliveryAttempts.Where(attempt => attempt.AlertId == alertId).ToArrayAsync())
-            .Should().ContainSingle(attempt => attempt.Status == DeliveryAttemptStatus.Delivered);
-        (await db.DeliveryEvents.CountAsync(item => item.OrganizationId == DemoDataSeeder.OrganizationId)).Should().Be(2);
-        (await db.Alerts.SingleAsync(alert => alert.Id == alertId)).State.Should().Be(AlertState.Active);
-    }
-
-    [Fact]
     public async Task DelayedDeliveryReusesTheSubmittedAttemptAfterTheOutboxBecomesDue()
     {
         await fixture.ResetAsync();

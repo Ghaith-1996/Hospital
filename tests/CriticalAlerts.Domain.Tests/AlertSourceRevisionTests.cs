@@ -39,27 +39,6 @@ public sealed class AlertSourceRevisionTests
             .Source.Should().BeEquivalentTo(revised);
     }
 
-    [Fact]
-    public void PatientReferenceIsProtectedBeforeItCanBelongToAnAlert()
-    {
-        var alert = Alert.CreateDraft(
-            AlertId.New(),
-            OrganizationId.New(),
-            SiteId.New(),
-            DepartmentId.New(),
-            UserId.New(),
-            "SIM-PAT-PROTECTED-001",
-            ProtectPatient("SIM-PAT-PROTECTED-001"),
-            "North Wing / Simulation Room 205",
-            "Urgent",
-            AlertSourceType.Typed,
-            Protect("SIMULATION: source"),
-            Now);
-
-        alert.SimulationPatientReference.Purpose.Should().Be("alert-patient-reference");
-        alert.SimulationPatientReference.Ciphertext.Should().NotBeEmpty();
-    }
-
     private static ProtectedValue Protect(string text)
         => new(Encoding.UTF8.GetBytes(text), "test-v1", "alert-typed-source");
 

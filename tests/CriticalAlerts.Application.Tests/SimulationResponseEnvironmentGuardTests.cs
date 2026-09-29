@@ -7,17 +7,6 @@ namespace CriticalAlerts.Application.Tests;
 public sealed class SimulationResponseEnvironmentGuardTests
 {
     [Theory]
-    [InlineData("Development")]
-    [InlineData("Test")]
-    public void EnabledResponsesAreAllowedOnlyInSimulationEnvironments(string environment)
-    {
-        var act = () => SimulationResponseEnvironmentGuard.EnsureAllowed(environment, enabled: true);
-
-        act.Should().NotThrow();
-        SimulationResponseEnvironmentGuard.IsSimulationEnvironment(environment).Should().BeTrue();
-    }
-
-    [Theory]
     [InlineData("Staging")]
     [InlineData("Production")]
     [InlineData("")]

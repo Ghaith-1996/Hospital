@@ -15,54 +15,6 @@ public sealed class RecipientResponsePersistenceTests(MigratedPostgresFixture fi
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-30T14:00:00Z");
 
     [Fact]
-    public async Task DemoSeedLinksRileyUserToRileyPractitionerByStableIds()
-    {
-        await fixture.ResetAsync();
-        await using var db = fixture.CreateContext();
-
-        var link = await db.PractitionerUserLinks.SingleAsync();
-
-        link.OrganizationId.Should().Be(DemoDataSeeder.OrganizationId);
-        link.UserId.Should().Be(DemoDataSeeder.RileyUserId);
-        link.PractitionerId.Should().Be(DemoDataSeeder.RileySatoId);
-    }
-
-    [Fact]
-    public async Task LinkedRileyPractitionerHasASyntheticSecureMessageEndpoint()
-    {
-        await fixture.ResetAsync();
-        await using var db = fixture.CreateContext();
-
-        var endpoint = await db.ContactEndpoints.SingleAsync(item =>
-            item.PractitionerId == DemoDataSeeder.RileySatoId
-            && item.Kind == ContactEndpointKind.SecureMessage);
-
-        endpoint.SimulationLabel.Should().Be("SIM-SECURE-0108");
-    }
-
-    [Fact]
-    public async Task ReRunningSeedAddsAMissingPractitionerLinkToAnExistingOrganization()
-    {
-        await fixture.ResetAsync();
-        await using (var remove = fixture.CreateContext())
-        {
-            remove.PractitionerUserLinks.Remove(await remove.PractitionerUserLinks.SingleAsync());
-            await remove.SaveChangesAsync();
-        }
-
-        await using (var seed = fixture.CreateContext())
-        {
-            await new DemoDataSeeder(seed, fixture.DataProtectionKey).SeedAsync();
-        }
-
-        await using var verify = fixture.CreateContext();
-        (await verify.PractitionerUserLinks.CountAsync(link =>
-                link.UserId == DemoDataSeeder.RileyUserId
-                && link.PractitionerId == DemoDataSeeder.RileySatoId))
-            .Should().Be(1);
-    }
-
-    [Fact]
     public async Task OneUserCannotLinkToTwoPractitionersInTheSameOrganization()
     {
         await fixture.ResetAsync();

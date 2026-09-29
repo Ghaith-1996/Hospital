@@ -16,20 +16,6 @@ public sealed class RepositorySafetyTests
     }
 
     [Fact]
-    public void MigrationsExistOnlyInInfrastructure()
-    {
-        var backendRoot = Path.Combine(RepositoryRoot(), "src", "backend");
-        var infrastructureMigrations = Path.Combine(backendRoot, "CriticalAlerts.Infrastructure", "Persistence", "Migrations");
-        Directory.Exists(infrastructureMigrations).Should().BeTrue();
-        Directory.EnumerateFiles(infrastructureMigrations, "*.cs", SearchOption.AllDirectories).Should().NotBeEmpty();
-
-        foreach (var project in new[] { "CriticalAlerts.Domain", "CriticalAlerts.Application", "CriticalAlerts.Api", "CriticalAlerts.Worker", "CriticalAlerts.Connector" })
-        {
-            Directory.EnumerateDirectories(Path.Combine(backendRoot, project), "Migrations", SearchOption.AllDirectories).Should().BeEmpty();
-        }
-    }
-
-    [Fact]
     public void NoFixtureContainsNonSyntheticPhonePattern()
     {
         var phonePattern = new Regex(

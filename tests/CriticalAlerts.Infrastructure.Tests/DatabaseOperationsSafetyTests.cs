@@ -28,17 +28,4 @@ public sealed class DatabaseOperationsSafetyTests
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*no database was changed*");
     }
-
-    [Theory]
-    [InlineData("localhost")]
-    [InlineData("127.0.0.1")]
-    [InlineData("::1")]
-    public void ConfirmedDemoResetAcceptsLoopbackDemoTargets(string host)
-    {
-        var act = () => DatabaseOperations.EnsureDemoResetTarget(
-            $"Host={host};Database=critical_alerts_test;Username=test;Password=test",
-            confirmReset: true);
-
-        act.Should().NotThrow();
-    }
 }

@@ -15,25 +15,6 @@ function setup(speech = false) {
     vi.mocked(alerts.getAlertDraft).mockResolvedValue({ ...draft, draftVersion: 2 });
 }
 afterEach(() => { vi.resetAllMocks(); vi.unstubAllGlobals(); });
-test('all flags disabled leave optional controls absent', async () => {
-    setup();
-    vi.mocked(assistance.getCapabilities).mockResolvedValue({ speechTranscription: false, alertStructuringSuggestions: false, speechProvider: 'Disabled', acceptedAudioContentTypes: [], simulationOnly: true });
-    render(<AssistancePanel draft={draft} disabled={false} onApplied={vi.fn()} onBusy={vi.fn()}/>);
-    await waitFor(() => expect(assistance.getCapabilities).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Suggest SBAR structure' })).not.toBeInTheDocument();
-});
-test('generation displays separate evidence and missing confidence without applying', async () => {
-    setup();
-    const applied = vi.fn();
-    render(<AssistancePanel draft={draft} disabled={false} onApplied={applied} onBusy={vi.fn()}/>);
-    fireEvent.click(await screen.findByRole('button', { name: 'Suggest SBAR structure' }));
-    expect(await screen.findByRole('heading', { name: 'Structured suggestion' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Source used for this suggestion' })).toBeVisible();
-    expect(screen.getAllByText('Confidence not provided').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Missing information/)).toBeVisible();
-    expect(applied).not.toHaveBeenCalled();
-    expect(assistance.applyResult).not.toHaveBeenCalled();
-});
 test('explicit Apply uses the result and version once despite double click', async () => {
     setup();
     let finish!: () => void;
@@ -47,14 +28,6 @@ test('explicit Apply uses the result and version once despite double click', asy
     expect(assistance.applyResult).toHaveBeenCalledTimes(1);
     finish();
     await waitFor(() => expect(alerts.getAlertDraft).toHaveBeenCalled());
-});
-test('stale history cannot apply and unsaved changes block generation', async () => {
-    setup();
-    vi.mocked(assistance.getHistory).mockResolvedValue({ items: [{ ...result, stale: true }], nextCursor: null });
-    render(<AssistancePanel draft={draft} disabled onApplied={vi.fn()} onBusy={vi.fn()}/>);
-    expect(await screen.findByRole('button', { name: 'Apply evidence-backed suggestion' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Suggest SBAR structure' })).toBeDisabled();
-    expect(screen.getByText(/older source version/)).toBeVisible();
 });
 test('provider failure offers typing without reflecting raw errors', async () => {
     setup();

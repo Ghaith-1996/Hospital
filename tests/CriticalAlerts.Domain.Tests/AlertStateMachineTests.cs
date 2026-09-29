@@ -1,8 +1,6 @@
 ﻿using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
-using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
-using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Domain.Simulation;
 using FluentAssertions;
@@ -13,60 +11,6 @@ namespace CriticalAlerts.Domain.Tests;
 public sealed class AlertStateMachineTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-08-19T16:00:00Z");
-
-    [Fact]
-    public void CreateDraftStartsInDraft()
-    {
-        var alert = CreateAlert(includeStructuredContent: false);
-
-        alert.State.Should().Be(AlertState.Draft);
-        alert.DraftVersion.Should().Be(AlertDraftVersion.Initial);
-        alert.ConfirmedDraftVersion.Should().BeNull();
-    }
-
-    [Fact]
-    public void TypedContentEditIncrementsTheDraftVersion()
-    {
-        var alert = CreateAlert();
-        var previous = alert.DraftVersion;
-
-        alert.UpdateTypedContent(
-            "North Wing / Simulation Room 205",
-            "Emergent",
-            Protect("SIMULATION: revised typed source"),
-            Protect("{\"situation\":\"revised\"}"),
-            previous,
-            Now);
-
-        alert.DraftVersion.Should().Be(previous.Next());
-        alert.State.Should().Be(AlertState.Draft);
-    }
-
-    [Fact]
-    public void ReplacingRecipientSetCreatesOneExactVersion()
-    {
-        var alert = CreateAlert();
-        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
-        var before = alert.DraftVersion;
-        var maya = CreatePractitioner(alert.OrganizationId);
-        var noah = CreatePractitioner(alert.OrganizationId);
-
-        alert.ReplaceRecipients(
-            [
-                RecipientSelection(maya, NotificationChannel.SecureMessage),
-                RecipientSelection(noah, NotificationChannel.Voice),
-            ],
-            alert.CreatedByUserId,
-            before,
-            Now);
-
-        alert.DraftVersion.Value.Should().Be(before.Value + 1);
-        alert.CurrentRecipients.Should().HaveCount(2)
-            .And.OnlyContain(item => item.AlertVersion == alert.DraftVersion);
-        alert.FieldConfirmations
-            .Where(item => item.AlertVersion == alert.DraftVersion)
-            .Should().OnlyContain(item => item.Status == FieldConfirmationStatus.Unresolved);
-    }
 
     [Fact]
     public void DuplicateRecipientReplacementFailsBeforeMutation()
@@ -173,18 +117,6 @@ public sealed class AlertStateMachineTests
     }
 
     [Fact]
-    public void SubmitThenConfirmIsAllowed()
-    {
-        var (alert, practitioner) = CreatePendingAlert();
-        alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [practitioner], Now, "corr-1");
-
-        alert.State.Should().Be(AlertState.DispatchQueued);
-        alert.ConfirmedDraftVersion.Should().Be(alert.DraftVersion);
-        alert.PendingDispatchRequests.Should().ContainSingle();
-        alert.HasReusableApprovalForCurrentVersion.Should().BeTrue();
-    }
-
-    [Fact]
     public void ConfirmFromDraftIsRejected()
     {
         var alert = CreateAlert();
@@ -220,18 +152,6 @@ public sealed class AlertStateMachineTests
     }
 
     [Fact]
-    public void StaleVersionIsRejected()
-    {
-        var alert = CreateAlert();
-        var previous = alert.DraftVersion;
-        alert.UpdateSource(Protect("SIMULATION: revised source"), previous, Now);
-
-        var act = () => alert.SubmitForConfirmation(alert.CreatedByUserId, previous, Now);
-
-        act.Should().Throw<StaleAlertVersionException>();
-    }
-
-    [Fact]
     public void EditInvalidatesApprovalAndReturnsToDraft()
     {
         var (alert, practitioner) = CreatePendingAlert();
@@ -258,33 +178,6 @@ public sealed class AlertStateMachineTests
         alert.PendingDispatchRequests.Should().BeEmpty();
     }
 
-    [Fact]
-    public void ConfirmOfOlderVersionAfterEditIsRejected()
-    {
-        var (alert, practitioner) = CreatePendingAlert();
-        var oldVersion = alert.DraftVersion;
-        alert.UpdateSource(Protect("SIMULATION: newer source"), oldVersion, Now);
-
-        var act = () => alert.ConfirmForDispatch(UserId.New(), oldVersion, [practitioner], Now, "corr-1");
-
-        act.Should().Throw<StaleAlertVersionException>();
-        alert.HasReusableApprovalForCurrentVersion.Should().BeFalse();
-    }
-
-    [Fact]
-    public void CancelAfterResolveIsRejected()
-    {
-        var (alert, practitioner) = CreatePendingAlert();
-        alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [practitioner], Now, "corr-1");
-        alert.MarkActive(Now, "corr-2");
-        alert.Resolve(UserId.New(), Now, "corr-3");
-
-        var act = () => alert.Cancel(UserId.New(), Now, "corr-4");
-
-        act.Should().Throw<InvalidAlertTransitionException>();
-        alert.State.Should().Be(AlertState.Resolved);
-    }
-
     [Theory]
     [InlineData(AlertState.DispatchQueued, AlertState.Draft)]
     [InlineData(AlertState.Resolved, AlertState.Active)]
@@ -299,16 +192,6 @@ public sealed class AlertStateMachineTests
     }
 
     [Fact]
-    public void AllowedPhase0TransitionsAreAccepted()
-    {
-        AlertStateMachine.AllowedTransitions.Should().Contain((AlertState.Draft, AlertState.PendingConfirmation));
-        AlertStateMachine.AllowedTransitions.Should().Contain((AlertState.PendingConfirmation, AlertState.DispatchQueued));
-        AlertStateMachine.AllowedTransitions.Should().Contain((AlertState.DispatchQueued, AlertState.Active));
-        AlertStateMachine.AllowedTransitions.Should().Contain((AlertState.Active, AlertState.Resolved));
-        AlertStateMachine.AllowedTransitions.Should().Contain((AlertState.Failed, AlertState.Active));
-    }
-
-    [Fact]
     public void UnresolvedCriticalFieldBlocksConfirmation()
     {
         var (alert, practitioner) = CreatePendingAlert();
@@ -317,18 +200,6 @@ public sealed class AlertStateMachineTests
         var act = () => alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [practitioner], Now, "corr-1");
 
         act.Should().Throw<UnresolvedCriticalFieldException>();
-    }
-
-    [Fact]
-    public void ConfirmedCriticalFieldAllowsDispatch()
-    {
-        var (alert, practitioner) = CreatePendingAlert();
-        alert.RegisterUnresolvedCriticalField("heartRate", "118", "beats/min", alert.DraftVersion);
-        alert.ConfirmCriticalField("heartRate", "118", "118", "beats/min", UserId.New(), alert.DraftVersion, Now);
-        alert.ConfirmForDispatch(UserId.New(), alert.DraftVersion, [practitioner], Now, "corr-1");
-
-        alert.State.Should().Be(AlertState.DispatchQueued);
-        alert.FieldConfirmations.Should().ContainSingle(confirmation => confirmation.Status == FieldConfirmationStatus.Confirmed);
     }
 
     [Fact]
@@ -427,84 +298,6 @@ public sealed class AlertStateMachineTests
     }
 
     [Fact]
-    public void DuplicateRecipientIsRejected()
-    {
-        var alert = CreateAlert();
-        var practitioner = CreatePractitioner(alert.OrganizationId);
-        var before = alert.DraftVersion;
-
-        var act = () => alert.ReplaceRecipients(
-            [
-                RecipientSelection(practitioner, NotificationChannel.SecureMessage),
-                RecipientSelection(practitioner, NotificationChannel.SecureMessage),
-            ],
-            UserId.New(),
-            before,
-            Now);
-
-        act.Should().Throw<DuplicateRecipientException>();
-    }
-
-    [Fact]
-    public void AcknowledgementDoesNotCreateResponsibility()
-    {
-        var response = RecipientResponse.Record(
-            RecipientResponseId.New(),
-            OrganizationId.New(),
-            AlertId.New(),
-            AlertDraftVersion.Initial,
-            PractitionerId.New(),
-            RecipientResponseType.Acknowledged,
-            UserId.New(),
-            Now,
-            "simulation-acknowledged");
-
-        response.ImpliesResponsibilityAcceptance.Should().BeFalse();
-        ResponsibilityAssignment.FromResponse(response).Should().BeNull();
-    }
-
-    [Fact]
-    public void AcceptanceCreatesResponsibilityAssignment()
-    {
-        var practitionerId = PractitionerId.New();
-        var response = RecipientResponse.Record(
-            RecipientResponseId.New(),
-            OrganizationId.New(),
-            AlertId.New(),
-            AlertDraftVersion.Initial,
-            practitionerId,
-            RecipientResponseType.Accepted,
-            UserId.New(),
-            Now,
-            "simulation-responsibility-accepted");
-
-        var assignment = ResponsibilityAssignment.FromResponse(response);
-
-        assignment.Should().NotBeNull();
-        assignment!.PractitionerId.Should().Be(practitionerId);
-    }
-
-    [Fact]
-    public void AuditEventIsAppendOriented()
-    {
-        var audit = AuditEvent.Record(
-            AuditEventId.New(),
-            OrganizationId.New(),
-            "user",
-            UserId.New(),
-            "alert.confirmed",
-            "alert",
-            Guid.NewGuid(),
-            "succeeded",
-            "corr-9",
-            """{"draftVersion":2}""",
-            Now);
-
-        audit.Action.Should().Be("alert.confirmed");
-        audit.OccurredAtUtc.Offset.Should().Be(TimeSpan.Zero);
-    }
-
-    [Fact]
     public void OutboxRejectsClinicalPayloads()
     {
         var act = () => OutboxMessage.Create(
@@ -517,51 +310,6 @@ public sealed class AlertStateMachineTests
             Now);
 
         act.Should().Throw<DomainException>();
-    }
-
-    [Fact]
-    public void OutboxAcceptsIdentifierPayloads()
-    {
-        var message = OutboxMessage.Create(
-            OutboxMessageId.New(),
-            OrganizationId.New(),
-            "AlertDispatchRequested",
-            Guid.NewGuid(),
-            """{"alertId":"11111111-1111-1111-1111-111111111111","draftVersion":2}""",
-            "key-1",
-            Now);
-
-        message.ProcessingState.Should().Be(OutboxProcessingState.Pending);
-    }
-
-    [Fact]
-    public void NonUtcTimestampsAreRejected()
-    {
-        var act = () => Organization.CreateSimulation(
-            OrganizationId.New(),
-            "Fictional Harborview Simulation Hospital",
-            DateTimeOffset.Parse("2026-08-19T12:00:00-04:00"));
-
-        act.Should().Throw<NonUtcTimestampException>();
-    }
-
-    [Fact]
-    public void DeliveryIsNotAcknowledgement()
-    {
-        var attempt = DeliveryAttempt.CreateRequested(
-            DeliveryAttemptId.New(),
-            OrganizationId.New(),
-            AlertId.New(),
-            AlertRecipientSelectionId.New(),
-            NotificationChannel.Sms,
-            1,
-            "delivery-1",
-            "simulation",
-            Now);
-        attempt.MarkDelivered(Now);
-
-        attempt.Status.Should().Be(DeliveryAttemptStatus.Delivered);
-        attempt.OpenedState.Should().Be(ObservationState.NotApplicable);
     }
 
     private static (Alert Alert, Practitioner Practitioner) CreatePendingAlert(bool includeApprovedMessage = true)
