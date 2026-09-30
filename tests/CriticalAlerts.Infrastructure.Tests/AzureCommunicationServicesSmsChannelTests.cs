@@ -238,6 +238,31 @@ public sealed class AzureCommunicationServicesSmsChannelTests
         transport.Requests.Should().ContainSingle();
     }
 
+    [Theory]
+    [InlineData("42")]
+    [InlineData("[]")]
+    [InlineData("\"accepted\"")]
+    [InlineData("{\"value\":\"x\"}")]
+    [InlineData("{\"value\":[null]}")]
+    [InlineData("{\"value\":[42]}")]
+    [InlineData("{\"value\":[{\"httpStatusCode\":\"202\",\"successful\":false}]}")]
+    [InlineData("{\"value\":[{\"httpStatusCode\":202.5,\"successful\":false}]}")]
+    [InlineData("{\"value\":[{\"httpStatusCode\":202,\"successful\":\"true\",\"messageId\":\"acs-1\"}]}")]
+    [InlineData("{\"value\":[{\"httpStatusCode\":202,\"successful\":true,\"messageId\":42}]}")]
+    [InlineData("{\"value\":[{\"httpStatusCode\":400,\"successful\":false,\"repeatabilityResult\":7}]}")]
+    public async Task ValidJsonOfTheWrongShapeIsAnUncertainOutcome(string body)
+    {
+        var transport = new FakeAcsTransport();
+        transport.Enqueue(_ => Json(HttpStatusCode.Accepted, body));
+
+        var result = await Channel(transport).DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        result.Retryable.Should().BeTrue();
+        result.Events.Should().BeEmpty();
+        result.ProviderReference.Should().BeEmpty();
+        result.FailureCategory.Should().Be("provider-outcome-uncertain");
+    }
+
     [Fact]
     public async Task UncertainWindowExpiryFailsVisiblyWithoutAnotherSend()
     {

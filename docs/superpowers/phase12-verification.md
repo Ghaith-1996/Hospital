@@ -1,4 +1,4 @@
-# Phase 12 verification: slice 1, ACS SMS
+﻿# Phase 12 verification: slice 1, ACS SMS
 
 Status: slice 1 is implemented and locally verified with fake transports and test tokens. The project owner's review is pending. No live Azure request was made. Voice is not started.
 
@@ -6,7 +6,7 @@ Status: slice 1 is implemented and locally verified with fake transports and tes
 
 - Branch: `feature/phase-12-real-communication-adapter`, from `main` at `9209b41`.
 - Phase 11 was merged through PR #8 before this branch. Post-merge `main` was checked: backend 393/393 and web 38/38 passed, and typecheck was clean.
-- Design and failure modes F1–F27: [the slice 1 design](specs/2026-09-29-phase-12-acs-sms-adapter-design.md).
+- Design and failure modes F1–F29: [the slice 1 design](specs/2026-09-29-phase-12-acs-sms-adapter-design.md).
 - Architecture: [real communication adapters](../architecture/real-communication-adapters.md).
 
 ## Checks run on 2026-09-29
@@ -16,8 +16,8 @@ Status: slice 1 is implemented and locally verified with fake transports and tes
 | `dotnet format --verify-no-changes` | Passed |
 | Release build | Passed, 0 warnings / 0 errors |
 | Domain / Application / Architecture tests | 40 / 55 / 6 passed |
-| API integration tests, including 7 Phase 12 E2E scenarios and the OpenAPI contract comparison | 207 passed |
-| Infrastructure tests, including 41 ACS contract tests | 132 of 133 passed; see the flaky test below |
+| API integration tests, including 8 Phase 12 E2E scenarios and the OpenAPI contract comparison | 208 passed |
+| Infrastructure tests, including 52 ACS contract tests | 143 of 144 passed; see the flaky test below |
 | Web unit tests / typecheck / lint | 38 passed / clean / clean |
 | `verify-no-sensitive-data.ps1`, `verify-observability-safety.ps1` | Passed |
 | Web storage-safety scan | Passed; its patterns were run manually because the script requires PowerShell 7, which is not installed here |
@@ -40,6 +40,13 @@ The full `scripts/test-all.ps1` gate was not run: it requires PowerShell 7, and 
 - Provider selection: Simulation is the default, and both Production SMS and the Production webhook refuse startup.
 
 Sentinel scans of database rows, captured logs and the artifact found no test number, access key, bearer token, SMS text or provider detail text.
+
+## PR #9 review fixes
+
+Two automated review findings (P2) were fixed. Each has a test that failed before the fix:
+
+- **F28:** a delivery report racing the worker commit was acknowledged and lost. It is now deferred with `503` and `Retry-After` for 10 minutes, then applied on redelivery. The E2E test records early `503`, redelivery `200` and final `Delivered`.
+- **F29:** a `202` body that was valid JSON of the wrong shape threw a generic worker error. Every field kind is now validated, and any mismatch is an uncertain outcome retried with the same key. The contract test covers 11 shapes; 7 failed before the fix.
 
 ## Remaining gates (REQUIRES_HOSPITAL_DECISION or later slices)
 

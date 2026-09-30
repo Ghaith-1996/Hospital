@@ -102,7 +102,7 @@ Each report is processed in its own transaction:
 5. Apply the terminal status through the existing no-regression domain methods.
 6. Append a delivery event with fixed sanitized metadata, a `dispatch.delivery-event` audit record (actor `provider-webhook`) and an inbox record.
 
-Unknown message IDs return success with no stored data, because a report could belong to another deployment. A missing or mismatched tag is recorded as rejected in the inbox, with no state change.
+A report can race the worker, because ACS may publish it before the transaction that stores the message ID commits. An unmatched report whose `eventTime` is less than 10 minutes old is therefore deferred: the endpoint returns `503` with `Retry-After`, stores nothing, and lets Event Grid redeliver the batch. Already-applied reports in that batch deduplicate on redelivery. Older unmatched message IDs return success with no stored data, because the report could belong to another deployment. A missing or mismatched tag is recorded as rejected in the inbox, with no state change.
 
 While an attempt is `Submitted`, the worker re-polls every retry delay without calling ACS. Only the start of that wait is audited as `dispatch.retry-scheduled`, so a pending report does not produce one audit row or retry metric per poll.
 
@@ -139,6 +139,8 @@ Every row has a planned test. "Isolated" means a fake-transport contract test. "
 | F25 | Unknown message ID | 200, nothing stored | E2E |
 | F26 | Tag mismatch | Rejected in inbox, no state change | E2E |
 | F27 | Phone numbers, access key, token, message body in DB/logs/audit/problems | Absent (sentinel scan) | E2E |
+| F28 | Delivery report arrives before the worker transaction commits the message ID (race), or within the deferral window for any unmatched ID | Report is not acknowledged: `503` with `Retry-After`, nothing stored, so Event Grid redelivers; applied once the attempt is visible. Unmatched reports older than 10 minutes are accepted and dropped | E2E |
+| F29 | 202 body is syntactically valid JSON of the wrong shape (scalar/array root, `value` not an array, null item, non-numeric `httpStatusCode`, non-boolean `successful`, non-string `messageId`) | Uncertain outcome (attempt stays `Requested`, same key), never a generic worker error | isolated |
 
 ## Evidence artifact
 

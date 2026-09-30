@@ -165,17 +165,25 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             content = await ReadBoundedAsync(stream, cancellationToken);
             if (content is null) return UncertainResult(now);
             using var json = JsonDocument.Parse(content, new JsonDocumentOptions { MaxDepth = 8 });
-            if (!json.RootElement.TryGetProperty("value", out var items)
+            // Any shape other than the documented one is ambiguous: ACS may have accepted the send.
+            if (json.RootElement.ValueKind != JsonValueKind.Object
+                || !json.RootElement.TryGetProperty("value", out var items)
                 || items.ValueKind != JsonValueKind.Array
-                || items.GetArrayLength() != 1)
+                || items.GetArrayLength() != 1
+                || items[0].ValueKind != JsonValueKind.Object)
                 return UncertainResult(now);
 
             var item = items[0];
-            var successful = item.TryGetProperty("successful", out var success) && success.ValueKind == JsonValueKind.True;
-            var itemStatus = item.TryGetProperty("httpStatusCode", out var code) && code.TryGetInt32(out var parsed) ? parsed : 0;
-            var repeatability = item.TryGetProperty("repeatabilityResult", out var repeat) && repeat.ValueKind == JsonValueKind.String
-                ? repeat.GetString() : null;
-            var messageId = item.TryGetProperty("messageId", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null;
+            if (!TryGetOptional(item, "successful", JsonValueKind.True, JsonValueKind.False, out var success)
+                || !TryGetOptional(item, "httpStatusCode", JsonValueKind.Number, JsonValueKind.Number, out var code)
+                || !TryGetOptional(item, "repeatabilityResult", JsonValueKind.String, JsonValueKind.String, out var repeat)
+                || !TryGetOptional(item, "messageId", JsonValueKind.String, JsonValueKind.String, out var id))
+                return UncertainResult(now);
+
+            var successful = success?.ValueKind == JsonValueKind.True;
+            var itemStatus = code is { } number && number.TryGetInt32(out var parsed) ? parsed : 0;
+            var repeatability = repeat?.GetString();
+            var messageId = id?.GetString();
 
             if (string.Equals(repeatability, "rejected", StringComparison.OrdinalIgnoreCase))
                 return Failed(tag, "provider-repeatability-rejected", now, retryable: false);
@@ -196,7 +204,7 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
                     ? Failed(tag, "sms-rejected", now, retryable: false)
                     : UncertainResult(now);
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException)
         {
             return UncertainResult(now);
         }
@@ -239,6 +247,16 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
         => new(string.Empty, [], Retryable: true, FailureCategory: Uncertain, RetryAtUtc: now.AddSeconds(5));
 
     private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left < right ? left : right;
+
+    /// <summary>An absent or null property is allowed; a present property must have one of the expected kinds.</summary>
+    private static bool TryGetOptional(JsonElement item, string name, JsonValueKind first, JsonValueKind second, out JsonElement? value)
+    {
+        value = null;
+        if (!item.TryGetProperty(name, out var property) || property.ValueKind == JsonValueKind.Null) return true;
+        if (property.ValueKind != first && property.ValueKind != second) return false;
+        value = property;
+        return true;
+    }
 
     public static bool IsSafeMessageId(string? value)
         => !string.IsNullOrEmpty(value)

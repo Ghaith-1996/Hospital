@@ -19,6 +19,9 @@ public sealed class ProviderDeliveryReportService(CriticalAlertsDbContext db, Ti
     public const string AcsSmsHandler = "acs-sms-delivery-report";
     public const string SmsDeliveryFailed = "sms-delivery-failed";
 
+    /// <summary>Technical bound for redelivering a report that may race the send commit; not a clinical threshold.</summary>
+    public static readonly TimeSpan UnmatchedDeferralWindow = TimeSpan.FromMinutes(10);
+
     public async Task<ProviderDeliveryReportOutcome> ApplyAsync(
         string provider,
         ProviderDeliveryReport report,
@@ -33,10 +36,17 @@ public sealed class ProviderDeliveryReportService(CriticalAlertsDbContext db, Ti
             .Select(item => new { item.Id, item.OrganizationId, item.AlertId })
             .Take(2)
             .ToArrayAsync(cancellationToken);
-        if (candidates.Length != 1) return ProviderDeliveryReportOutcome.Unmatched;
-        var candidate = candidates[0];
-
         var now = time.GetUtcNow();
+        if (candidates.Length != 1)
+        {
+            // ACS can publish a report before the worker transaction that stores the message ID commits.
+            // Store nothing and let the sender redeliver while that race is plausible; later, drop it as foreign.
+            return candidates.Length == 0 && report.OccurredAtUtc > now - UnmatchedDeferralWindow
+                ? ProviderDeliveryReportOutcome.Deferred
+                : ProviderDeliveryReportOutcome.Unmatched;
+        }
+
+        var candidate = candidates[0];
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await AlertMutationLock.AcquireAsync(db, candidate.OrganizationId, candidate.AlertId, cancellationToken);
         var attempt = await db.DeliveryAttempts

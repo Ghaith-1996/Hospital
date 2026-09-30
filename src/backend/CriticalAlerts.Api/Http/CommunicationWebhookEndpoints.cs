@@ -60,8 +60,21 @@ internal static class CommunicationWebhookEndpoints
             return Results.Ok(new { validationResponse = batch.ValidationCode });
 
         var correlationId = context.Response.Headers["X-Correlation-ID"].ToString();
+        var deferred = 0;
         foreach (var report in batch.Reports)
-            await reports.ApplyAsync(AzureCommunicationServicesSmsChannel.Provider, report, correlationId, cancellationToken);
+        {
+            if (await reports.ApplyAsync(AzureCommunicationServicesSmsChannel.Provider, report, correlationId, cancellationToken)
+                == ProviderDeliveryReportOutcome.Deferred)
+                deferred++;
+        }
+
+        // Not acknowledging makes Event Grid redeliver the batch; reports already applied deduplicate.
+        if (deferred > 0)
+        {
+            context.Response.Headers.RetryAfter = "30";
+            return Problem(StatusCodes.Status503ServiceUnavailable, "delivery-report-deferred");
+        }
+
         return Results.Ok(new { accepted = batch.Reports.Count });
     }
 

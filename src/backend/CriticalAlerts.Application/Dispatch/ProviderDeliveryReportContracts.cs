@@ -24,6 +24,9 @@ public enum ProviderDeliveryReportOutcome
     Duplicate,
     Unmatched,
     TagMismatch,
+
+    /// <summary>Unmatched but recent: the sending transaction may not have committed yet, so the sender must redeliver.</summary>
+    Deferred,
 }
 
 public interface IProviderDeliveryReportService

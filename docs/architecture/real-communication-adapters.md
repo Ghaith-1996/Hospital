@@ -44,6 +44,8 @@ exact human confirmation ──> identifier-only outbox row
 | Repeatability `rejected` | `Failed` `provider-repeatability-rejected` | Not retried |
 | Endpoint label without a test mapping | `Failed` `test-recipient-not-configured` | No network call |
 
+An unmatched report less than 10 minutes old gets `503` with `Retry-After`, and nothing is stored. It may have raced the worker transaction that stores the message ID, so Event Grid redelivers it. An unmatched report older than that is accepted and dropped. A `202` body of the wrong JSON shape is treated as an ambiguous outcome and retried with the same key.
+
 Terminal states never regress. A late `Failed` report after `Delivered` is recorded as `no-state-change`. A late `Delivered` after `delivery-unconfirmed` does not reopen the failure. SMS attempts keep `OpenedState = NotApplicable`.
 
 ## Configuration

@@ -78,7 +78,9 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
             duplicate.StatusCode.Should().Be(HttpStatusCode.OK);
         using (var late = await fixture.PostReportsAsync(fixture.ValidToken(), Report("evt-late-failed", attempt.ProviderReference, "Failed", tag)))
             late.StatusCode.Should().Be(HttpStatusCode.OK);
-        using (var unknown = await fixture.PostReportsAsync(fixture.ValidToken(), Report("evt-unknown", "acs-not-ours-0001", "Delivered", tag)))
+        var unknownReport = Report("evt-unknown", "acs-not-ours-0001", "Delivered", tag);
+        ((Dictionary<string, object>)unknownReport[0])["eventTime"] = DateTime.UtcNow.AddMinutes(-15).ToString("O");
+        using (var unknown = await fixture.PostReportsAsync(fixture.ValidToken(), unknownReport))
             unknown.StatusCode.Should().Be(HttpStatusCode.OK);
 
         fixture.Clock.Advance(TimeSpan.FromSeconds(6));
@@ -116,6 +118,47 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
             liveResponsibilityAccepted = false,
             providerRequests = fixture.Transport.Requests.Count,
             signaturesValid = fixture.Transport.Requests.All(row => row.SignatureValid),
+        });
+    }
+
+    [Fact]
+    public async Task ReportRacingTheWorkerCommitIsDeferredForRedeliveryInsteadOfAcknowledged()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await using (var peek = fixture.CreateContext())
+        {
+            // The fake issues acs-e2e-0001 for the first send; the tag is derived from the durable attempt key.
+            (await peek.DeliveryAttempts.AnyAsync(row => row.AlertId == new AlertId(alertId))).Should().BeFalse();
+        }
+
+        var expectedKey = await fixture.ExpectedFirstAttemptKeyAsync(alertId);
+        var early = Report("evt-race", "acs-e2e-0001", "Delivered", AzureCommunicationServicesSmsChannel.CreateTag(expectedKey));
+        using var deferred = await fixture.PostReportsAsync(fixture.ValidToken(), early);
+        deferred.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        deferred.Headers.RetryAfter.Should().NotBeNull();
+        await using (var afterDeferral = fixture.CreateContext())
+        {
+            (await afterDeferral.InboxMessages.CountAsync()).Should().Be(0, "a deferred report must not be consumed");
+            (await afterDeferral.DeliveryEvents.CountAsync(row => row.ProviderEventId == "acs-eg:evt-race")).Should().Be(0);
+        }
+
+        await fixture.ProcessAsync();
+        using var redelivered = await fixture.PostReportsAsync(fixture.ValidToken(), early);
+        redelivered.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await fixture.SingleAttemptAsync(alertId)).Status.Should().Be(DeliveryAttemptStatus.Delivered);
+
+        var old = Report("evt-old-unknown", "acs-not-ours-0002", "Delivered", "ca-" + new string('2', 32));
+        ((Dictionary<string, object>)old[0])["eventTime"] = DateTime.UtcNow.AddMinutes(-11).ToString("O");
+        using var dropped = await fixture.PostReportsAsync(fixture.ValidToken(), old);
+        dropped.StatusCode.Should().Be(HttpStatusCode.OK, "unmatched reports outside the deferral window belong elsewhere");
+        fixture.Record("report-races-worker-commit", new
+        {
+            earlyReport = (int)deferred.StatusCode,
+            redelivery = (int)redelivered.StatusCode,
+            finalStatus = "Delivered",
+            oldUnmatched = (int)dropped.StatusCode,
         });
     }
 
@@ -561,6 +604,15 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
             }),
             NullLogger<OutboxDispatchProcessor>.Instance);
         return await processor.ProcessNextAsync("phase12-e2e-worker", CancellationToken.None);
+    }
+
+    /// <summary>The worker's stable first-attempt key (alert, confirmed version, recipient, channel, attempt 1).</summary>
+    public async Task<string> ExpectedFirstAttemptKeyAsync(Guid alertId)
+    {
+        await using var db = CreateContext();
+        var alert = await db.Alerts.Include(row => row.RecipientSelections).AsNoTracking().SingleAsync(row => row.Id == new AlertId(alertId));
+        var recipient = alert.CurrentRecipients.Single();
+        return $"alert-dispatch:{alertId:N}:v{alert.DraftVersion.Value}:r{recipient.Id.Value:N}:c{(int)recipient.Channel}:a1";
     }
 
     public async Task<Domain.Delivery.DeliveryAttempt> SingleAttemptAsync(Guid alertId)
