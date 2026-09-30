@@ -94,7 +94,7 @@ public sealed class AzureCommunicationServicesSmsChannelTests
     [Theory]
     [InlineData("Your patient in room 204 needs you")]
     [InlineData("SIMULATION: \u0007 bell")]
-    [InlineData("SIMULATION: Ã© accented")]
+    [InlineData("SIMULATION: é accented")]
     public async Task WakeUpTextMustBeGenericSimulationAsciiWithinOneSegment(string text)
     {
         var transport = new FakeAcsTransport();
