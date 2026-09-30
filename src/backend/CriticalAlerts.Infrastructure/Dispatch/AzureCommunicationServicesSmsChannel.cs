@@ -240,7 +240,7 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
 
     private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left < right ? left : right;
 
-    internal static bool IsSafeMessageId(string? value)
+    public static bool IsSafeMessageId(string? value)
         => !string.IsNullOrEmpty(value)
             && value.Length <= 100
             && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');

@@ -583,8 +583,12 @@ public sealed class OutboxDispatchProcessor(
         CancellationToken cancellationToken)
     {
         var next = retryAtUtc < now ? now : retryAtUtc;
+        // Waiting for a provider delivery report re-polls every retry delay; audit only the start of a wait,
+        // so a pending report does not create one retry record (and retry metric) per poll.
+        var continuingWait = category == "delivery-pending"
+            && string.Equals(message.LastErrorCategory, category, StringComparison.Ordinal);
         message.ScheduleRetry(leaseOwner, now, next, category);
-        AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.retry-scheduled", "succeeded", $"dispatch:{message.Id.Value:N}", now, new
+        if (!continuingWait) AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.retry-scheduled", "succeeded", $"dispatch:{message.Id.Value:N}", now, new
         {
             nextAttemptAtUtc = next,
             reason = category,

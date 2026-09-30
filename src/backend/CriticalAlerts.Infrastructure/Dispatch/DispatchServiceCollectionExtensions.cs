@@ -15,6 +15,7 @@ public static class DispatchServiceCollectionExtensions
         services.AddSingleton<INotificationStatusNormalizer, SimulationDeliveryEventNormalizer>();
         services.AddScoped<IOutboxDispatchProcessor, OutboxDispatchProcessor>();
         services.AddScoped<IDeliveryStatusQueryService, DeliveryStatusQueryService>();
+        services.AddScoped<IProviderDeliveryReportService, ProviderDeliveryReportService>();
         return services;
     }
 

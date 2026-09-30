@@ -102,7 +102,9 @@ Each report is processed in its own transaction:
 5. Apply the terminal status through the existing no-regression domain methods.
 6. Append a delivery event with fixed sanitized metadata, a `dispatch.delivery-event` audit record (actor `provider-webhook`) and an inbox record.
 
-Unknown message IDs return success with no stored data, because a report could belong to another deployment. Tag mismatches are recorded as rejected in the inbox, with no state change.
+Unknown message IDs return success with no stored data, because a report could belong to another deployment. A missing or mismatched tag is recorded as rejected in the inbox, with no state change.
+
+While an attempt is `Submitted`, the worker re-polls every retry delay without calling ACS. Only the start of that wait is audited as `dispatch.retry-scheduled`, so a pending report does not produce one audit row or retry metric per poll.
 
 ## Failure modes (written before the code)
 
