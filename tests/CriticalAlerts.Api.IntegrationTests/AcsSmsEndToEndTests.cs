@@ -231,30 +231,53 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
     }
 
     [Fact]
-    public async Task SubscriptionValidationEchoesTheCodeOnlyWhenAuthenticated()
+    public async Task SubscriptionValidationEchoesTheCodeOnlyForTheConfiguredTopicWhenAuthenticated()
     {
-        var validation = new[]
+        static object[] Validation(string topic, DateTime eventTime, bool withId = true)
         {
-            new
+            var item = new Dictionary<string, object>
             {
-                id = "evt-validation",
-                topic = "/subscriptions/x/resourceGroups/y/providers/Microsoft.EventGrid/systemTopics/z",
-                subject = string.Empty,
-                eventType = "Microsoft.EventGrid.SubscriptionValidationEvent",
-                eventTime = DateTime.UtcNow.ToString("O"),
-                dataVersion = "2",
-                data = new { validationCode = "SIM-VALIDATION-CODE-0001" },
-            },
-        };
+                ["topic"] = topic,
+                ["subject"] = string.Empty,
+                ["eventType"] = "Microsoft.EventGrid.SubscriptionValidationEvent",
+                ["eventTime"] = eventTime.ToString("O"),
+                ["dataVersion"] = "2",
+                ["data"] = new { validationCode = "SIM-VALIDATION-CODE-0001" },
+            };
+            if (withId) item["id"] = "evt-validation";
+            return [item];
+        }
 
-        using var anonymous = await fixture.PostReportsAsync(null, validation);
-        using var authenticated = await fixture.PostReportsAsync(fixture.ValidToken(), validation);
+        var intended = Validation(AcsSmsEndToEndFixture.ValidationTopic, DateTime.UtcNow);
+        using var anonymous = await fixture.PostReportsAsync(null, intended);
+        using var authenticated = await fixture.PostReportsAsync(fixture.ValidToken(), intended);
         var echoed = await authenticated.Content.ReadFromJsonAsync<JsonElement>();
+        using var otherTopic = await fixture.PostReportsAsync(fixture.ValidToken(),
+            Validation("/subscriptions/x/resourceGroups/y/providers/Microsoft.EventGrid/systemTopics/unintended", DateTime.UtcNow));
+        using var acsTopic = await fixture.PostReportsAsync(fixture.ValidToken(), Validation(AcsSmsEndToEndFixture.Topic, DateTime.UtcNow));
+        using var stale = await fixture.PostReportsAsync(fixture.ValidToken(),
+            Validation(AcsSmsEndToEndFixture.ValidationTopic, DateTime.UtcNow.AddDays(-3)));
+        using var missingId = await fixture.PostReportsAsync(fixture.ValidToken(),
+            Validation(AcsSmsEndToEndFixture.ValidationTopic, DateTime.UtcNow, withId: false));
 
         anonymous.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         authenticated.StatusCode.Should().Be(HttpStatusCode.OK);
         echoed.GetProperty("validationResponse").GetString().Should().Be("SIM-VALIDATION-CODE-0001");
-        fixture.Record("subscription-validation", new { anonymous = (int)anonymous.StatusCode, authenticated = (int)authenticated.StatusCode });
+        foreach (var rejected in new[] { otherTopic, acsTopic, stale, missingId })
+        {
+            rejected.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            (await rejected.Content.ReadAsStringAsync()).Should().NotContain("SIM-VALIDATION-CODE-0001");
+        }
+
+        fixture.Record("subscription-validation", new
+        {
+            anonymous = (int)anonymous.StatusCode,
+            authenticated = (int)authenticated.StatusCode,
+            unintendedTopic = (int)otherTopic.StatusCode,
+            acsResourceTopic = (int)acsTopic.StatusCode,
+            stale = (int)stale.StatusCode,
+            missingId = (int)missingId.StatusCode,
+        });
     }
 
     [Fact]
@@ -343,6 +366,7 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
             builder.UseSetting("Communications:Webhooks:EventGrid:TenantId", AcsSmsEndToEndFixture.TenantId);
             builder.UseSetting("Communications:Webhooks:EventGrid:Audience", AcsSmsEndToEndFixture.Audience);
             builder.UseSetting("Communications:Webhooks:EventGrid:ExpectedTopic", AcsSmsEndToEndFixture.Topic);
+            builder.UseSetting("Communications:Webhooks:EventGrid:ValidationTopic", AcsSmsEndToEndFixture.ValidationTopic);
         });
         FluentActions.Invoking(() => production.CreateClient()).Should().Throw<InvalidOperationException>();
 
@@ -392,6 +416,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
     public const string TenantId = "0f0f0f0f-1111-4222-8333-444444444444";
     public const string Audience = "api://sim-critical-alerts-webhook";
     public const string Topic = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sim-rg/providers/Microsoft.Communication/CommunicationServices/sim-critical-alerts";
+    public const string ValidationTopic = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sim-rg/providers/Microsoft.EventGrid/systemTopics/sim-critical-alerts-sms";
     public const string TestNumber = "+15555550142";
     public const string WebhookPath = "/api/v1/webhooks/communications/acs-sms";
     public static readonly string AccessKey = Convert.ToBase64String(Enumerable.Range(40, 32).Select(value => (byte)value).ToArray());
@@ -438,6 +463,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
             builder.UseSetting("Communications:Webhooks:EventGrid:TenantId", TenantId);
             builder.UseSetting("Communications:Webhooks:EventGrid:Audience", Audience);
             builder.UseSetting("Communications:Webhooks:EventGrid:ExpectedTopic", Topic);
+            builder.UseSetting("Communications:Webhooks:EventGrid:ValidationTopic", ValidationTopic);
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();

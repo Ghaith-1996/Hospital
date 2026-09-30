@@ -91,7 +91,7 @@ Each event must have:
 - `dataVersion` `1.0`;
 - an `eventTime` no older than 48 hours and no more than 5 minutes in the future.
 
-The data must have a safe `messageId` and a `deliveryStatus` of `Delivered` or `Failed`. The `from`, `to`, `subject` and `deliveryStatusDetails` values are never read into the model, persisted, logged or audited. A `Microsoft.EventGrid.SubscriptionValidationEvent` is answered with its validation code only after authentication. Any other event type rejects the batch.
+The data must have a safe `messageId` and a `deliveryStatus` of `Delivered` or `Failed`. The `from`, `to`, `subject` and `deliveryStatusDetails` values are never read into the model, persisted, logged or audited. A `Microsoft.EventGrid.SubscriptionValidationEvent` is answered with its validation code only after authentication, and only when its `topic` equals the separately configured `ValidationTopic` (the Event Grid topic the subscription is created on) and its `eventTime` is inside the same window, so an authenticated caller cannot validate an unintended subscription. Any other event type rejects the batch.
 
 Each report is processed in its own transaction:
 
@@ -140,6 +140,7 @@ Every row has a planned test. "Isolated" means a fake-transport contract test. "
 | F26 | Tag mismatch | Rejected in inbox, no state change | E2E |
 | F27 | Phone numbers, access key, token, message body in DB/logs/audit/problems | Absent (sentinel scan) | E2E |
 | F28 | Delivery report arrives before the worker transaction commits the message ID (race), or within the deferral window for any unmatched ID | Report is not acknowledged: `503` with `Retry-After`, nothing stored, so Event Grid redelivers; applied once the attempt is visible. Unmatched reports older than 10 minutes are accepted and dropped | E2E |
+| F30 | Authenticated subscription-validation event for an unintended topic, or with a missing/stale envelope | `400`, validation code not echoed; only the configured `ValidationTopic` with a valid id, `eventTime` window and `data` object is answered | E2E |
 | F29 | 202 body is syntactically valid JSON of the wrong shape (scalar/array root, `value` not an array, null item, non-numeric `httpStatusCode`, non-boolean `successful`, non-string `messageId`) | Uncertain outcome (attempt stays `Requested`, same key), never a generic worker error | isolated |
 
 ## Evidence artifact

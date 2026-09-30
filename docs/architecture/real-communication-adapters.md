@@ -61,7 +61,7 @@ Communications:Sms:AzureCommunicationServices:TestRecipients:<SIM-SMS-label> = <
 Communications:Sms:AzureCommunicationServices:DeliveryReportWindowSeconds = 300   (DEMO)
 Communications:Sms:AzureCommunicationServices:UncertainOutcomeWindowSeconds = 120 (DEMO)
 Communications:Webhooks:EventGrid:Enabled = false
-Communications:Webhooks:EventGrid:TenantId / Audience / ExpectedTopic
+Communications:Webhooks:EventGrid:TenantId / Audience / ExpectedTopic (ACS resource) / ValidationTopic (Event Grid topic of the subscription)
 ```
 
 The worker validates the SMS settings at startup, even when dispatch is disabled. The API validates the webhook settings at startup. Production refuses both.

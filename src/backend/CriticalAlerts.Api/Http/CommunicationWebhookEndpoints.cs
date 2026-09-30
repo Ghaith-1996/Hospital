@@ -95,30 +95,25 @@ internal static class CommunicationWebhookEndpoints
             if (!item.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
                 throw new WebhookRejectedException("event-data-invalid");
 
-            switch (RequiredString(item, "eventType"))
+            var eventType = RequiredString(item, "eventType");
+            if (eventType is not (ValidationEvent or DeliveryReportEvent)) throw new WebhookRejectedException("event-type-unsupported");
+            var eventTime = RequiredEventTime(item, now);
+            var topic = RequiredString(item, "topic");
+
+            if (eventType == ValidationEvent)
             {
-                case ValidationEvent:
-                    // The handshake only echoes an opaque code after Entra authentication; it changes no state.
-                    if (root.GetArrayLength() != 1) throw new WebhookRejectedException("batch-invalid");
-                    var code = RequiredString(data, "validationCode");
-                    if (!IsSafeToken(code, 128)) throw new WebhookRejectedException("validation-code-invalid");
-                    return new ParsedBatch(code, []);
-                case DeliveryReportEvent:
-                    break;
-                default:
-                    throw new WebhookRejectedException("event-type-unsupported");
+                // Only the intended subscription's handshake is answered, after authentication and envelope checks.
+                if (root.GetArrayLength() != 1) throw new WebhookRejectedException("batch-invalid");
+                if (!string.Equals(topic, settings.ValidationTopic, StringComparison.OrdinalIgnoreCase))
+                    throw new WebhookRejectedException("topic-unexpected");
+                var code = RequiredString(data, "validationCode");
+                if (!IsSafeToken(code, 128)) throw new WebhookRejectedException("validation-code-invalid");
+                return new ParsedBatch(code, []);
             }
 
-            if (!string.Equals(RequiredString(item, "topic"), settings.ExpectedTopic, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(topic, settings.ExpectedTopic, StringComparison.OrdinalIgnoreCase))
                 throw new WebhookRejectedException("topic-unexpected");
-
             if (RequiredString(item, "dataVersion") != "1.0") throw new WebhookRejectedException("data-version-unsupported");
-            if (!DateTimeOffset.TryParse(RequiredString(item, "eventTime"), CultureInfo.InvariantCulture,
-                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var eventTime))
-                throw new WebhookRejectedException("event-time-invalid");
-            eventTime = eventTime.ToUniversalTime();
-            if (eventTime < now.AddHours(-48) || eventTime > now.AddMinutes(5))
-                throw new WebhookRejectedException("event-time-outside-window");
 
             var messageId = RequiredString(data, "messageId");
             if (!AzureCommunicationServicesSmsChannel.IsSafeMessageId(messageId)) throw new WebhookRejectedException("message-id-invalid");
@@ -141,6 +136,17 @@ internal static class CommunicationWebhookEndpoints
         }
 
         return new ParsedBatch(null, reports);
+    }
+
+    private static DateTimeOffset RequiredEventTime(JsonElement item, DateTimeOffset now)
+    {
+        if (!DateTimeOffset.TryParse(RequiredString(item, "eventTime"), CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var eventTime))
+            throw new WebhookRejectedException("event-time-invalid");
+        eventTime = eventTime.ToUniversalTime();
+        if (eventTime < now.AddHours(-48) || eventTime > now.AddMinutes(5))
+            throw new WebhookRejectedException("event-time-outside-window");
+        return eventTime;
     }
 
     private static string RequiredString(JsonElement element, string name)
