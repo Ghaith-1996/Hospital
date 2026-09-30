@@ -15,7 +15,9 @@ public sealed record NotificationDispatchRequest(
     string WakeUpText,
     string IdempotencyKey,
     string CorrelationId,
-    DeliveryAttemptStatus CurrentAttemptStatus = DeliveryAttemptStatus.Requested);
+    DeliveryAttemptStatus CurrentAttemptStatus = DeliveryAttemptStatus.Requested,
+    DateTimeOffset? AttemptRequestedAtUtc = null,
+    DateTimeOffset? SubmittedAtUtc = null);
 
 public sealed record NotificationProviderEvent(
     string ProviderEventId,

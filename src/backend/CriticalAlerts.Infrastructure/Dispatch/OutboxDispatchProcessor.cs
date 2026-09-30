@@ -450,9 +450,13 @@ public sealed class OutboxDispatchProcessor(
             WakeUpText(policy, recipient.Channel),
             attempt.IdempotencyKey,
             correlationId,
-            attempt.Status);
+            attempt.Status,
+            attempt.RequestedAtUtc,
+            attempt.SubmittedAtUtc);
         var dispatch = await channel.DispatchAsync(request, scenario, cancellationToken);
-        attempt.SetProviderReference(dispatch.ProviderReference);
+        // A real provider may not have issued a reference yet (definite rejection or ambiguous outcome).
+        if (!string.IsNullOrWhiteSpace(dispatch.ProviderReference))
+            attempt.SetProviderReference(dispatch.ProviderReference);
         var events = dispatch.Events ?? [];
         var providerEventIds = events
             .Where(item => !string.IsNullOrWhiteSpace(item.ProviderEventId))
@@ -493,7 +497,9 @@ public sealed class OutboxDispatchProcessor(
             });
         }
 
-        if (events.Count == 0 && attempt.Status == DeliveryAttemptStatus.Requested)
+        // A retryable result without events is an ambiguous provider outcome: the attempt stays Requested so
+        // the next pass reuses the same idempotency key. The adapter bounds that window and then fails visibly.
+        if (events.Count == 0 && attempt.Status == DeliveryAttemptStatus.Requested && !dispatch.Retryable)
         {
             attempt.MarkFailed("provider-no-result", now);
         }
@@ -748,10 +754,11 @@ public sealed class OutboxDispatchProcessor(
         string? fallbackFailureCategory,
         string providerReference)
     {
-        attempt.SetProviderReference(providerReference);
+        if (!string.IsNullOrWhiteSpace(providerReference))
+            attempt.SetProviderReference(providerReference);
         switch (normalized.Status)
         {
-            case DeliveryAttemptStatus.Submitted:
+            case DeliveryAttemptStatus.Submitted when !string.IsNullOrWhiteSpace(providerReference):
                 attempt.MarkSubmitted(providerReference, normalized.OccurredAtUtc);
                 break;
             case DeliveryAttemptStatus.Delivered:
