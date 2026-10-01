@@ -104,28 +104,11 @@ export function ChevronIcon({ className }: IconProps) {
   );
 }
 
-export function UserIcon({ className }: IconProps) {
-  return (
-    <Icon className={className}>
-      <path d="M20 21a8 8 0 0 0-16 0" />
-      <path d="M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
-    </Icon>
-  );
-}
-
 export function ClockIcon({ className }: IconProps) {
   return (
     <Icon className={className}>
       <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" />
       <path d="M12 6v6l4 2" />
-    </Icon>
-  );
-}
-
-export function CheckIcon({ className }: IconProps) {
-  return (
-    <Icon className={className}>
-      <path d="m5 12 4.5 4.5L19 7" />
     </Icon>
   );
 }
@@ -136,16 +119,6 @@ export function AlertIcon({ className }: IconProps) {
       <path d="M12 9v4" />
       <path d="M12 17h.01" />
       <path d="M10.3 4.3 2.8 17.2A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.8L13.7 4.3a2 2 0 0 0-3.4 0Z" />
-    </Icon>
-  );
-}
-
-export function FilterIcon({ className }: IconProps) {
-  return (
-    <Icon className={className}>
-      <path d="M4 5h16" />
-      <path d="M7 12h10" />
-      <path d="M10 19h4" />
     </Icon>
   );
 }
@@ -174,16 +147,6 @@ export function MenuIcon({ className }: IconProps) {
       <path d="M4 7h16" />
       <path d="M4 12h16" />
       <path d="M4 17h16" />
-    </Icon>
-  );
-}
-
-export function MoreIcon({ className }: IconProps) {
-  return (
-    <Icon className={className}>
-      <path d="M12 12h.01" />
-      <path d="M19 12h.01" />
-      <path d="M5 12h.01" />
     </Icon>
   );
 }

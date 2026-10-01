@@ -27,6 +27,4 @@ public static class AlertStateMachine
 
         return Allowed.Contains((from, to));
     }
-
-    public static IReadOnlyCollection<(AlertState From, AlertState To)> AllowedTransitions => Allowed.ToArray();
 }

@@ -432,9 +432,6 @@ public sealed class Alert
     public void MarkFailed(DateTimeOffset occurredAtUtc, string correlationId)
         => TransitionTo(AlertState.Failed, actorUserId: null, "durable-failure", DemoEscalationPolicyVersion, occurredAtUtc, correlationId);
 
-    public void RetryFromFailure(UserId actorUserId, DateTimeOffset occurredAtUtc, string correlationId)
-        => TransitionTo(AlertState.Active, actorUserId, "human-approved-retry", DemoEscalationPolicyVersion, occurredAtUtc, correlationId);
-
     public void Resolve(UserId actorUserId, DateTimeOffset occurredAtUtc, string correlationId)
     {
         TransitionTo(AlertState.Resolved, actorUserId, "human-resolved", DemoEscalationPolicyVersion, occurredAtUtc, correlationId);
@@ -444,8 +441,6 @@ public sealed class Alert
 
     public void Cancel(UserId actorUserId, DateTimeOffset occurredAtUtc, string correlationId)
         => TransitionTo(AlertState.Cancelled, actorUserId, "human-cancelled", DemoEscalationPolicyVersion, occurredAtUtc, correlationId);
-
-    public void ClearPendingDispatchRequests() => pendingDispatchRequests.Clear();
 
     private IReadOnlyCollection<AlertFieldConfirmation> CurrentFieldConfirmations
         => fieldConfirmations.Where(confirmation => confirmation.AlertVersion == DraftVersion).ToArray();
