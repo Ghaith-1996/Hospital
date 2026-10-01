@@ -181,3 +181,25 @@ Version: codex-security-snapshot/v1:sha256:25c00f63c5b43fe3578885c04c824290231ae
 The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
 
 Phase 11 threats: unauthorized/cross-organization source access; forged result provenance; provider prompt/content injection; altered numeric meaning; unsupported evidence; stale Apply; duplicate retry; external credential/response disclosure; raw audio retention; browser persistence and accidental autonomous dispatch. Controls: draft-editor policy and exact scoped lookups/FKs; immutable purpose+organization protected results; closed output vocabulary and bounds; exact evidence equality and ambiguity exclusion; alert-row Apply lock/version check; durable operation identity with one provider call per claimed key; bounded no-redirect transport and fixed safe errors; no audio storage; transient recording cleanup; escaped text and same-origin microphone policy; providers have no recipient/urgency/dispatch capabilities. Unit, HTTP, real PostgreSQL concurrency, runtime sentinel and connected browser tests exercise these controls. The lexical numeric review aid is deliberately limited; all content still requires human review. Production provider privacy, residency, retention, clinical language/terminology and AI incident governance remain REQUIRES_HOSPITAL_DECISION.
+
+## Phase 12 authorized work (slice 1: ACS SMS)
+
+The owner authorized Phase 12 on 2026-09-29 from `main` at `9209b41`. Slice 1 adds the first real provider boundary: a test-number-only Azure Communication Services SMS adapter and an Entra-authenticated Event Grid delivery-report webhook. See [the design](../superpowers/specs/2026-09-29-phase-12-acs-sms-adapter-design.md) and [the architecture](../architecture/real-communication-adapters.md).
+
+New threats, each with its control:
+
+- **Texting a real person.** Only explicitly mapped approved test numbers can be reached. Directory contact values are never decrypted.
+- **PHI in SMS.** Only the policy's `SIMULATION:` generic template is sent. It must be printable ASCII of at most 160 characters.
+- **Access-key theft or logging.** The key comes from a secret store only. It is never echoed in errors or logged.
+- **Duplicate sends after ambiguous outcomes.** A deterministic repeatability ID and first-sent time are derived from the durable attempt.
+- **Forged or replayed reports.** The webhook requires an Entra JWT: signature, issuer, audience, lifetime and the `AzureEventGridSecureWebhookSubscriber` role. It also enforces the topic, a 48-hour/5-minute event window, event-ID inbox dedupe, a unique delivery event and a per-attempt tag bound to the message ID.
+- **Development cookies reaching the webhook.** The policy authenticates only the JWT scheme.
+- **Out-of-order regression.** Terminal states are enforced by the domain.
+- **Resource exhaustion.** Bodies are limited to 64 KiB and 50 events, the rate limit is address-partitioned, and all validation happens before any write.
+- **Provider text or phone numbers reaching logs, audit or problem responses.** Those values are never read into the model. A sentinel E2E scan checks for them.
+
+Residual risks, all REQUIRES_HOSPITAL_DECISION:
+
+- The worker calls the provider while holding the alert lock, with a 10-second timeout.
+- The Event Grid, Entra and ACS resources are not provisioned or reviewed.
+- Opt-out/STOP handling, sender registration and live-provider behavior are unverified.

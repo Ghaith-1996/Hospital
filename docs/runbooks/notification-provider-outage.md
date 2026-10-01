@@ -35,3 +35,18 @@ Processing state is known and stable, duplicate sends are absent, bounded recove
 
 ## Production decisions
 REQUIRES_HOSPITAL_DECISION: communications vendor, provider outage fallback route/telephone, support/on-call owner, hospital escalation contact, severity mapping, alert thresholds, incident authority and retention.
+
+## Phase 12: ACS SMS test adapter
+
+When `Communications:Sms:Provider=AzureCommunicationServices`, check the failure category on the live screen before anything else:
+
+- `provider-auth-failed`: the access key or endpoint is wrong. Rotate the key in the secret store. Never paste it into tickets.
+- `provider-unavailable`: ACS throttling or outage. The existing bounded retry applies.
+- `provider-outcome-uncertain`: ACS may or may not have accepted the message. **Do not resend manually.** A same-key retry already ran, and a manual resend risks a duplicate.
+- `delivery-unconfirmed`: no delivery report arrived in time. Verify the Event Grid subscription, its Entra authentication and the `ExpectedTopic`.
+- `sms-rejected`: the provider rejected the number or the request.
+- `test-recipient-not-configured`: the endpoint label has no approved test mapping.
+
+For any of these, follow the manual fallback. Its production route is REQUIRES_HOSPITAL_DECISION.
+
+Webhook `401`/`403` responses mean Event Grid is not presenting a valid tenant, audience or role. A `400 topic-unexpected` means the subscription is on another resource.

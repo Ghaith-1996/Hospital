@@ -105,3 +105,15 @@ Log access, centralized storage, cross-border transfer, retention, deletion, leg
 The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
 
 Phase 11 forbids audio bytes/digests, transcripts, source text, suggestions, evidence snippets, provider response/error text and keys in logs, audit metadata or metric labels. Committed audits allow only transcription/structuring requested/completed/failed/applied/stale actions with simulation/version metadata. Metrics reuse finite operation labels; no alert/user/patient IDs become metric tags. Runtime sentinel tests exercise successful Apply, failure and stale paths. Evaluation logs contain aggregate counts/rates only; fixtures are fictional and raw evaluation/media/browser artifacts are excluded from git and Docker. Logging may never be enabled to troubleshoot raw provider bodies.
+
+## Phase 12 authorized work (slice 1: ACS SMS)
+
+Never logged, audited, persisted or returned in problems:
+
+- sender or recipient numbers;
+- the ACS access key and Entra bearer tokens;
+- SMS text;
+- Event Grid `from`, `to`, `subject` and `deliveryStatusDetails`;
+- raw provider responses.
+
+Persisted opaque references: the ACS message ID (the attempt provider reference), the Event Grid event ID (inbox external ID, plus the `acs-eg:` delivery-event ID) and a derived per-attempt tag hash. None of these can identify a person. Audit rows for reports use actor `provider-webhook`, action `dispatch.delivery-event` and only `channel`/`attemptNumber` metadata. The E2E suite scans database rows, captured logs and the evidence artifact for sentinel numbers, keys, tokens and provider text.

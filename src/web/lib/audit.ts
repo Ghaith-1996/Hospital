@@ -24,7 +24,7 @@ const countKeys = ["version", "alertVersion", "draftVersion", "recipientCount", 
 const channels = ["SecureMessage", "Sms", "Voice"];
 const responseTypes = ["Acknowledged", "Accepted", "Declined", "Unavailable", "CallUnitRequested"];
 const filterNames = ["occurredFromUtc", "occurredToUtc", "action", "outcome", "resourceType", "correlationId"];
-const actors = ["user", "worker", "SimulationWorker", "system"];
+const actors = ["user", "worker", "SimulationWorker", "system", "provider-webhook"];
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function allowed(value: unknown, values: string[]): value is string { return typeof value === "string" && (value === "unknown" || values.includes(value)); }
 function opaque(value: unknown): value is string { return typeof value === "string" && uuid.test(value); }

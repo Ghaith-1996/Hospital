@@ -33,6 +33,10 @@ internal sealed class DeliveryAttemptConfiguration : IEntityTypeConfiguration<De
         builder.Property(entity => entity.FailedAtUtc).HasColumnName("failed_at_utc");
         builder.Property(entity => entity.FailureCategory).HasColumnName("failure_category").HasMaxLength(64).IsRequired();
         builder.HasIndex(entity => entity.IdempotencyKey).IsUnique();
+        // Phase 12: authenticated delivery reports locate their attempt by provider message ID.
+        builder.HasIndex(entity => new { entity.Provider, entity.ProviderReference })
+            .HasDatabaseName("IX_delivery_attempts_provider_reference")
+            .HasFilter("provider_reference <> ''");
         builder.HasOne<Alert>().WithMany().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(alert => new { alert.Id, alert.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<AlertRecipientSelection>().WithMany().HasForeignKey(entity => new { entity.RecipientSelectionId, entity.OrganizationId }).HasPrincipalKey(recipient => new { recipient.Id, recipient.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
     }
