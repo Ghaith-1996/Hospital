@@ -1,6 +1,6 @@
 # Observability architecture
 
-Phase 10 extends completed Phase 9 commit `44f18535ca202333ea526046f50531331cc3d721`. PostgreSQL remains authoritative for workflow and audit. Next.js reads scoped projections without browser persistence. Dispatch and escalation retain human-confirmed snapshots, bounded recovery and independent delivery/responsibility state. See the [design](../superpowers/specs/2026-09-19-phase-10-audit-observability-design.md), [implementation record](../superpowers/plans/2026-09-19-phase-10-audit-observability.md), and [verification package](../superpowers/phase10-verification.md).
+PostgreSQL remains authoritative for workflow and audit. Next.js reads scoped projections without browser persistence. Dispatch and escalation retain human-confirmed snapshots, bounded recovery and independent delivery/responsibility state. History: [development history](../archive/development-history.md#phase-10--audit-observability-and-runbooks).
 
 Only local ILogger, System.Diagnostics.Metrics, ASP.NET Core health checks and PostgreSQL audit storage are used. No external exporter, collector or production monitoring is configured.
 

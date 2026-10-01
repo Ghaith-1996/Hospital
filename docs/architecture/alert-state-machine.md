@@ -1,6 +1,6 @@
 # Alert State Machine
 
-Status: Phase 8 simulation response/lifecycle implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical responsibility, escalation, cancellation, fallback, or resolution policy.
+Status: Simulation response/lifecycle implementation over the Phase 0 state and transition contract. It does not define a hospital's clinical responsibility, escalation, cancellation, fallback, or resolution policy.
 
 ## Alert lifecycle states
 
@@ -62,7 +62,16 @@ Phase 6 confirmation is the only entry into `DispatchQueued`. Phase 7 may move a
 
 Phase 8 response commands are available only in Development/Test to an authenticated Practitioner or Physician with an explicit organization-scoped user-to-practitioner link. The linked practitioner may act only on a confirmed `Active` alert version that explicitly addresses that practitioner. Display name, development handle, request body, route data, and caller-supplied organization values cannot establish practitioner identity or scope.
 
-SecureMessage opening, acknowledgement, call-unit request, terminal disposition, responsibility assignment, and alert lifecycle are independent dimensions. Acknowledgement or a call-unit request does not create responsibility. `Accepted` creates one durable responsibility assignment tied to the exact practitioner, alert, version, and accepted response. `Declined` and `Unavailable` create no assignment and trigger no escalation. Responses do not automatically change the alert lifecycle. An authorized simulation operator may cancel an `Active` alert, or resolve it only when an unreleased responsibility assignment exists for the exact confirmed version; both actions require an idempotency key and exact-version check. Delivery failures remain visible and may show a non-routing manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`.
+SecureMessage opening, acknowledgement, call-unit request, terminal disposition, responsibility assignment, and alert lifecycle are independent dimensions. Acknowledgement or a call-unit request does not create responsibility. `Accepted` creates one durable responsibility assignment tied to the exact practitioner, alert, version, and accepted response. `Declined` and `Unavailable` create no assignment; in Phase 8 they triggered no escalation (Phase 9 DEMO escalation consumes a new one as an expedite signal, see Phase 9 escalation evaluation below). Responses do not automatically change the alert lifecycle. An authorized simulation operator may cancel an `Active` alert, or resolve it only when an unreleased responsibility assignment exists for the exact confirmed version; both actions require an idempotency key and exact-version check. Delivery failures remain visible and may show a non-routing manual-fallback placeholder marked `REQUIRES_HOSPITAL_DECISION`.
+
+### Phase 8 response semantics (simulation-only)
+
+- Responses are scoped by organization, alert, confirmed alert version and practitioner, not by channel, because one practitioner may be selected on several channels. SecureMessage open is recorded on that channel's delivery attempt; SMS and Voice stay `NotApplicable`.
+- Acknowledgement is one independent, idempotent event. Exactly one terminal disposition (`Accepted`, `Declined` or `Unavailable`) is allowed per practitioner and version; a conflicting disposition, or a reused idempotency key with a different request, returns a safe conflict. Changing, releasing or transferring a disposition is excluded and `REQUIRES_HOSPITAL_DECISION`.
+- `CallUnitRequested` is a separate, non-terminal, idempotent event. It carries only an allowlisted simulation reason code (no free text) and never pages or contacts a real unit.
+- The first `Accepted` response atomically creates exactly one responsibility assignment for the exact practitioner, alert, version and accepted response; it does not resolve the alert.
+- `Resolve` requires an `Active` alert with an unreleased responsibility assignment at the exact confirmed version; `Cancel` requires an `Active` alert. Both need an idempotency key and the exact version.
+- A failed delivery shows a manual-fallback placeholder that contains no route or contact value and is marked `REQUIRES_HOSPITAL_DECISION`.
 
 ## Dispatch confirmation invariant
 
@@ -106,6 +115,18 @@ These are not interchangeable:
 Escalation evaluates the approved policy version captured at confirmation using durable UTC/database time. It may create further work only according to that policy. AI output, a browser timer, provider callback text, or an unreviewed directory change cannot change or stop escalation.
 
 The trigger, delay, retry limit, stop condition, backup hierarchy, override, and manual fallback are `REQUIRES_HOSPITAL_DECISION`. Simulation timing must be labelled `DEMO` and driven by a deterministic fake clock.
+
+### Phase 9 escalation evaluation (simulation-only DEMO)
+
+Run processing locks the alert (the shared mutation lock above), then the run, then evaluates in this fixed order: Resolved/Cancelled; active exact-version responsibility assignment; paused; new decline/unavailable signal; deadline; wait. PostgreSQL `clock_timestamp()` supplies the time.
+
+- Acceptance wins if its responsibility assignment is durable when the locked run is processed. Resolve and Cancel also stop escalation. Delivery, opening and acknowledgement never stop it.
+- A decline or unavailable response expedites the next step and is consumed once, so one earlier response cannot exhaust every remaining step.
+- An empty step is visible and exhausts safely with no replacement lookup. Exhaustion without responsibility shows the manual-fallback placeholder; its real route is `REQUIRES_HOSPITAL_DECISION`.
+- Pause stores a nonnegative remaining delay measured on the database clock; Resume restores it, with immediate eligibility when it is already due. There is no permanent stop action.
+- Only alerts confirmed with an exact policy snapshot get a run. Legacy alerts without a snapshot stay escalation-disabled and are never backfilled.
+- Run events are append-only, identifier-only and written in the same transaction as the state change.
+- Delays and recipients in the seeded `DEMO-9` policy are simulation fixtures; all production values remain `REQUIRES_HOSPITAL_DECISION`. See [simulated dispatch](simulated-dispatch.md).
 
 ## Illegal transitions and required tests
 

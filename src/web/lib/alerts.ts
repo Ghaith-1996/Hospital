@@ -415,7 +415,7 @@ function decodeLiveWarning(value: unknown): OperationalWarning {
     recommendedApplicationAction: value.recommendedApplicationAction, requiresHospitalFallback: value.requiresHospitalFallback };
 }
 
-export function decodeAlertLive(value: unknown, expectedAlertId: string): AlertLive {
+function decodeAlertLive(value: unknown, expectedAlertId: string): AlertLive {
   if (!liveRecord(value) || !liveString(value.alertId) || !liveString(expectedAlertId)
       || value.alertId.toLowerCase() !== expectedAlertId.toLowerCase() || !liveNumber(value.confirmedVersion, 1)
       || !liveEnum(value.alertState, liveAlertStates) || !liveEnum(value.outboxState, liveOutboxStates)

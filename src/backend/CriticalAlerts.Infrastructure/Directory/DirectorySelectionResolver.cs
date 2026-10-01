@@ -1,11 +1,10 @@
-using System.Security.Cryptography;
-using System.Text;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Directory;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using static CriticalAlerts.Infrastructure.Persistence.PersistenceChecks;
 
 namespace CriticalAlerts.Infrastructure.Directory;
 
@@ -87,7 +86,7 @@ public sealed class DirectorySelectionResolver(CriticalAlertsDbContext db) : IDi
 
             var availableChannels = endpointKinds
                 .Where(endpoint => endpoint.PractitionerId == practitioner.Id)
-                .Select(endpoint => ToNotificationChannel(endpoint.Kind))
+                .Select(endpoint => ContactEndpointChannels.ToNotificationChannel(endpoint.Kind))
                 .Distinct()
                 .OrderBy(channel => channel)
                 .ToArray();
@@ -182,18 +181,4 @@ public sealed class DirectorySelectionResolver(CriticalAlertsDbContext db) : IDi
         => !string.IsNullOrWhiteSpace(value)
             && value.Length <= 128
             && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
-
-    private static bool FixedEquals(string left, string right)
-        => CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(left),
-            Encoding.UTF8.GetBytes(right));
-
-    private static NotificationChannel ToNotificationChannel(ContactEndpointKind kind)
-        => kind switch
-        {
-            ContactEndpointKind.SecureMessage => NotificationChannel.SecureMessage,
-            ContactEndpointKind.Sms => NotificationChannel.Sms,
-            ContactEndpointKind.Voice => NotificationChannel.Voice,
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported contact endpoint kind."),
-        };
 }

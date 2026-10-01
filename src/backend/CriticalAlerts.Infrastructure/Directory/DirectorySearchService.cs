@@ -141,7 +141,7 @@ public sealed class DirectorySearchService(CriticalAlertsDbContext db, TimeProvi
                 .FirstOrDefault();
             var availableChannels = endpointKinds
                 .Where(endpoint => endpoint.PractitionerId == practitioner.Id)
-                .Select(endpoint => ToNotificationChannel(endpoint.Kind))
+                .Select(endpoint => ContactEndpointChannels.ToNotificationChannel(endpoint.Kind))
                 .Distinct()
                 .OrderBy(channel => channel)
                 .ToArray();
@@ -198,13 +198,4 @@ public sealed class DirectorySearchService(CriticalAlertsDbContext db, TimeProvi
                 selectionRevision);
         }).ToArray();
     }
-
-    private static NotificationChannel ToNotificationChannel(ContactEndpointKind kind)
-        => kind switch
-        {
-            ContactEndpointKind.SecureMessage => NotificationChannel.SecureMessage,
-            ContactEndpointKind.Sms => NotificationChannel.Sms,
-            ContactEndpointKind.Voice => NotificationChannel.Voice,
-            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported contact endpoint kind."),
-        };
 }
