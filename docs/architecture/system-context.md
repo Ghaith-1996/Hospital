@@ -1,6 +1,6 @@
 # System Context
 
-Status: Phase 0 architecture baseline for a fictional simulation. No external hospital connection is authorized by this document.
+Status: Architecture baseline for a fictional simulation. No external hospital connection is authorized by this document.
 
 ## Purpose
 

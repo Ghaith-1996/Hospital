@@ -1,6 +1,6 @@
 # Conceptual Data Model
 
-Status: Conceptual model through Phase 9 simulation-only escalation. It is a design boundary for fictional simulation data, not a production schema approval.
+Status: Conceptual model including simulation-only escalation and assistance results. It is a design boundary for fictional simulation data, not a production schema approval.
 
 Phase 9 adds `confirmed_escalation_plans` (immutable organization/alert/version/policy identity and exact reviewed future-recipient JSON) and `escalation_events` (append-only enum, sequence, step, UTC and identifiers). `escalation_runs` adds nullable exact alert version for legacy compatibility, unique organization/alert/version, an approval foreign key, leases, next-check time, remaining pause delay, consumed negative-response count and stop reason. Historical approvals are never inferred. Activation uses the existing selection table with `EscalationPolicy` provenance and the confirmed version. Three additive Phase 9 migrations preserve historical migrations.
 
@@ -138,8 +138,8 @@ Formal classification, retention, deletion, legal hold, export, access review, e
 - Real PostgreSQL integration tests with Testcontainers.
 - No in-memory substitute for relational behavior.
 
-## Phase 11 authorized work
+## Speech and AI suggestion results
 
-The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
+All features default disabled; production decisions remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 11 adds `alert_assistance_results` (closed Transcription/Structuring kinds): organization, alert, source revision, exact alert version, actor, UTC timestamp, bounded provider/configuration versions and encrypted payload with distinct transcription/structuring purposes. Source provenance uses a composite FK on source ID/organization/alert/version. New source alternate key and bounded history index are additive. UPDATE/DELETE/TRUNCATE are denied by a statement trigger; EF rejects result mutation. Payload encryption uses `local-v2-context` with authenticated purpose+organization; existing Phase 10 purposes retain `local-v1`. Audio has no storage representation. Provider results, human source revisions, editable SBAR and approved message remain separate. Number/unit confirmations reuse the existing model; full transcript content is never copied to plaintext confirmation fields. Migration: `20260919193851_Phase11AssistanceResults`.

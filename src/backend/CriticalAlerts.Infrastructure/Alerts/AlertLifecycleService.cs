@@ -7,7 +7,7 @@ using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using static CriticalAlerts.Infrastructure.Persistence.PersistenceChecks;
 
 namespace CriticalAlerts.Infrastructure.Alerts;
 
@@ -341,12 +341,6 @@ public sealed class AlertLifecycleService(
         => value.Offset == TimeSpan.Zero
             ? value
             : throw new InvalidOperationException("The lifecycle clock must be UTC.");
-
-    private static bool FixedEquals(string left, string right)
-        => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left), Encoding.UTF8.GetBytes(right));
-
-    private static bool IsUniqueViolation(DbUpdateException exception)
-        => exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     private static AlertLifecycleValidationException Conflict(string code, string message) => new(code, message);
 }

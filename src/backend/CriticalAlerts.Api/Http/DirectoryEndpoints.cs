@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Domain;
+using static CriticalAlerts.Api.Http.EndpointHelpers;
 
 namespace CriticalAlerts.Api.Http;
 
@@ -117,21 +118,5 @@ internal static class DirectoryEndpoints
 
         var preview = await imports.PreviewAsync(organizationId, userId, correlationId, stream, adapter, cancellationToken);
         return Results.Ok(preview);
-    }
-
-    private static bool TryGetActor(ClaimsPrincipal principal, out UserId userId, out OrganizationId organizationId)
-    {
-        userId = default;
-        organizationId = default;
-        var userValue = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        var organizationValue = principal.FindFirstValue(AuthenticationClaimTypes.OrganizationId);
-        if (!Guid.TryParse(userValue, out var parsedUser) || !Guid.TryParse(organizationValue, out var parsedOrganization))
-        {
-            return false;
-        }
-
-        userId = new UserId(parsedUser);
-        organizationId = new OrganizationId(parsedOrganization);
-        return true;
     }
 }
