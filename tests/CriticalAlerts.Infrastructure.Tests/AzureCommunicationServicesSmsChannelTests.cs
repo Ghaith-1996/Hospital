@@ -264,6 +264,51 @@ public sealed class AzureCommunicationServicesSmsChannelTests
     }
 
     [Fact]
+    public async Task StalledResponseBodyIsBoundedAndBecomesAnUncertainOutcome()
+    {
+        var transport = new FakeAcsTransport();
+        transport.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.Accepted)
+        {
+            Content = new StreamContent(new StallingStream()) { Headers = { ContentType = new("application/json") } },
+        });
+        using var channel = new AzureCommunicationServicesSmsChannel(Options(), transport, new FixedTime(Now), TimeSpan.FromMilliseconds(200));
+
+        var dispatch = channel.DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+        var finished = await Task.WhenAny(dispatch, Task.Delay(TimeSpan.FromSeconds(10)));
+
+        finished.Should().BeSameAs(dispatch, "a stalled 202 body must not hold the worker transaction indefinitely");
+        var result = await dispatch;
+        result.Retryable.Should().BeTrue();
+        result.Events.Should().BeEmpty();
+        result.ProviderReference.Should().BeEmpty();
+        result.FailureCategory.Should().Be("provider-outcome-uncertain");
+    }
+
+    [Fact]
+    public async Task WorkerShutdownDuringAStalledBodyStillPropagates()
+    {
+        var transport = new FakeAcsTransport();
+        transport.Enqueue(_ => new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StreamContent(new StallingStream()) });
+        using var channel = new AzureCommunicationServicesSmsChannel(Options(), transport, new FixedTime(Now), TimeSpan.FromSeconds(30));
+        using var shutdown = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var dispatch = () => channel.DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, shutdown.Token);
+
+        await dispatch.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task RepeatabilityFirstSentUsesTheDurableFirstSentTimeWhenProvided()
+    {
+        var transport = new FakeAcsTransport();
+        var durable = Now.AddSeconds(-42);
+
+        await Channel(transport).DispatchAsync(Request() with { FirstSentAtUtc = durable }, SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        transport.Requests.Should().ContainSingle().Which.RepeatabilityFirstSent.Should().Be(durable.ToString("r"));
+    }
+
+    [Fact]
     public async Task UncertainWindowExpiryFailsVisiblyWithoutAnotherSend()
     {
         var transport = new FakeAcsTransport();
@@ -401,6 +446,30 @@ public sealed class AzureCommunicationServicesSmsChannelTests
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    /// <summary>A response body that never produces data until the read is cancelled.</summary>
+    private sealed class StallingStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 }
 

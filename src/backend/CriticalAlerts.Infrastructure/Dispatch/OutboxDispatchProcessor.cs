@@ -27,6 +27,9 @@ public sealed class OutboxDispatchProcessor(
     private readonly IReadOnlyDictionary<NotificationChannel, INotificationChannel> channelsByType =
         channels.ToDictionary(channel => channel.ChannelType);
 
+    /// <summary>Synthetic reference for attempts that only await a delivery report; never resolves to a recipient.</summary>
+    internal const string AwaitingReportEndpointReference = "SIM-AWAITING-REPORT";
+
     public async Task<DispatchProcessingResult> ProcessNextAsync(
         string leaseOwner,
         CancellationToken cancellationToken)
@@ -326,97 +329,52 @@ public sealed class OutboxDispatchProcessor(
             return RecipientProcessingResult.None;
         }
 
-        if (!practitioners.TryGetValue(recipient.PractitionerId, out var practitioner))
+        if (latest?.Status is DeliveryAttemptStatus.Requested or DeliveryAttemptStatus.Submitted
+            && (!channelsByType.TryGetValue(latest.Channel, out var sender)
+                || !string.Equals(sender.ProviderName, latest.Provider, StringComparison.Ordinal)))
         {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "practitioner-missing",
-                correlationId,
-                now,
-                cancellationToken);
+            // The provider that may have sent this attempt is no longer configured. A different provider never
+            // sent it and cannot confirm or resend it, so the outcome is visibly unconfirmed (manual fallback).
+            latest.MarkFailed("delivery-unconfirmed", now);
+            AddAudit(alert.OrganizationId, latest.Id.Value, "dispatch.failed", "failed", correlationId, now, new
+            {
+                channel = recipient.Channel.ToString(),
+                attempt = latest.AttemptNumber,
+                error = "delivery-unconfirmed",
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return RecipientProcessingResult.None;
         }
 
-        if (!practitioner.IsActive)
+        INotificationChannel channel;
+        string endpointReference;
+        if (latest?.Status == DeliveryAttemptStatus.Submitted)
         {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "practitioner-inactive",
-                correlationId,
-                now,
-                cancellationToken);
+            // Accepted by its provider: only the delivery-report window remains. Directory changes after acceptance
+            // (removed endpoint, inactive practitioner, invalid role) cannot fail, resend or strand it, and no
+            // recipient lookup is needed, so the provider receives a fixed non-routable reference.
+            channel = channelsByType[latest.Channel];
+            endpointReference = AwaitingReportEndpointReference;
         }
-
-        if (recipient.PractitionerRoleId is PractitionerRoleId selectedRole
-            && (!roles.TryGetValue(selectedRole, out var role)
-                || role.PractitionerId != practitioner.Id
-                || role.OrganizationId != alert.OrganizationId))
+        else
         {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "role-invalid",
-                correlationId,
-                now,
-                cancellationToken);
-        }
+            var route = ResolveRoute(alert, allowedChannels, recipient, practitioners, roles, endpoints);
+            if (route.FailureCategory is not null)
+            {
+                return await HandleRecipientFailureAsync(
+                    message,
+                    alert,
+                    recipient,
+                    latest,
+                    attempts,
+                    route.FailureCategory,
+                    correlationId,
+                    now,
+                    cancellationToken);
+            }
 
-        if (!allowedChannels.Contains(recipient.Channel))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "channel-not-allowed",
-                correlationId,
-                now,
-                cancellationToken);
-        }
-
-        if (!channelsByType.TryGetValue(recipient.Channel, out var channel))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "channel-unavailable",
-                correlationId,
-                now,
-                cancellationToken);
-        }
-
-        var endpointKind = ToEndpointKind(recipient.Channel);
-        var endpoint = endpoints
-            .Where(item => item.PractitionerId == practitioner.Id && item.Kind == endpointKind)
-            .OrderByDescending(item => item.IsPrimary)
-            .ThenBy(item => item.Id.Value)
-            .FirstOrDefault();
-        if (endpoint is null || !IsSafeSimulationReference(endpoint.SimulationLabel, "SIM-"))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "endpoint-unavailable",
-                correlationId,
-                now,
-                cancellationToken);
+            channel = route.Channel!;
+            endpointReference = route.EndpointReference!;
         }
 
         var attempt = latest;
@@ -445,14 +403,17 @@ public sealed class OutboxDispatchProcessor(
             alert.DraftVersion,
             recipient.Id,
             recipient.Channel,
-            endpoint.SimulationLabel,
+            endpointReference,
             $"alert:{alert.Id.Value:N}:v{alert.DraftVersion.Value}",
             WakeUpText(policy, recipient.Channel),
             attempt.IdempotencyKey,
             correlationId,
             attempt.Status,
             attempt.RequestedAtUtc,
-            attempt.SubmittedAtUtc);
+            attempt.SubmittedAtUtc,
+            // Committed before any provider call, so it survives a rollback of this attempt after the provider
+            // accepted the send; providers use it for replay-stable request identity.
+            message.CreatedAtUtc);
         var dispatch = await channel.DispatchAsync(request, scenario, cancellationToken);
         // A real provider may not have issued a reference yet (definite rejection or ambiguous outcome).
         if (!string.IsNullOrWhiteSpace(dispatch.ProviderReference))
@@ -514,6 +475,41 @@ public sealed class OutboxDispatchProcessor(
         return new RecipientProcessingResult(retryRequested, retryRequested ? retryAt : null);
     }
 
+    /// <summary>Directory and policy checks for a new or not-yet-accepted attempt, in their original order.</summary>
+    private RecipientRoute ResolveRoute(
+        Alert alert,
+        IReadOnlySet<NotificationChannel> allowedChannels,
+        AlertRecipientSelection recipient,
+        IReadOnlyDictionary<PractitionerId, Practitioner> practitioners,
+        IReadOnlyDictionary<PractitionerRoleId, PractitionerRoleAssignment> roles,
+        IReadOnlyCollection<ContactEndpoint> endpoints)
+    {
+        if (!practitioners.TryGetValue(recipient.PractitionerId, out var practitioner))
+            return RecipientRoute.Failure("practitioner-missing");
+        if (!practitioner.IsActive)
+            return RecipientRoute.Failure("practitioner-inactive");
+        if (recipient.PractitionerRoleId is PractitionerRoleId selectedRole
+            && (!roles.TryGetValue(selectedRole, out var role)
+                || role.PractitionerId != practitioner.Id
+                || role.OrganizationId != alert.OrganizationId))
+            return RecipientRoute.Failure("role-invalid");
+        if (!allowedChannels.Contains(recipient.Channel))
+            return RecipientRoute.Failure("channel-not-allowed");
+        if (!channelsByType.TryGetValue(recipient.Channel, out var channel))
+            return RecipientRoute.Failure("channel-unavailable");
+
+        var endpointKind = ToEndpointKind(recipient.Channel);
+        var endpoint = endpoints
+            .Where(item => item.PractitionerId == practitioner.Id && item.Kind == endpointKind)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenBy(item => item.Id.Value)
+            .FirstOrDefault();
+        if (endpoint is null || !IsSafeSimulationReference(endpoint.SimulationLabel, "SIM-"))
+            return RecipientRoute.Failure("endpoint-unavailable");
+
+        return new RecipientRoute(channel, endpoint.SimulationLabel, null);
+    }
+
     private async Task<RecipientProcessingResult> HandleRecipientFailureAsync(
         OutboxMessage message,
         Alert alert,
@@ -525,22 +521,18 @@ public sealed class OutboxDispatchProcessor(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (latest?.Status is DeliveryAttemptStatus.Submitted or DeliveryAttemptStatus.Requested)
+        // Submitted attempts never reach this method: they only await their report and skip routing checks.
+        if (latest?.Status == DeliveryAttemptStatus.Requested)
         {
-            if (latest.Status == DeliveryAttemptStatus.Requested)
+            latest.MarkFailed(category, now);
+            AddAudit(alert.OrganizationId, latest.Id.Value, "dispatch.failed", "failed", correlationId, now, new
             {
-                latest.MarkFailed(category, now);
-                AddAudit(alert.OrganizationId, latest.Id.Value, "dispatch.failed", "failed", correlationId, now, new
-                {
-                    channel = recipient.Channel.ToString(),
-                    attempt = latest.AttemptNumber,
-                    error = category,
-                });
-                await db.SaveChangesAsync(cancellationToken);
-                return RecipientProcessingResult.None;
-            }
-
-            return new RecipientProcessingResult(true, now.AddSeconds(1));
+                channel = recipient.Channel.ToString(),
+                attempt = latest.AttemptNumber,
+                error = category,
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return RecipientProcessingResult.None;
         }
 
         if (latest is not null)
@@ -906,6 +898,11 @@ public sealed class OutboxDispatchProcessor(
             : throw new DispatchValidationException("clock-not-utc", $"The {name} must be UTC.");
 
     private sealed record ParsedDispatchPayload(AlertId AlertId, int DraftVersion, Guid[]? RecipientSelectionIds);
+
+    private sealed record RecipientRoute(INotificationChannel? Channel, string? EndpointReference, string? FailureCategory)
+    {
+        public static RecipientRoute Failure(string category) => new(null, null, category);
+    }
 
     private sealed record RecipientProcessingResult(bool RetryRequested, DateTimeOffset? RetryAtUtc)
     {

@@ -46,6 +46,12 @@ exact human confirmation ──> identifier-only outbox row
 
 An unmatched report less than 10 minutes old gets `503` with `Retry-After`, and nothing is stored. It may have raced the worker transaction that stores the message ID, so Event Grid redelivers it. An unmatched report older than that is accepted and dropped. A `202` body of the wrong JSON shape is treated as an ambiguous outcome and retried with the same key.
 
+Once ACS has accepted a send (`Submitted`), the attempt only waits for its report.
+- **No re-checks:** it skips directory and policy checks, so a removed endpoint, inactive practitioner or invalid role after acceptance cannot fail it, resend it or leave it pending forever.
+- **Same provider only:** it is never evaluated by a different SMS provider. If the provider that sent a `Requested` or `Submitted` attempt is no longer configured, the attempt fails visibly as `delivery-unconfirmed`.
+- **Bounded request:** one 10-second timeout covers the response headers and the streamed body. If it expires, the outcome is ambiguous: the attempt stays `Requested` and is retried with the same key.
+- **Replay-stable request ID:** `repeatabilityFirstSent` is the outbox row's creation time, which is committed before any provider call. If the worker dies after ACS accepted a send, the recreated attempt replays the identical repeatable request and gets back the original message ID.
+
 Terminal states never regress. A late `Failed` report after `Delivered` is recorded as `no-state-change`. A late `Delivered` after `delivery-unconfirmed` does not reopen the failure. SMS attempts keep `OpenedState = NotApplicable`.
 
 ## Configuration

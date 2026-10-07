@@ -22,15 +22,23 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
     private const int MaxResponseBytes = 64 * 1024;
     private const string Uncertain = "provider-outcome-uncertain";
 
+    /// <summary>Whole-request bound (headers and body). The worker holds the alert lock while this runs.</summary>
+    public static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(10);
+
     private readonly AcsSmsOptions options;
     private readonly HttpClient client;
     private readonly TimeProvider time;
+    private readonly TimeSpan requestTimeout;
 
-    public AzureCommunicationServicesSmsChannel(AcsSmsOptions options, HttpMessageHandler handler, TimeProvider time)
+    public AzureCommunicationServicesSmsChannel(AcsSmsOptions options, HttpMessageHandler handler, TimeProvider time, TimeSpan? requestTimeout = null)
     {
         this.options = options;
         this.time = time;
-        client = new HttpClient(handler, disposeHandler: true) { Timeout = TimeSpan.FromSeconds(10) };
+        this.requestTimeout = requestTimeout ?? DefaultRequestTimeout;
+        if (this.requestTimeout <= TimeSpan.Zero || this.requestTimeout > TimeSpan.FromMinutes(1))
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        // The linked per-request token is authoritative; HttpClient.Timeout stops applying after the headers.
+        client = new HttpClient(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
     public NotificationChannel ChannelType => NotificationChannel.Sms;
@@ -92,18 +100,25 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
         if (!options.TestRecipients.TryGetValue(request.EndpointReference, out var testNumber))
             return Failed(tag, "test-recipient-not-configured", now, retryable: false);
 
+        // repeatabilityFirstSent must be identical for every replay of this attempt. The attempt row (and its
+        // RequestedAtUtc) can be rolled back if the worker dies after ACS accepted the send, so the worker supplies
+        // a time that was durable before any provider call (the outbox row's creation time).
+        var firstSent = request.FirstSentAtUtc ?? requestedAt;
         byte[]? body = null;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(requestTimeout);
         try
         {
             body = JsonSerializer.SerializeToUtf8Bytes(new SendRequest(
                 options.FromNumber,
                 [new SendRecipient(testNumber, CreateRepeatabilityRequestId(request.IdempotencyKey).ToString("D"),
-                    requestedAt.ToUniversalTime().ToString("r", CultureInfo.InvariantCulture))],
+                    firstSent.ToUniversalTime().ToString("r", CultureInfo.InvariantCulture))],
                 request.WakeUpText,
                 new SendOptions(true, tag)));
             using var message = Sign(body, now);
-            using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            return await MapAsync(response, tag, now, cancellationToken);
+            // One deadline bounds the headers and the streamed body; expiry is an ambiguous outcome.
+            using var response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
+            return await MapAsync(response, tag, now, deadline.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -276,7 +291,8 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             || !IsSafeReference(request.IdempotencyKey, "alert-dispatch:")
             || !IsSafeReference(request.CorrelationId, "dispatch:")
             || (request.AttemptRequestedAtUtc is { } requested && requested.Offset != TimeSpan.Zero)
-            || (request.SubmittedAtUtc is { } submitted && submitted.Offset != TimeSpan.Zero))
+            || (request.SubmittedAtUtc is { } submitted && submitted.Offset != TimeSpan.Zero)
+            || (request.FirstSentAtUtc is { } firstSent && firstSent.Offset != TimeSpan.Zero))
         {
             throw new DispatchValidationException("request-invalid", "The provider dispatch request is invalid.");
         }

@@ -163,6 +163,109 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
     }
 
     [Fact]
+    public async Task SubmittedAttemptStillClosesAfterTheDirectoryEntryIsDeactivated()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await fixture.ProcessAsync();
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        attempt.Status.Should().Be(DeliveryAttemptStatus.Submitted);
+        await fixture.DeactivateMayaDirectoryEntryAsync();
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var waiting = await fixture.ProcessAsync();
+        (await fixture.SingleAttemptAsync(alertId)).Status.Should().Be(DeliveryAttemptStatus.Submitted,
+            "a directory change after acceptance cannot fail or resend an accepted SMS");
+        using (var delivered = await fixture.PostReportsAsync(fixture.ValidToken(),
+                   Report("evt-after-directory-change", attempt.ProviderReference, "Delivered", AzureCommunicationServicesSmsChannel.CreateTag(attempt.IdempotencyKey))))
+            delivered.StatusCode.Should().Be(HttpStatusCode.OK);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var closed = await fixture.ProcessAsync();
+
+        waiting.Outcome.Should().Be("rescheduled");
+        closed.Outcome.Should().Be("processed");
+        (await fixture.SingleAttemptAsync(alertId)).Status.Should().Be(DeliveryAttemptStatus.Delivered);
+        fixture.Transport.Requests.Should().ContainSingle();
+        fixture.Record("directory-change-after-accept", new { waiting = waiting.Outcome, afterReport = closed.Outcome, finalStatus = "Delivered", providerRequests = 1 });
+    }
+
+    [Fact]
+    public async Task SubmittedAttemptWithoutAReportFailsVisiblyAfterTheDirectoryEntryIsDeactivated()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await fixture.ProcessAsync();
+        await fixture.DeactivateMayaDirectoryEntryAsync();
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(301));
+        var result = await fixture.ProcessAsync();
+
+        result.PermanentlyFailed.Should().BeTrue("the report window must still be evaluated instead of pending forever");
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        attempt.Status.Should().Be(DeliveryAttemptStatus.Failed);
+        attempt.FailureCategory.Should().Be("delivery-unconfirmed");
+        fixture.Record("directory-change-no-report", new { outcome = result.Outcome, failureCategory = attempt.FailureCategory });
+    }
+
+    [Fact]
+    public async Task SubmittedAttemptIsNeverEvaluatedByADifferentSmsProvider()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await fixture.ProcessAsync();
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var result = await fixture.ProcessAsync(acsConfigured: false);
+
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        attempt.Status.Should().Be(DeliveryAttemptStatus.Failed, "the simulated provider never sent this SMS and cannot confirm it");
+        attempt.FailureCategory.Should().Be("delivery-unconfirmed");
+        attempt.DeliveredAtUtc.Should().BeNull();
+        result.PermanentlyFailed.Should().BeTrue();
+        fixture.Record("provider-changed-while-waiting", new { attemptStatus = "Failed", failureCategory = attempt.FailureCategory, delivered = false });
+    }
+
+    [Fact]
+    public async Task CrashAfterAcceptanceReplaysTheSameRepeatableRequestAndKeepsTheOriginalMessageId()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        using var shutdown = new CancellationTokenSource();
+        fixture.Transport.CrashAfterNextAccept(shutdown);
+
+        var crashed = () => fixture.ProcessAsync(shutdown.Token);
+        await crashed.Should().ThrowAsync<OperationCanceledException>();
+        await using (var afterCrash = fixture.CreateContext())
+            (await afterCrash.DeliveryAttempts.CountAsync(row => row.AlertId == new AlertId(alertId))).Should().Be(0, "the dispatch transaction rolled back");
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(61));
+        var recovered = await fixture.ProcessAsync();
+
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        await using var db = fixture.CreateContext();
+        var outbox = await db.OutboxMessages.SingleAsync(row => row.AggregateId == alertId);
+        recovered.Outcome.Should().Be("rescheduled");
+        attempt.Status.Should().Be(DeliveryAttemptStatus.Submitted);
+        attempt.ProviderReference.Should().Be("acs-e2e-0001", "the replay must return the originally accepted message ID");
+        fixture.Transport.Requests.Should().HaveCount(2);
+        fixture.Transport.Requests.Select(row => row.RepeatabilityRequestId).Distinct().Should().ContainSingle();
+        fixture.Transport.Requests.Select(row => row.RepeatabilityFirstSent).Distinct().Should().ContainSingle()
+            .Which.Should().Be(outbox.CreatedAtUtc.ToString("r"));
+        fixture.Record("crash-after-accept-replay", new
+        {
+            providerRequests = 2,
+            distinctRepeatabilityIds = 1,
+            distinctFirstSent = 1,
+            originalMessageIdKept = true,
+            finalStatus = attempt.Status.ToString(),
+        });
+    }
+
+    [Fact]
     public async Task WebhookRejectsEveryUnauthenticatedOrMisauthorizedCaller()
     {
         await fixture.ResetAsync();
@@ -635,17 +738,20 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
         return draft.AlertId;
     }
 
-    public async Task<DispatchProcessingResult> ProcessAsync()
+    /// <summary>One worker pass. <paramref name="acsConfigured"/> false models a worker restarted with the simulated SMS provider.</summary>
+    public async Task<DispatchProcessingResult> ProcessAsync(CancellationToken cancellationToken = default, bool acsConfigured = true)
     {
         await using var db = CreateContext();
         // Not disposed: the shared fake transport outlives each worker pass, like a pooled handler.
-        var channel = new AzureCommunicationServicesSmsChannel(
-            AcsSmsOptions.FromConfiguration(new ConfigurationBuilder().AddInMemoryCollection(AcsSettings()).Build(), "Test")!,
-            Transport,
-            Clock);
+        INotificationChannel sms = acsConfigured
+            ? new AzureCommunicationServicesSmsChannel(
+                AcsSmsOptions.FromConfiguration(new ConfigurationBuilder().AddInMemoryCollection(AcsSettings()).Build(), "Test")!,
+                Transport,
+                Clock)
+            : new SimulationSmsChannel(Clock);
         var processor = new OutboxDispatchProcessor(
             db,
-            [new SimulationSecureMessageChannel(Clock), channel, new SimulationVoiceChannel(Clock)],
+            [new SimulationSecureMessageChannel(Clock), sms, new SimulationVoiceChannel(Clock)],
             new SimulationDeliveryEventNormalizer(),
             new SimulationDispatchScenarioStore(db),
             Clock,
@@ -656,7 +762,17 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
                 RetryDelay = TimeSpan.FromSeconds(5),
             }),
             NullLogger<OutboxDispatchProcessor>.Instance);
-        return await processor.ProcessNextAsync("phase12-e2e-worker", CancellationToken.None);
+        return await processor.ProcessNextAsync("phase12-e2e-worker", cancellationToken);
+    }
+
+    /// <summary>Directory sync outcome after acceptance: the endpoint is removed and the practitioner deactivated.</summary>
+    public async Task DeactivateMayaDirectoryEntryAsync()
+    {
+        await using var db = CreateContext();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE contact_endpoints SET is_active = false WHERE practitioner_id = {DemoDataSeeder.MayaChenId.Value}");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE practitioners SET is_active = false WHERE id = {DemoDataSeeder.MayaChenId.Value}");
     }
 
     /// <summary>The worker's stable first-attempt key (alert, confirmed version, recipient, channel, attempt 1).</summary>
@@ -737,7 +853,13 @@ public sealed class SigningFakeAcs(string accessKey) : HttpMessageHandler
 
     public IReadOnlyList<FakeAcsRequest> Requests => RequestLog.ToArray();
 
+    private readonly ConcurrentDictionary<string, (string FirstSent, string MessageId)> accepted = new();
+    private CancellationTokenSource? crashAfterNextAccept;
+
     public void Enqueue(HttpStatusCode status) => scripted.Enqueue(status);
+
+    /// <summary>Accept the next send, then simulate the worker dying before its transaction commits.</summary>
+    public void CrashAfterNextAccept(CancellationTokenSource workerShutdown) => crashAfterNextAccept = workerShutdown;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -754,10 +876,34 @@ public sealed class SigningFakeAcs(string accessKey) : HttpMessageHandler
             recipient.GetProperty("repeatabilityRequestId").GetString()!,
             recipient.GetProperty("repeatabilityFirstSent").GetString()!));
         if (scripted.TryDequeue(out var status)) return new HttpResponseMessage(status);
+
+        // ACS repeatable-request semantics: the same request ID replays the original result only when the
+        // first-sent time also matches; a changed first-sent time is a different request and is rejected.
+        var to = recipient.GetProperty("to").GetString();
+        var repeatabilityId = recipient.GetProperty("repeatabilityRequestId").GetString()!;
+        var firstSent = recipient.GetProperty("repeatabilityFirstSent").GetString()!;
+        var original = accepted.GetOrAdd(repeatabilityId, _ => (firstSent, $"acs-e2e-{accepted.Count + 1:D4}"));
+        if (original.FirstSent != firstSent)
+        {
+            return new HttpResponseMessage(HttpStatusCode.Accepted)
+            {
+                Content = new StringContent(
+                    $"{{\"value\":[{{\"to\":\"{to}\",\"httpStatusCode\":400,\"repeatabilityResult\":\"rejected\",\"successful\":false}}]}}",
+                    Encoding.UTF8,
+                    "application/json"),
+            };
+        }
+
+        if (Interlocked.Exchange(ref crashAfterNextAccept, null) is { } shutdown)
+        {
+            await shutdown.CancelAsync();
+            throw new OperationCanceledException(shutdown.Token);
+        }
+
         return new HttpResponseMessage(HttpStatusCode.Accepted)
         {
             Content = new StringContent(
-                $"{{\"value\":[{{\"to\":\"{recipient.GetProperty("to").GetString()}\",\"messageId\":\"acs-e2e-{RequestLog.Count:D4}\",\"httpStatusCode\":202,\"repeatabilityResult\":\"accepted\",\"successful\":true}}]}}",
+                $"{{\"value\":[{{\"to\":\"{to}\",\"messageId\":\"{original.MessageId}\",\"httpStatusCode\":202,\"repeatabilityResult\":\"accepted\",\"successful\":true}}]}}",
                 Encoding.UTF8,
                 "application/json"),
         };
