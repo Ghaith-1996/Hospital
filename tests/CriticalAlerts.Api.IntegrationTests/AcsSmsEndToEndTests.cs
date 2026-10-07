@@ -10,6 +10,7 @@ using CriticalAlerts.Application.Alerts;
 using CriticalAlerts.Application.Directory;
 using CriticalAlerts.Application.Dispatch;
 using CriticalAlerts.Domain;
+using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Dispatch;
 using CriticalAlerts.Infrastructure.Persistence;
@@ -337,6 +338,182 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
     }
 
     [Fact]
+    public async Task ThrottledReplayAfterALostAcceptedSendNeverCreatesASecondSms()
+    {
+        // F37: accepted-but-lost -> replay throttled (429) -> recovery must stay one logical send.
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        fixture.Transport.LoseNextAcceptedResponse();
+
+        await fixture.ProcessAsync();
+        var afterLostResponse = await fixture.SingleAttemptAsync(alertId);
+        fixture.Transport.Enqueue(HttpStatusCode.TooManyRequests);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        await fixture.ProcessAsync();
+        var afterThrottle = await fixture.SingleAttemptAsync(alertId);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        await fixture.ProcessAsync();
+
+        await using var db = fixture.CreateContext();
+        var attempts = await db.DeliveryAttempts.AsNoTracking().Where(row => row.AlertId == new AlertId(alertId)).ToArrayAsync();
+        afterLostResponse.Status.Should().Be(DeliveryAttemptStatus.Requested);
+        afterThrottle.Status.Should().Be(DeliveryAttemptStatus.Requested, "a throttled replay is not evidence the original was never accepted");
+        attempts.Should().ContainSingle("no new attempt or request key may be created after an ambiguous send");
+        attempts[0].Status.Should().Be(DeliveryAttemptStatus.Submitted);
+        attempts[0].ProviderReference.Should().Be("acs-e2e-0001", "the replay recovers the originally accepted message");
+        fixture.Transport.AcceptedSendCount.Should().Be(1, "one confirmed alert produces at most one accepted SMS");
+        fixture.Transport.Requests.Should().HaveCount(3);
+        fixture.Transport.Requests.Select(row => row.RepeatabilityRequestId).Distinct().Should().ContainSingle();
+        fixture.Transport.Requests.Select(row => row.RepeatabilityFirstSent).Distinct().Should().ContainSingle();
+        fixture.Record("lost-accept-then-throttled-replay", new
+        {
+            providerRequests = 3,
+            acceptedSends = fixture.Transport.AcceptedSendCount,
+            attempts = attempts.Length,
+            distinctRepeatabilityIds = 1,
+            finalStatus = attempts[0].Status.ToString(),
+        });
+    }
+
+    [Fact]
+    public async Task CrashThenRestartWithTheSimulatedProviderNeverClaimsSimulatedDelivery()
+    {
+        // F38: ACS accepted, the attempt row rolled back, the worker restarts with the default Simulation SMS.
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        using var shutdown = new CancellationTokenSource();
+        fixture.Transport.CrashAfterNextAccept(shutdown);
+        var crashed = () => fixture.ProcessAsync(shutdown.Token);
+        await crashed.Should().ThrowAsync<OperationCanceledException>();
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(61));
+        var restarted = await fixture.ProcessAsync(acsConfigured: false);
+
+        await using var db = fixture.CreateContext();
+        var attempt = await db.DeliveryAttempts.AsNoTracking().SingleAsync(row => row.AlertId == new AlertId(alertId));
+        var events = await db.DeliveryEvents.AsNoTracking().Where(row => row.DeliveryAttemptId == attempt.Id).ToArrayAsync();
+        attempt.Provider.Should().Be(AzureCommunicationServicesSmsChannel.Provider, "the attempt keeps the provider that actually sent it");
+        attempt.Status.Should().Be(DeliveryAttemptStatus.Failed);
+        attempt.FailureCategory.Should().Be("delivery-unconfirmed");
+        attempt.DeliveredAtUtc.Should().BeNull();
+        events.Should().NotContain(row => row.EventType == "delivered", "simulated delivery must never stand in for an ACS outcome");
+        restarted.PermanentlyFailed.Should().BeTrue();
+        fixture.Transport.Requests.Should().ContainSingle();
+        fixture.Record("crash-then-simulation-restart", new
+        {
+            attemptProvider = "acs",
+            attemptStatus = attempt.Status.ToString(),
+            failureCategory = attempt.FailureCategory,
+            simulatedDeliveryEvents = events.Count(row => row.EventType == "delivered"),
+        });
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LatePrimaryFailureDoesNotDisableASuccessfulBackupWorkflow(bool backupAccepted)
+    {
+        // F39: primary SMS pending -> approved backup delivered (and accepted) -> primary times out.
+        await fixture.ResetAsync(escalationStepDelay: TimeSpan.FromSeconds(1));
+        await fixture.SeedRileyCurrentBackupOnCallAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        (await fixture.ProcessAsync()).Outcome.Should().Be("rescheduled");
+        await fixture.RunEscalationUntilBackupQueuedAsync(alertId);
+        fixture.SyncClockToRealTime();
+        for (var pass = 0; pass < 4 && !await fixture.BackupDeliveredAsync(alertId); pass++)
+            await fixture.ProcessAsync();
+        (await fixture.BackupDeliveredAsync(alertId)).Should().BeTrue("the approved backup secure message is delivered");
+        var version = (await fixture.SingleSmsAttemptAlertVersionAsync(alertId));
+        using var riley = await fixture.SignedInAsync(DemoDataSeeder.RileyHandle);
+        if (backupAccepted) await fixture.RespondAsync(riley, alertId, version, "Accepted");
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(301));
+        for (var pass = 0; pass < 3; pass++) await fixture.ProcessAsync();
+
+        await using var db = fixture.CreateContext();
+        var primary = await db.DeliveryAttempts.AsNoTracking().SingleAsync(row => row.AlertId == new AlertId(alertId) && row.Channel == NotificationChannel.Sms);
+        var primaryOutbox = await db.OutboxMessages.AsNoTracking().SingleAsync(row => row.AggregateId == alertId && row.EventType == "AlertDispatchRequested");
+        var alert = await db.Alerts.AsNoTracking().SingleAsync(row => row.Id == new AlertId(alertId));
+        primary.Status.Should().Be(DeliveryAttemptStatus.Failed, "the primary channel failure stays visible");
+        primary.FailureCategory.Should().Be("delivery-unconfirmed");
+        primaryOutbox.ProcessingState.Should().Be(OutboxProcessingState.Failed);
+        alert.State.Should().Be(AlertState.Active, "a successful backup workflow keeps the alert workable");
+        var live = await operatorClient.GetFromJsonAsync<JsonElement>($"/api/v1/alerts/{alertId:D}/live");
+        live.GetProperty("operationalWarnings").EnumerateArray().Select(item => item.GetProperty("code").GetString()).Should().Contain("DeliveryFailed");
+        if (!backupAccepted) await fixture.RespondAsync(riley, alertId, version, "Accepted");
+        using var resolve = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/alerts/{alertId:D}/resolve")
+        {
+            Content = JsonContent.Create(new AlertLifecycleActionRequest(version)),
+        };
+        resolve.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        using var resolved = await operatorClient.SendAsync(resolve);
+        resolved.StatusCode.Should().Be(HttpStatusCode.OK, await resolved.Content.ReadAsStringAsync());
+        fixture.Record($"backup-success-then-primary-timeout-{(backupAccepted ? "accepted" : "unanswered")}", new
+        {
+            primaryAttempt = primary.Status.ToString(),
+            primaryOutbox = primaryOutbox.ProcessingState.ToString(),
+            alertStateAfterPrimaryTimeout = alert.State.ToString(),
+            resolution = (int)resolved.StatusCode,
+        });
+    }
+
+    [Fact]
+    public async Task ReportPollsDoNotSpendTheWorkerFailureBudget()
+    {
+        // F41: send once, poll successfully several times, then one transient worker fault.
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await fixture.ProcessAsync();
+        for (var poll = 0; poll < 4; poll++)
+        {
+            fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+            (await fixture.ProcessAsync()).Outcome.Should().Be("rescheduled");
+        }
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var faulted = await fixture.ProcessAsync(transientWorkerFailure: true);
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        using (var delivered = await fixture.PostReportsAsync(fixture.ValidToken(),
+                   Report("evt-after-fault", attempt.ProviderReference, "Delivered", AzureCommunicationServicesSmsChannel.CreateTag(attempt.IdempotencyKey))))
+            delivered.StatusCode.Should().Be(HttpStatusCode.OK);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var closed = await fixture.ProcessAsync();
+
+        faulted.PermanentlyFailed.Should().BeFalse("one transient fault after successful polls is within the failure budget");
+        faulted.Outcome.Should().Be("rescheduled");
+        closed.Outcome.Should().Be("processed");
+        await using var db = fixture.CreateContext();
+        (await db.Alerts.AsNoTracking().SingleAsync(row => row.Id == new AlertId(alertId))).State.Should().Be(AlertState.Active);
+        (await fixture.SingleAttemptAsync(alertId)).Status.Should().Be(DeliveryAttemptStatus.Delivered);
+        fixture.Record("polls-then-transient-fault", new { successfulPolls = 4, transientFaults = 1, faultOutcome = faulted.Outcome, finalOutcome = closed.Outcome });
+    }
+
+    [Fact]
+    public async Task FirstSendTimeIsReadAtTheSendBoundaryNotWhenThePassStarted()
+    {
+        // F42: claim, lock wait and earlier recipients take longer than the 120-second uncertain window.
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        var passStart = fixture.Clock.GetUtcNow();
+        fixture.Clock.JumpAfterNextRead(TimeSpan.FromSeconds(121));
+
+        await fixture.ProcessAsync();
+
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        attempt.Status.Should().Be(DeliveryAttemptStatus.Submitted, "a never-sent recipient must be sent, not failed as uncertain");
+        fixture.Transport.Requests.Should().ContainSingle().Which.RepeatabilityFirstSent
+            .Should().Be(passStart.AddSeconds(121).ToString("r"), "the first-send time is the actual send boundary");
+        // PostgreSQL stores microseconds; .NET keeps 100-ns ticks.
+        attempt.RequestedAtUtc.Should().BeCloseTo(passStart.AddSeconds(121), TimeSpan.FromMilliseconds(1));
+        fixture.Record("slow-path-to-first-send", new { secondsBeforeSend = 121, providerRequests = 1, attemptStatus = attempt.Status.ToString() });
+    }
+
+    [Fact]
     public async Task WebhookRejectsEveryUnauthenticatedOrMisauthorizedCaller()
     {
         await fixture.ResetAsync();
@@ -357,6 +534,27 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
         await Check("missing-role", fixture.Token(role: "SomethingElse"), HttpStatusCode.Forbidden);
         using (var cookieClient = await fixture.SignedInAsync(DemoDataSeeder.MorganHandle))
             await Check("development-cookie", null, HttpStatusCode.Unauthorized, cookieClient);
+
+        // F40: same tenant, audience, signature, lifetime and role, but not the Microsoft.EventGrid principal.
+        const string v1Issuer = "https://sts.windows.net/" + AcsSmsEndToEndFixture.TenantId + "/";
+        await Check("subscription-writer-v1-appid", fixture.Token(issuer: v1Issuer, appId: AcsSmsEndToEndFixture.SubscriptionWriterAppId), HttpStatusCode.Forbidden);
+        await Check("subscription-writer-v2-azp", fixture.Token(appId: null, authorizedParty: AcsSmsEndToEndFixture.SubscriptionWriterAppId), HttpStatusCode.Forbidden);
+        await Check("missing-sender", fixture.Token(appId: null), HttpStatusCode.Forbidden);
+        await Check("ambiguous-sender", fixture.Token(appId: AcsSmsEndToEndFixture.EventGridSenderAppId, authorizedParty: AcsSmsEndToEndFixture.SubscriptionWriterAppId), HttpStatusCode.Forbidden);
+        using (var forgedHandshake = await fixture.PostReportsAsync(
+                   fixture.Token(appId: AcsSmsEndToEndFixture.SubscriptionWriterAppId),
+                   new[] { new { id = "evt-forged-handshake", topic = "/subscriptions/x", subject = "", eventType = "Microsoft.EventGrid.SubscriptionValidationEvent",
+                       eventTime = DateTime.UtcNow.ToString("O"), dataVersion = "1", data = new { validationCode = "SIM-FORGED-CODE-0001" } } },
+                   eventTypeHeader: "SubscriptionValidation"))
+        {
+            forgedHandshake.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            (await forgedHandshake.Content.ReadAsStringAsync()).Should().NotContain("SIM-FORGED-CODE-0001");
+            results["subscription-writer-handshake"] = forgedHandshake.StatusCode;
+        }
+
+        // The configured sender is authorized through either token version (an unmatched recent report defers).
+        await Check("event-grid-v1-appid", fixture.Token(issuer: v1Issuer), HttpStatusCode.ServiceUnavailable);
+        await Check("event-grid-v2-azp", fixture.Token(appId: null, authorizedParty: AcsSmsEndToEndFixture.EventGridSenderAppId), HttpStatusCode.ServiceUnavailable);
 
         await using var db = fixture.CreateContext();
         (await db.InboxMessages.CountAsync()).Should().Be(0);
@@ -610,6 +808,10 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
     public const string Audience = "api://sim-critical-alerts-webhook";
     public const string Topic = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sim-rg/providers/Microsoft.Communication/CommunicationServices/sim-critical-alerts";
     public const string SubscriptionName = "SIM-CRITICAL-ALERTS-SMS-REPORTS";
+    /// <summary>Fictional stand-in for the Microsoft.EventGrid application ID (read from the tenant in real use).</summary>
+    public const string EventGridSenderAppId = "5ee5ee5e-0000-4000-8000-00000000e9e9";
+    /// <summary>Fictional subscription-writer app that legitimately holds the same app role.</summary>
+    public const string SubscriptionWriterAppId = "0bad0bad-0000-4000-8000-000000000001";
     public const string TestNumber = "+15555550142";
     public const string WebhookPath = "/api/v1/webhooks/communications/acs-sms";
     public static readonly string AccessKey = Convert.ToBase64String(Enumerable.Range(40, 32).Select(value => (byte)value).ToArray());
@@ -658,6 +860,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
             builder.UseSetting("Communications:Webhooks:EventGrid:Audience", Audience);
             builder.UseSetting("Communications:Webhooks:EventGrid:ExpectedTopic", Topic);
             builder.UseSetting("Communications:Webhooks:EventGrid:SubscriptionName", SubscriptionName);
+            builder.UseSetting("Communications:Webhooks:EventGrid:SenderApplicationId", EventGridSenderAppId);
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
@@ -708,9 +911,10 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
     public HttpClient CreateClient()
         => factory!.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true, AllowAutoRedirect = false });
 
-    public async Task ResetAsync()
+    public async Task ResetAsync(TimeSpan? escalationStepDelay = null)
     {
-        await DatabaseOperations.ResetDemoAsync(inner.ConnectionString, "Test", dataProtectionKey, confirmReset: true);
+        await DatabaseOperations.ResetDemoAsync(inner.ConnectionString, "Test", dataProtectionKey, confirmReset: true,
+            escalationStepDelay: escalationStepDelay);
         Clock = new MutableClock(DateTimeOffset.UtcNow);
         Transport = new SigningFakeAcs(AccessKey, () => Clock);
     }
@@ -730,9 +934,14 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
         string? audience = null,
         string role = "AzureEventGridSecureWebhookSubscriber",
         DateTime? expires = null,
-        RsaSecurityKey? signingKey = null)
+        RsaSecurityKey? signingKey = null,
+        string? appId = EventGridSenderAppId,
+        string? authorizedParty = null)
     {
         var expiry = expires ?? DateTime.UtcNow.AddMinutes(10);
+        var claims = new Dictionary<string, object> { ["roles"] = new[] { role } };
+        if (appId is not null) claims["appid"] = appId;
+        if (authorizedParty is not null) claims["azp"] = authorizedParty;
         var token = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = issuer ?? Issuer,
@@ -740,7 +949,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
             IssuedAt = expiry.AddMinutes(-20),
             NotBefore = expiry.AddMinutes(-20),
             Expires = expiry,
-            Claims = new Dictionary<string, object> { ["roles"] = new[] { role }, ["appid"] = "sim-event-grid" },
+            Claims = claims,
             SigningCredentials = new SigningCredentials(signingKey ?? SigningKey, SecurityAlgorithms.RsaSha256),
         });
         lock (issuedTokens) issuedTokens.Add(token);
@@ -811,7 +1020,10 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
     }
 
     /// <summary>One worker pass. <paramref name="acsConfigured"/> false models a worker restarted with the simulated SMS provider.</summary>
-    public async Task<DispatchProcessingResult> ProcessAsync(CancellationToken cancellationToken = default, bool acsConfigured = true)
+    public async Task<DispatchProcessingResult> ProcessAsync(
+        CancellationToken cancellationToken = default,
+        bool acsConfigured = true,
+        bool transientWorkerFailure = false)
     {
         await using var db = CreateContext();
         // Not disposed: the shared fake transport outlives each worker pass, like a pooled handler.
@@ -821,6 +1033,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
                 Transport,
                 Clock)
             : new SimulationSmsChannel(Clock);
+        if (transientWorkerFailure) sms = new TransientlyFailingChannel(sms);
         var processor = new OutboxDispatchProcessor(
             db,
             [new SimulationSecureMessageChannel(Clock), sms, new SimulationVoiceChannel(Clock)],
@@ -846,6 +1059,70 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE practitioners SET is_active = false WHERE id = {DemoDataSeeder.MayaChenId.Value}");
     }
+
+    /// <summary>
+    /// Makes fictional Riley a current backup on-call for the emergency department, so the review offers a
+    /// reviewed backup step (the seeded on-call windows are historical).
+    /// </summary>
+    public async Task SeedRileyCurrentBackupOnCallAsync()
+    {
+        var now = DateTimeOffset.UtcNow;
+        now = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond));
+        await using var db = CreateContext();
+        db.PractitionerRoles.Add(Domain.Directory.PractitionerRoleAssignment.Create(PractitionerRoleId.New(),
+            DemoDataSeeder.OrganizationId, DemoDataSeeder.RileySatoId, DemoDataSeeder.EmergencyDepartmentId,
+            "Fictional emergency cover", false, "SIM-DIRECTORY", "SIM-ROLE-RILEY-PHASE12"));
+        db.OnCallAssignments.Add(Domain.Directory.OnCallAssignment.Create(OnCallAssignmentId.New(), DemoDataSeeder.OrganizationId,
+            DemoDataSeeder.RileySatoId, DemoDataSeeder.NorthSiteId, DemoDataSeeder.EmergencyDepartmentId,
+            OnCallTier.Backup, now.AddHours(-2), now.AddHours(2), "SIM-ROSTER", "SIM-PHASE12-BACKUP", now.AddMinutes(-5)));
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Runs the real escalation processor (database clock) until the backup dispatch is queued.</summary>
+    public async Task RunEscalationUntilBackupQueuedAsync(Guid alertId)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (true)
+        {
+            await using (var db = CreateContext())
+            {
+                await new EscalationProcessor(db).ProcessNextAsync("phase12-e2e-escalation");
+                if (await db.OutboxMessages.AnyAsync(row => row.AggregateId == alertId && row.EventType == "EscalationDispatchRequested"))
+                    return;
+            }
+
+            if (DateTimeOffset.UtcNow > deadline) throw new TimeoutException("The DEMO escalation step did not queue a backup dispatch.");
+            await Task.Delay(250);
+        }
+    }
+
+    public async Task<bool> BackupDeliveredAsync(Guid alertId)
+    {
+        await using var db = CreateContext();
+        return await db.DeliveryAttempts.AsNoTracking().AnyAsync(row => row.AlertId == new AlertId(alertId)
+            && row.Channel == NotificationChannel.SecureMessage && row.Status == DeliveryAttemptStatus.Delivered);
+    }
+
+    public async Task<int> SingleSmsAttemptAlertVersionAsync(Guid alertId)
+    {
+        await using var db = CreateContext();
+        return (await db.Alerts.AsNoTracking().SingleAsync(row => row.Id == new AlertId(alertId))).DraftVersion.Value;
+    }
+
+    /// <summary>A practitioner's explicit response through the authenticated API.</summary>
+    public async Task RespondAsync(HttpClient practitioner, Guid alertId, int version, string responseType)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/my-alerts/{alertId:D}/responses")
+        {
+            Content = JsonContent.Create(new { expectedVersion = version, responseType }),
+        };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        using var response = await practitioner.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>Moves the worker clock to real time so rows written with the database clock become due.</summary>
+    public void SyncClockToRealTime() => Clock = new MutableClock(DateTimeOffset.UtcNow.AddSeconds(1));
 
     /// <summary>The worker's stable first-attempt key (alert, confirmed version, recipient, channel, attempt 1).</summary>
     public async Task<string> ExpectedFirstAttemptKeyAsync(Guid alertId)
@@ -906,13 +1183,43 @@ public sealed class AcsSmsEndToEndCollection : ICollectionFixture<AcsSmsEndToEnd
     public const string Name = "phase12-acs-sms-e2e";
 }
 
+/// <summary>A recoverable worker fault during dispatch (for example a dropped database connection), raised once.</summary>
+public sealed class TransientlyFailingChannel(INotificationChannel inner) : INotificationChannel
+{
+    public NotificationChannel ChannelType => inner.ChannelType;
+
+    public string ProviderName => inner.ProviderName;
+
+    public bool RequiresDurableFirstSend => inner.RequiresDurableFirstSend;
+
+    public Task<NotificationDispatchResult> DispatchAsync(
+        NotificationDispatchRequest request,
+        SimulationDispatchScenario scenario,
+        CancellationToken cancellationToken)
+        => throw new InvalidOperationException("SIMULATION: transient worker fault.");
+}
+
 public sealed class MutableClock(DateTimeOffset start) : TimeProvider
 {
     private DateTimeOffset now = start.ToUniversalTime();
+    private TimeSpan? jumpAfterNextRead;
 
-    public override DateTimeOffset GetUtcNow() => now;
+    public override DateTimeOffset GetUtcNow()
+    {
+        var value = now;
+        if (jumpAfterNextRead is { } jump)
+        {
+            jumpAfterNextRead = null;
+            now = now.Add(jump);
+        }
+
+        return value;
+    }
 
     public void Advance(TimeSpan duration) => now = now.Add(duration);
+
+    /// <summary>Time passes right after the next read: models claim, lock waits and earlier recipients taking long.</summary>
+    public void JumpAfterNextRead(TimeSpan duration) => jumpAfterNextRead = duration;
 }
 
 /// <summary>Fake ACS SMS endpoint: verifies the documented HMAC scheme independently and issues opaque message IDs.</summary>
@@ -927,8 +1234,15 @@ public sealed class SigningFakeAcs(string accessKey, Func<TimeProvider> clock) :
 
     private readonly ConcurrentDictionary<string, (string FirstSent, string MessageId)> accepted = new();
     private CancellationTokenSource? crashAfterNextAccept;
+    private int loseNextAcceptedResponse;
 
     public void Enqueue(HttpStatusCode status) => scripted.Enqueue(status);
+
+    /// <summary>Distinct repeatable requests the fake accepted: each one is one SMS that would reach a handset.</summary>
+    public int AcceptedSendCount => accepted.Count;
+
+    /// <summary>Accept the next send, then lose its response (the caller sees an ambiguous 500).</summary>
+    public void LoseNextAcceptedResponse() => Interlocked.Exchange(ref loseNextAcceptedResponse, 1);
 
     /// <summary>Accept the next send, then simulate the worker dying before its transaction commits.</summary>
     public void CrashAfterNextAccept(CancellationTokenSource workerShutdown) => crashAfterNextAccept = workerShutdown;
@@ -954,7 +1268,8 @@ public sealed class SigningFakeAcs(string accessKey, Func<TimeProvider> clock) :
         var to = recipient.GetProperty("to").GetString();
         var repeatabilityId = recipient.GetProperty("repeatabilityRequestId").GetString()!;
         var firstSent = recipient.GetProperty("repeatabilityFirstSent").GetString()!;
-        // ACS tracks repeatable requests for 5 minutes and answers an older first-sent value with 412.
+        // Conservative model: ACS documents 5-minute repeatable-request tracking and 412 for Email/Rooms
+        // (https://learn.microsoft.com/en-us/rest/api/communication/repeatable-requests); SMS retention is unverified.
         if (DateTimeOffset.Parse(firstSent, System.Globalization.CultureInfo.InvariantCulture) < clock().GetUtcNow().AddMinutes(-5))
             return new HttpResponseMessage(HttpStatusCode.PreconditionFailed);
         var original = accepted.GetOrAdd(repeatabilityId, _ => (firstSent, $"acs-e2e-{accepted.Count + 1:D4}"));
@@ -968,6 +1283,9 @@ public sealed class SigningFakeAcs(string accessKey, Func<TimeProvider> clock) :
                     "application/json"),
             };
         }
+
+        if (Interlocked.Exchange(ref loseNextAcceptedResponse, 0) == 1)
+            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
 
         if (Interlocked.Exchange(ref crashAfterNextAccept, null) is { } shutdown)
         {

@@ -97,7 +97,7 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
 
         var requestedAt = request.AttemptRequestedAtUtc
             ?? throw new DispatchValidationException("request-invalid", "Provider dispatch requires the durable attempt time.");
-        // repeatabilityFirstSent must be identical for every replay of this attempt and inside the ACS 5-minute
+        // repeatabilityFirstSent must be identical for every replay of this attempt and inside the provider's
         // tracking window. The attempt row (and its RequestedAtUtc) can be rolled back if the worker dies after ACS
         // accepted the send, so the worker supplies the first-send time it committed before the network call.
         // Replays are bounded from that durable time, never from a recreated attempt.
@@ -167,7 +167,7 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden:
                 return Failed(tag, "provider-auth-failed", now, retryable: false);
             case HttpStatusCode.TooManyRequests:
-                return Failed(tag, "provider-unavailable", now, retryable: true);
+                return SameKeyRetry(now, "provider-unavailable");
             case HttpStatusCode.RequestTimeout:
             // 412: the first-sent time is outside ACS repeatability tracking, so ACS cannot say whether the
             // original was sent. Ambiguous, never a rejection; the uncertain window then fails it visibly.
@@ -222,7 +222,7 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
 
             if (messageId is not null) return UncertainResult(now);
             return itemStatus is 429 or >= 500
-                ? Failed(tag, "provider-unavailable", now, retryable: true)
+                ? SameKeyRetry(now, "provider-unavailable")
                 : itemStatus is >= 400 and < 500
                     ? Failed(tag, "sms-rejected", now, retryable: false)
                     : UncertainResult(now);
@@ -266,8 +266,15 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             FailureCategory: category,
             RetryAtUtc: retryable ? now.AddSeconds(5) : null);
 
-    private static NotificationDispatchResult UncertainResult(DateTimeOffset now)
-        => new(string.Empty, [], Retryable: true, FailureCategory: Uncertain, RetryAtUtc: now.AddSeconds(5));
+    private static NotificationDispatchResult UncertainResult(DateTimeOffset now) => SameKeyRetry(now, Uncertain);
+
+    /// <summary>
+    /// No terminal event: the worker keeps the attempt Requested and retries the same repeatability ID and first-send
+    /// time. Throttling or unavailability on a replay does not prove an earlier invocation of this key was never
+    /// accepted, so it must never let the worker mint a new attempt key. The uncertain window bounds these retries.
+    /// </summary>
+    private static NotificationDispatchResult SameKeyRetry(DateTimeOffset now, string category)
+        => new(string.Empty, [], Retryable: true, FailureCategory: category, RetryAtUtc: now.AddSeconds(5));
 
     private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left < right ? left : right;
 

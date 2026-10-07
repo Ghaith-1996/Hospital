@@ -284,7 +284,12 @@ public sealed class OutboxDispatchProcessor(
             return new DispatchProcessingResult(true, false, false, message.Id.Value, "processed");
         }
 
-        if (message.EventType != "EscalationDispatchRequested" && alert.State is AlertState.DispatchQueued or AlertState.Active)
+        // The original dispatch only aggregates its own recipients. A late primary failure (for example an SMS
+        // report timeout) must not fail the whole alert, or stop escalation, while approved backup work has been
+        // delivered, is still pending, or holds accepted responsibility: the primary failure stays visible on its
+        // attempts, this outbox row and the live warnings, and the workflow remains resolvable.
+        if (message.EventType != "EscalationDispatchRequested" && alert.State is AlertState.DispatchQueued or AlertState.Active
+            && !await HasContinuingBackupWorkAsync(alert, attempts, cancellationToken))
         {
             alert.MarkFailed(now, correlationId);
             await FailOpenEscalationRunAsync(alert, now, cancellationToken);
@@ -377,11 +382,25 @@ public sealed class OutboxDispatchProcessor(
             endpointReference = route.EndpointReference!;
         }
 
+        // Read the clock at this recipient's send boundary, after the claim, the alert lock and earlier recipients:
+        // the pass-start time can already be older than the provider's replay window.
+        var sendNow = RequireUtc(time.GetUtcNow(), "worker clock");
         var attempt = latest;
         if (attempt is null
             || attempt.Status == DeliveryAttemptStatus.Failed)
         {
             var attemptNumber = (latest?.AttemptNumber ?? 0) + 1;
+            var attemptKey = CreateAttemptIdempotencyKey(alert, recipient, attemptNumber);
+            // A rolled-back dispatch transaction leaves no attempt row, but a provider that already sent this key
+            // committed it to the send ledger. Never let a different (or default simulated) provider stand in.
+            var originalProvider = await db.ProviderSendRecords.AsNoTracking()
+                .Where(row => row.OrganizationId == alert.OrganizationId && row.AttemptIdempotencyKey == attemptKey)
+                .Select(row => row.Provider)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (originalProvider is not null && !string.Equals(originalProvider, channel.ProviderName, StringComparison.Ordinal))
+                return await FailUnconfirmedRecreatedAttemptAsync(alert, recipient, attemptNumber, attemptKey, originalProvider,
+                    attempts, correlationId, sendNow, cancellationToken);
+
             attempt = DeliveryAttempt.CreateRequested(
                 DeliveryAttemptId.New(),
                 alert.OrganizationId,
@@ -389,9 +408,9 @@ public sealed class OutboxDispatchProcessor(
                 recipient.Id,
                 recipient.Channel,
                 attemptNumber,
-                CreateAttemptIdempotencyKey(alert, recipient, attemptNumber),
+                attemptKey,
                 channel.ProviderName,
-                now);
+                sendNow);
             db.DeliveryAttempts.Add(attempt);
             attempts.Add(attempt);
         }
@@ -401,7 +420,7 @@ public sealed class OutboxDispatchProcessor(
         // rollback of this transaction after the provider accepted the send, and a recreated attempt reuses it.
         DateTimeOffset? firstSentAtUtc = attempt.Status == DeliveryAttemptStatus.Requested && channel.RequiresDurableFirstSend
             ? await ProviderSendLedger.GetOrRecordFirstSendAsync(
-                db, alert.OrganizationId, channel.ProviderName, attempt.IdempotencyKey, now, cancellationToken)
+                db, alert.OrganizationId, channel.ProviderName, attempt.IdempotencyKey, sendNow, cancellationToken)
             : null;
         var request = new NotificationDispatchRequest(
             alert.OrganizationId,
@@ -477,6 +496,44 @@ public sealed class OutboxDispatchProcessor(
             ? ClampRetryAt(providerRetryAt, now, workerOptions.RetryDelay)
             : now.Add(workerOptions.RetryDelay);
         return new RecipientProcessingResult(retryRequested, retryRequested ? retryAt : null);
+    }
+
+    /// <summary>
+    /// Records a recreated attempt that another provider already sent as visibly unconfirmed, keeping that
+    /// provider's provenance. It is never dispatched, so no other provider can claim its delivery.
+    /// </summary>
+    private async Task<RecipientProcessingResult> FailUnconfirmedRecreatedAttemptAsync(
+        Alert alert,
+        AlertRecipientSelection recipient,
+        int attemptNumber,
+        string attemptKey,
+        string originalProvider,
+        ICollection<DeliveryAttempt> attempts,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var attempt = DeliveryAttempt.CreateRequested(
+            DeliveryAttemptId.New(),
+            alert.OrganizationId,
+            alert.Id,
+            recipient.Id,
+            recipient.Channel,
+            attemptNumber,
+            attemptKey,
+            originalProvider,
+            now);
+        attempt.MarkFailed("delivery-unconfirmed", now);
+        db.DeliveryAttempts.Add(attempt);
+        attempts.Add(attempt);
+        AddAudit(alert.OrganizationId, attempt.Id.Value, "dispatch.failed", "failed", correlationId, now, new
+        {
+            channel = recipient.Channel.ToString(),
+            attempt = attempt.AttemptNumber,
+            error = "delivery-unconfirmed",
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return RecipientProcessingResult.None;
     }
 
     /// <summary>Directory and policy checks for a new or not-yet-accepted attempt, in their original order.</summary>
@@ -615,7 +672,9 @@ public sealed class OutboxDispatchProcessor(
 
         var alert = await db.Alerts.SingleOrDefaultAsync(item => item.OrganizationId == message.OrganizationId
             && item.Id == alertId, cancellationToken);
-        var shouldFail = permanent || message.AttemptCount >= workerOptions.MaxAttempts;
+        // Count only real worker failures: routine re-polls while awaiting a delivery report also reclaim the row.
+        message.RecordWorkerFailure(leaseOwner);
+        var shouldFail = permanent || message.WorkerFailureCount >= workerOptions.MaxAttempts;
         if (shouldFail)
         {
             if (message.EventType != "EscalationDispatchRequested" && alert is not null)
@@ -643,6 +702,34 @@ public sealed class OutboxDispatchProcessor(
         return shouldFail
             ? new DispatchProcessingResult(false, false, true, message.Id.Value, "permanently-failed")
             : new DispatchProcessingResult(false, true, false, message.Id.Value, "rescheduled");
+    }
+
+    /// <summary>
+    /// Approved escalation work for the confirmed version that keeps the alert workable: a backup attempt that was
+    /// delivered or is still in flight, a queued backup dispatch, or an accepted, unreleased responsibility.
+    /// </summary>
+    private async Task<bool> HasContinuingBackupWorkAsync(
+        Alert alert,
+        IEnumerable<DeliveryAttempt> attempts,
+        CancellationToken cancellationToken)
+    {
+        var backupSelections = alert.CurrentRecipients
+            .Where(item => item.SelectionSource == RecipientSelectionSource.EscalationPolicy)
+            .Select(item => item.Id)
+            .ToHashSet();
+        if (attempts.Any(item => backupSelections.Contains(item.RecipientSelectionId)
+                && item.Status is DeliveryAttemptStatus.Delivered or DeliveryAttemptStatus.Requested or DeliveryAttemptStatus.Submitted))
+            return true;
+
+        var aggregateId = alert.Id.Value;
+        if (await db.OutboxMessages.AsNoTracking().AnyAsync(item => item.OrganizationId == alert.OrganizationId
+                && item.AggregateId == aggregateId && item.EventType == "EscalationDispatchRequested"
+                && (item.ProcessingState == OutboxProcessingState.Pending || item.ProcessingState == OutboxProcessingState.Processing),
+                cancellationToken))
+            return true;
+
+        return await db.ResponsibilityAssignments.AsNoTracking().AnyAsync(item => item.OrganizationId == alert.OrganizationId
+            && item.AlertId == alert.Id && item.AlertVersion == alert.DraftVersion && item.ReleasedAtUtc == null, cancellationToken);
     }
 
     private async Task FailOpenEscalationRunAsync(Alert alert, DateTimeOffset now, CancellationToken cancellationToken)

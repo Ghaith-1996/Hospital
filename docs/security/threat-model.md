@@ -186,7 +186,10 @@ New threats, each with its control:
 - **PHI in SMS.** Only the policy's `SIMULATION:` generic template is sent. It must be printable ASCII of at most 160 characters.
 - **Access-key theft or logging.** The key comes from a secret store only. It is never echoed in errors or logged.
 - **Duplicate sends after ambiguous outcomes.** A deterministic repeatability ID and first-sent time are derived from the durable attempt.
-- **Forged or replayed reports.** The webhook requires an Entra JWT: signature, issuer, audience, lifetime and the `AzureEventGridSecureWebhookSubscriber` role. It also enforces the topic, a 48-hour/5-minute event window, event-ID inbox dedupe, a unique delivery event and a per-attempt tag bound to the message ID.
+- **Forged or replayed reports.** The webhook requires an Entra JWT: signature, issuer, audience, lifetime and the `AzureEventGridSecureWebhookSubscriber` role. Because Microsoft's setup grants that role to the subscription-writer app too, the token's `appid`/`azp` must also equal the configured Microsoft.EventGrid `SenderApplicationId`. The webhook further enforces the `aeg-subscription-name` and `aeg-event-type` headers, the ACS topic, a 48-hour/5-minute event window, event-ID inbox dedupe, a unique delivery event and a per-attempt tag bound to the message ID.
+- **Duplicate SMS from a refused replay.** A throttled or unavailable replay after an ambiguous send keeps the same repeatability ID; no new attempt key is created until the bounded window ends visibly.
+- **Simulated delivery claimed for a real send.** A recreated attempt whose key the send ledger records under a different provider fails as `delivery-unconfirmed` and is never dispatched.
+- **A late primary failure disabling a successful backup.** The alert-level failure transition reconciles backup delivery, queued backup work and accepted responsibility first.
 - **Development cookies reaching the webhook.** The policy authenticates only the JWT scheme.
 - **Out-of-order regression.** Terminal states are enforced by the domain.
 - **Resource exhaustion.** Bodies are limited to 64 KiB and 50 events, the rate limit is address-partitioned, and all validation happens before any write.

@@ -153,4 +153,6 @@ Phase 12 adds two things:
 
 The worker writes the ledger row on its own connection immediately before the network call, insert-if-absent then read. The row therefore survives a rollback of the dispatch transaction. Its only foreign key is to `organizations` (restrict), which is never locked for update, so the separate write cannot wait on the worker's alert lock.
 
-The ledger holds no recipient, number, message or clinical data, and rows are never updated. Retention is `REQUIRES_HOSPITAL_DECISION`, like delivery attempts.
+The ledger holds no recipient, number, message or clinical data, and rows are never updated. Retention is `REQUIRES_HOSPITAL_DECISION`, like delivery attempts. Before creating any attempt, the worker also reads the ledger for that attempt key under every provider, so a rolled-back ACS send cannot be recreated under another provider.
+
+`outbox_messages.worker_failure_count` (default 0) counts only unexpected worker failures and is the bounded failure budget compared with `MaxAttempts`. `attempt_count` still counts every lease claim, including routine re-polls while a delivery report is awaited. Migration: `20261007032738_Phase12WorkerFailureBudget`.

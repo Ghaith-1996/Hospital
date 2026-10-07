@@ -111,5 +111,8 @@ Open gates:
 - [ ] A handset check confirms that no patient detail reaches SMS.
 - [ ] Provider legal and account prerequisites are complete: contract, subprocessors, residency, sender registration and opt-out handling.
 - [ ] Delivery-report and uncertain-outcome windows are approved. They are DEMO values today.
+- [ ] The real Microsoft.EventGrid application ID is verified in the tenant's cloud and configured as `SenderApplicationId`; tokens from the subscription-writer app are confirmed rejected.
+- [ ] SMS repeatability is verified against the real service: same-key replay acceptance, retention and `412` behavior. Microsoft documents these only for Email and Rooms.
+- [ ] Event Grid delivery batching (if enabled) fits 50 events and 64 KiB, and dead-letter handling is documented. The E2E fixtures disable rate limiting, so the limiter is not validated there.
 - [ ] Real-recipient enablement is approved. It is not implemented.
 - [ ] Voice/call automation is delivered in a separate slice.

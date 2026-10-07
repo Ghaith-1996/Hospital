@@ -181,27 +181,41 @@ public sealed class AzureCommunicationServicesSmsChannelTests
         transport.Requests.Select(item => item.RepeatabilityFirstSent).Distinct().Should().ContainSingle();
     }
 
-    [Theory]
-    [InlineData(400, "sms-rejected", false)]
-    [InlineData(429, "provider-unavailable", true)]
-    [InlineData(503, "provider-unavailable", true)]
-    public async Task ItemLevelFailuresWithoutMessageIdAreDefinite(int itemStatus, string category, bool retryable)
+    [Fact]
+    public async Task ItemLevelClientRejectionWithoutMessageIdIsDefinite()
     {
+        var transport = new FakeAcsTransport();
+        transport.Enqueue(Item(400, successful: false, messageId: null));
+
+        var result = await Channel(transport).DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        result.Retryable.Should().BeFalse();
+        result.FailureCategory.Should().Be("sms-rejected");
+        result.Events.Should().ContainSingle(item => item.EventType == "failed" && item.FailureCategory == "sms-rejected");
+    }
+
+    [Theory]
+    [InlineData(429)]
+    [InlineData(503)]
+    public async Task ItemLevelThrottlingOrUnavailabilityKeepsTheSameRequestIdentity(int itemStatus)
+    {
+        // F37: a refused replay does not prove an earlier invocation of this key was never accepted. No failed
+        // event means the worker keeps this attempt Requested and retries the same repeatability ID.
         var transport = new FakeAcsTransport();
         transport.Enqueue(Item(itemStatus, successful: false, messageId: null));
 
         var result = await Channel(transport).DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
 
-        result.Retryable.Should().Be(retryable);
-        result.FailureCategory.Should().Be(category);
-        result.Events.Should().ContainSingle(item => item.EventType == "failed" && item.FailureCategory == category);
+        result.Retryable.Should().BeTrue();
+        result.Events.Should().BeEmpty();
+        result.ProviderReference.Should().BeEmpty();
+        result.FailureCategory.Should().Be("provider-unavailable");
     }
 
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, "provider-auth-failed", false)]
     [InlineData(HttpStatusCode.Forbidden, "provider-auth-failed", false)]
     [InlineData(HttpStatusCode.BadRequest, "sms-rejected", false)]
-    [InlineData(HttpStatusCode.TooManyRequests, "provider-unavailable", true)]
     public async Task OverallDefiniteFailuresAreMappedToSafeCategories(HttpStatusCode status, string category, bool retryable)
     {
         var transport = new FakeAcsTransport();
@@ -321,9 +335,24 @@ public sealed class AzureCommunicationServicesSmsChannelTests
     }
 
     [Fact]
+    public async Task OverallThrottlingKeepsTheSameRequestIdentity()
+    {
+        // F37: 429 on a replay after an accepted-but-lost send must not let the worker mint a new key.
+        var transport = new FakeAcsTransport();
+        transport.Enqueue(_ => Json(HttpStatusCode.TooManyRequests, "{\"error\":{\"code\":\"TooManyRequests\",\"message\":\"throttled\"}}"));
+
+        var result = await Channel(transport).DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        result.Retryable.Should().BeTrue();
+        result.Events.Should().BeEmpty();
+        result.ProviderReference.Should().BeEmpty();
+        result.FailureCategory.Should().Be("provider-unavailable");
+    }
+
+    [Fact]
     public async Task RepeatabilityPreconditionFailureIsAmbiguousNotARejection()
     {
-        // ACS answers 412 when the first-sent time is outside its 5-minute tracking: the original may have been sent.
+        // ACS documents 412 for a first-sent time outside its 5-minute tracking (Email/Rooms; SMS unverified): the original may have been sent.
         var transport = new FakeAcsTransport();
         transport.Enqueue(_ => Json(HttpStatusCode.PreconditionFailed,
             "{\"error\":{\"code\":\"PreconditionFailed\",\"message\":\"Repeatability first sent header was not in 5 minutes window\"}}"));
