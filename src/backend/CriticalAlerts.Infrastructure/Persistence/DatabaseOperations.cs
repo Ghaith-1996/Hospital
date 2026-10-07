@@ -57,7 +57,8 @@ public static class DatabaseOperations
         string environment,
         string dataProtectionKey,
         bool confirmReset,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TimeSpan? escalationStepDelay = null)
     {
         EnsureEnvironmentAllowed(environment);
         EnsureDemoResetTarget(connectionString, confirmReset);
@@ -65,7 +66,7 @@ public static class DatabaseOperations
         await db.Database.EnsureDeletedAsync(cancellationToken);
         await db.Database.MigrateAsync(cancellationToken);
         await SensitiveDataMigration.CompleteAsync(db, dataProtectionKey, cancellationToken);
-        var seeder = new DemoDataSeeder(db, dataProtectionKey);
+        var seeder = new DemoDataSeeder(db, dataProtectionKey, escalationStepDelay);
         await seeder.SeedAsync(cancellationToken);
     }
 

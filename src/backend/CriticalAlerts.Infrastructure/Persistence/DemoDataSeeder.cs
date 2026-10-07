@@ -36,11 +36,13 @@ public sealed class DemoDataSeeder
 
     private readonly CriticalAlertsDbContext db;
     private readonly AesGcmSensitiveDataProtector protector;
+    private readonly TimeSpan? escalationStepDelay;
     private static readonly DateTimeOffset SeededAt = DateTimeOffset.Parse("2026-08-01T12:00:00Z");
 
-    public DemoDataSeeder(CriticalAlertsDbContext db, string dataProtectionKey)
+    public DemoDataSeeder(CriticalAlertsDbContext db, string dataProtectionKey, TimeSpan? escalationStepDelay = null)
     {
         this.db = db;
+        this.escalationStepDelay = escalationStepDelay;
         protector = AesGcmSensitiveDataProtector.FromBase64(dataProtectionKey);
     }
 
@@ -159,7 +161,7 @@ public sealed class DemoDataSeeder
         db.AlertTemplates.Add(template);
         db.NotificationPolicies.Add(notification);
         db.EscalationPolicies.Add(escalation);
-        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, escalation.Id, 1));
+        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, escalation.Id, 1, escalationStepDelay));
 
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -179,7 +181,7 @@ public sealed class DemoDataSeeder
             old.Deactivate();
         var policy = EscalationPolicy.CreatePhase9Demo(new EscalationPolicyId(Id("a05")), OrganizationId);
         db.EscalationPolicies.Add(policy);
-        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, policy.Id, 1));
+        db.EscalationSteps.Add(EscalationStep.CreateDemo(new EscalationStepId(Id("a06")), OrganizationId, policy.Id, 1, escalationStepDelay));
         await db.SaveChangesAsync(ct);
     }
 

@@ -2,7 +2,11 @@ param(
     [switch]$SkipWebBuild,
     [switch]$EnableAssistance,
     [string]$TestPattern,
-    [ValidateRange(0, 60)][int]$ReviewPauseSeconds = 0
+    [ValidateRange(0, 60)][int]$ReviewPauseSeconds = 0,
+    # Seeded DEMO-9 waits 60 seconds in real use. The escalation tests wait for that deadline in real time,
+    # so the test database is seeded with a short one. Must stay well above the time the pause/accept
+    # scenarios need to act before the deadline (a few seconds).
+    [ValidateRange(1, 300)][int]$EscalationStepDelaySeconds = 15
 )
 
 Set-StrictMode -Version Latest
@@ -140,6 +144,7 @@ try {
     $env:AlertStructuring__Provider = if ($EnableAssistance) { 'Simulated' } else { 'Disabled' }
     $env:SYSTEM_E2E_ASSISTANCE = $EnableAssistance.ToString().ToLowerInvariant()
     $env:SimulationEscalation__PollIntervalMilliseconds = "200"
+    $env:SimulationEscalation__DemoStepDelaySeconds = "$EscalationStepDelaySeconds"
 
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database migrate
     & $dotnet run --project $apiProject --configuration Release --no-launch-profile -- database reset-demo --confirm-demo-reset
