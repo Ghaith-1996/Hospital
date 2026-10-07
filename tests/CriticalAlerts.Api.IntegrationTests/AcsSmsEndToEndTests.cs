@@ -201,10 +201,13 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
         var tag = AzureCommunicationServicesSmsChannel.CreateTag(attempt.IdempotencyKey);
         var good = ReportEvent("evt-good", attempt.ProviderReference, "Delivered", tag);
         var results = new Dictionary<string, int>();
-        async Task Check(string name, HttpContent content, HttpStatusCode expected)
+        async Task Check(string name, HttpContent content, HttpStatusCode expected,
+            string subscriptionName = AcsSmsEndToEndFixture.SubscriptionName, string eventTypeHeader = "Notification")
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, AcsSmsEndToEndFixture.WebhookPath) { Content = content };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", fixture.ValidToken());
+            request.Headers.Add("aeg-subscription-name", subscriptionName);
+            request.Headers.Add("aeg-event-type", eventTypeHeader);
             using var response = await fixture.Client.SendAsync(request);
             var text = await response.Content.ReadAsStringAsync();
             response.StatusCode.Should().Be(expected, name);
@@ -223,6 +226,8 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
         await Check("unsafe-message-id", Json(new[] { good, ReportEvent("evt-unsafe", "id with spaces", "Delivered", tag) }), HttpStatusCode.BadRequest);
         await Check("duplicate-id-in-batch", Json(new[] { good, good }), HttpStatusCode.BadRequest);
         await Check("not-json", new StringContent("{nope", Encoding.UTF8, "application/json"), HttpStatusCode.BadRequest);
+        await Check("unintended-subscription", Json(new[] { good }), HttpStatusCode.BadRequest, subscriptionName: "SIM-UNINTENDED-SUBSCRIPTION");
+        await Check("handshake-header-on-report", Json(new[] { good }), HttpStatusCode.BadRequest, eventTypeHeader: "SubscriptionValidation");
 
         await using var db = fixture.CreateContext();
         (await db.InboxMessages.CountAsync()).Should().Be(0, "no event of a rejected batch may be applied");
@@ -231,9 +236,11 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
     }
 
     [Fact]
-    public async Task SubscriptionValidationEchoesTheCodeOnlyForTheConfiguredTopicWhenAuthenticated()
+    public async Task SubscriptionValidationEchoesTheCodeOnlyForTheConfiguredSubscriptionWhenAuthenticated()
     {
-        static object[] Validation(string topic, DateTime eventTime, bool withId = true)
+        // Shape of Microsoft's documented handshake: the topic is a bare subscription path, not the ACS
+        // resource or the system topic, so the intended subscription is recognized by aeg-subscription-name.
+        static object[] Validation(DateTime eventTime, string topic = "/subscriptions/00000000-0000-0000-0000-000000000000", bool withId = true)
         {
             var item = new Dictionary<string, object>
             {
@@ -241,29 +248,38 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
                 ["subject"] = string.Empty,
                 ["eventType"] = "Microsoft.EventGrid.SubscriptionValidationEvent",
                 ["eventTime"] = eventTime.ToString("O"),
-                ["dataVersion"] = "2",
-                ["data"] = new { validationCode = "SIM-VALIDATION-CODE-0001" },
+                ["metadataVersion"] = "1",
+                ["dataVersion"] = "1",
+                ["data"] = new
+                {
+                    validationCode = "SIM-VALIDATION-CODE-0001",
+                    validationUrl = "https://sim-eventgrid.invalid:553/eventsubscriptions/sim/validate?id=SIM",
+                },
             };
-            if (withId) item["id"] = "evt-validation";
+            if (withId) item["id"] = "0f2c3c58-6a6e-4f0e-9b0b-5d7b9a3d0001";
             return [item];
         }
 
-        var intended = Validation(AcsSmsEndToEndFixture.ValidationTopic, DateTime.UtcNow);
-        using var anonymous = await fixture.PostReportsAsync(null, intended);
-        using var authenticated = await fixture.PostReportsAsync(fixture.ValidToken(), intended);
+        const string handshake = "SubscriptionValidation";
+        var intended = Validation(DateTime.UtcNow);
+        using var anonymous = await fixture.PostReportsAsync(null, intended, eventTypeHeader: handshake);
+        using var authenticated = await fixture.PostReportsAsync(fixture.ValidToken(), intended, eventTypeHeader: handshake);
         var echoed = await authenticated.Content.ReadFromJsonAsync<JsonElement>();
-        using var otherTopic = await fixture.PostReportsAsync(fixture.ValidToken(),
-            Validation("/subscriptions/x/resourceGroups/y/providers/Microsoft.EventGrid/systemTopics/unintended", DateTime.UtcNow));
-        using var acsTopic = await fixture.PostReportsAsync(fixture.ValidToken(), Validation(AcsSmsEndToEndFixture.Topic, DateTime.UtcNow));
-        using var stale = await fixture.PostReportsAsync(fixture.ValidToken(),
-            Validation(AcsSmsEndToEndFixture.ValidationTopic, DateTime.UtcNow.AddDays(-3)));
-        using var missingId = await fixture.PostReportsAsync(fixture.ValidToken(),
-            Validation(AcsSmsEndToEndFixture.ValidationTopic, DateTime.UtcNow, withId: false));
+        using var lowerCaseName = await fixture.PostReportsAsync(fixture.ValidToken(), intended, eventTypeHeader: handshake,
+            subscriptionName: AcsSmsEndToEndFixture.SubscriptionName.ToLowerInvariant());
+        using var acsResourceTopic = await fixture.PostReportsAsync(fixture.ValidToken(), Validation(DateTime.UtcNow, AcsSmsEndToEndFixture.Topic), eventTypeHeader: handshake);
+        using var otherSubscription = await fixture.PostReportsAsync(fixture.ValidToken(), intended, eventTypeHeader: handshake, subscriptionName: "SIM-UNINTENDED-SUBSCRIPTION");
+        using var noSubscription = await fixture.PostReportsAsync(fixture.ValidToken(), intended, eventTypeHeader: handshake, subscriptionName: null);
+        using var wrongEventHeader = await fixture.PostReportsAsync(fixture.ValidToken(), intended, eventTypeHeader: "Notification");
+        using var stale = await fixture.PostReportsAsync(fixture.ValidToken(), Validation(DateTime.UtcNow.AddDays(-3)), eventTypeHeader: handshake);
+        using var missingId = await fixture.PostReportsAsync(fixture.ValidToken(), Validation(DateTime.UtcNow, withId: false), eventTypeHeader: handshake);
 
         anonymous.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         authenticated.StatusCode.Should().Be(HttpStatusCode.OK);
         echoed.GetProperty("validationResponse").GetString().Should().Be("SIM-VALIDATION-CODE-0001");
-        foreach (var rejected in new[] { otherTopic, acsTopic, stale, missingId })
+        lowerCaseName.StatusCode.Should().Be(HttpStatusCode.OK, "Event Grid upper-cases subscription names");
+        acsResourceTopic.StatusCode.Should().Be(HttpStatusCode.OK, "the handshake topic is not used to recognize the subscription");
+        foreach (var rejected in new[] { otherSubscription, noSubscription, wrongEventHeader, stale, missingId })
         {
             rejected.StatusCode.Should().Be(HttpStatusCode.BadRequest);
             (await rejected.Content.ReadAsStringAsync()).Should().NotContain("SIM-VALIDATION-CODE-0001");
@@ -273,8 +289,11 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
         {
             anonymous = (int)anonymous.StatusCode,
             authenticated = (int)authenticated.StatusCode,
-            unintendedTopic = (int)otherTopic.StatusCode,
-            acsResourceTopic = (int)acsTopic.StatusCode,
+            subscriptionNameCaseInsensitive = (int)lowerCaseName.StatusCode,
+            anyHandshakeTopic = (int)acsResourceTopic.StatusCode,
+            unintendedSubscription = (int)otherSubscription.StatusCode,
+            missingSubscriptionHeader = (int)noSubscription.StatusCode,
+            wrongEventTypeHeader = (int)wrongEventHeader.StatusCode,
             stale = (int)stale.StatusCode,
             missingId = (int)missingId.StatusCode,
         });
@@ -366,7 +385,7 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
             builder.UseSetting("Communications:Webhooks:EventGrid:TenantId", AcsSmsEndToEndFixture.TenantId);
             builder.UseSetting("Communications:Webhooks:EventGrid:Audience", AcsSmsEndToEndFixture.Audience);
             builder.UseSetting("Communications:Webhooks:EventGrid:ExpectedTopic", AcsSmsEndToEndFixture.Topic);
-            builder.UseSetting("Communications:Webhooks:EventGrid:ValidationTopic", AcsSmsEndToEndFixture.ValidationTopic);
+            builder.UseSetting("Communications:Webhooks:EventGrid:SubscriptionName", AcsSmsEndToEndFixture.SubscriptionName);
         });
         FluentActions.Invoking(() => production.CreateClient()).Should().Throw<InvalidOperationException>();
 
@@ -416,7 +435,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
     public const string TenantId = "0f0f0f0f-1111-4222-8333-444444444444";
     public const string Audience = "api://sim-critical-alerts-webhook";
     public const string Topic = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sim-rg/providers/Microsoft.Communication/CommunicationServices/sim-critical-alerts";
-    public const string ValidationTopic = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/sim-rg/providers/Microsoft.EventGrid/systemTopics/sim-critical-alerts-sms";
+    public const string SubscriptionName = "SIM-CRITICAL-ALERTS-SMS-REPORTS";
     public const string TestNumber = "+15555550142";
     public const string WebhookPath = "/api/v1/webhooks/communications/acs-sms";
     public static readonly string AccessKey = Convert.ToBase64String(Enumerable.Range(40, 32).Select(value => (byte)value).ToArray());
@@ -463,7 +482,7 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
             builder.UseSetting("Communications:Webhooks:EventGrid:TenantId", TenantId);
             builder.UseSetting("Communications:Webhooks:EventGrid:Audience", Audience);
             builder.UseSetting("Communications:Webhooks:EventGrid:ExpectedTopic", Topic);
-            builder.UseSetting("Communications:Webhooks:EventGrid:ValidationTopic", ValidationTopic);
+            builder.UseSetting("Communications:Webhooks:EventGrid:SubscriptionName", SubscriptionName);
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IConfigureOptions<RateLimiterOptions>>();
@@ -553,13 +572,21 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
         return token;
     }
 
-    public async Task<HttpResponseMessage> PostReportsAsync(string? token, object events, HttpClient? client = null)
+    /// <summary>Posts like Event Grid: bearer token plus the aeg-subscription-name and aeg-event-type delivery headers.</summary>
+    public async Task<HttpResponseMessage> PostReportsAsync(
+        string? token,
+        object events,
+        HttpClient? client = null,
+        string eventTypeHeader = "Notification",
+        string? subscriptionName = SubscriptionName)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, WebhookPath)
         {
             Content = new StringContent(JsonSerializer.Serialize(events), Encoding.UTF8, "application/json"),
         };
         if (token is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (subscriptionName is not null) request.Headers.Add("aeg-subscription-name", subscriptionName);
+        request.Headers.Add("aeg-event-type", eventTypeHeader);
         return await (client ?? Client).SendAsync(request);
     }
 

@@ -61,7 +61,7 @@ Communications:Sms:AzureCommunicationServices:TestRecipients:<SIM-SMS-label> = <
 Communications:Sms:AzureCommunicationServices:DeliveryReportWindowSeconds = 300   (DEMO)
 Communications:Sms:AzureCommunicationServices:UncertainOutcomeWindowSeconds = 120 (DEMO)
 Communications:Webhooks:EventGrid:Enabled = false
-Communications:Webhooks:EventGrid:TenantId / Audience / ExpectedTopic (ACS resource) / ValidationTopic (Event Grid topic of the subscription)
+Communications:Webhooks:EventGrid:TenantId / Audience / ExpectedTopic (ACS resource ID) / SubscriptionName (Event Grid event subscription name)
 ```
 
 The worker validates the SMS settings at startup, even when dispatch is disabled. The API validates the webhook settings at startup. Production refuses both.
@@ -70,6 +70,7 @@ Event Grid setup:
 
 - The subscription must use the **Event Grid schema**. The CloudEvents OPTIONS handshake is not implemented.
 - The subscription must filter to `Microsoft.Communication.SMSDeliveryReportReceived`.
+- Its name must equal `SubscriptionName`. Every delivery is checked against the `aeg-subscription-name` header, case-insensitively, and against an `aeg-event-type` that matches the body. The handshake's body `topic` is not compared, because Event Grid documents it as a subscription path rather than the event source.
 - Microsoft Entra authentication must be enabled with the webhook app registration, which grants the `AzureEventGridSecureWebhookSubscriber` role.
 
 ## Verification

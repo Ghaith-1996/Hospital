@@ -7,7 +7,7 @@ namespace CriticalAlerts.Api.Authentication;
 /// Settings for authenticated Azure Event Grid delivery-report webhooks. Disabled by default, never in
 /// Production, and fail closed when partially configured. Values are never echoed in errors.
 /// </summary>
-internal sealed record EventGridWebhookSettings(bool Enabled, string TenantId, string Audience, string ExpectedTopic, string ValidationTopic)
+internal sealed record EventGridWebhookSettings(bool Enabled, string TenantId, string Audience, string ExpectedTopic, string SubscriptionName)
 {
     public const string Section = "Communications:Webhooks:EventGrid";
     public const string Scheme = "EventGridWebhook";
@@ -25,13 +25,13 @@ internal sealed record EventGridWebhookSettings(bool Enabled, string TenantId, s
         var tenant = section["TenantId"];
         var audience = section["Audience"];
         var topic = section["ExpectedTopic"];
-        // The Event Grid topic the subscription is created on; only its validation handshake is answered.
-        var validationTopic = section["ValidationTopic"];
-        if (string.IsNullOrWhiteSpace(validationTopic) || validationTopic.Length > 400
-            || !validationTopic.StartsWith("/subscriptions/", StringComparison.OrdinalIgnoreCase))
+        // Name of the intended Event Grid event subscription. Event Grid sends it as aeg-subscription-name on every
+        // delivery, including the handshake, whose body topic does not identify the subscription.
+        var subscriptionName = section["SubscriptionName"];
+        if (!IsValidSubscriptionName(subscriptionName))
         {
             throw new InvalidOperationException(
-                "Communications:Webhooks:EventGrid requires the ValidationTopic resource ID of the intended Event Grid subscription.");
+                "Communications:Webhooks:EventGrid requires the SubscriptionName of the intended Event Grid subscription.");
         }
 
         if (!Guid.TryParseExact(tenant, "D", out _)
@@ -44,8 +44,15 @@ internal sealed record EventGridWebhookSettings(bool Enabled, string TenantId, s
                 "Communications:Webhooks:EventGrid requires TenantId, Audience and an ACS ExpectedTopic resource ID.");
         }
 
-        return new(true, tenant!, audience!, topic!, validationTopic);
+        return new(true, tenant!, audience!, topic!, subscriptionName!);
     }
+
+    /// <summary>Event Grid subscription names: 3-64 letters, digits and hyphens.</summary>
+    public static bool IsValidSubscriptionName(string? value)
+        => value is { Length: >= 3 and <= 64 } && value.All(character => char.IsAsciiLetterOrDigit(character) || character == '-');
+
+    public bool IsIntendedSubscription(string? headerValue)
+        => IsValidSubscriptionName(headerValue) && string.Equals(headerValue, SubscriptionName, StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class EventGridWebhookAuthentication

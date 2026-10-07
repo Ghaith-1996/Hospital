@@ -17,6 +17,8 @@ internal static class CommunicationWebhookEndpoints
     public const int MaxEvents = 50;
     private const string ValidationEvent = "Microsoft.EventGrid.SubscriptionValidationEvent";
     private const string DeliveryReportEvent = "Microsoft.Communication.SMSDeliveryReportReceived";
+    private const string HandshakeDelivery = "SubscriptionValidation";
+    private const string NotificationDelivery = "Notification";
 
     public static void MapCommunicationWebhookEndpoints(this WebApplication app, EventGridWebhookSettings settings)
     {
@@ -36,6 +38,12 @@ internal static class CommunicationWebhookEndpoints
     {
         if (!string.Equals(context.Request.ContentType?.Split(';')[0].Trim(), "application/json", StringComparison.OrdinalIgnoreCase))
             return Problem(StatusCodes.Status415UnsupportedMediaType, "content-type-unsupported");
+        // Bind every delivery, including the handshake, to the one intended Event Grid subscription.
+        if (!settings.IsIntendedSubscription(SingleHeader(context, "aeg-subscription-name")))
+            return Problem(StatusCodes.Status400BadRequest, "subscription-unexpected");
+        var deliveryKind = SingleHeader(context, "aeg-event-type");
+        if (deliveryKind is not (HandshakeDelivery or NotificationDelivery))
+            return Problem(StatusCodes.Status400BadRequest, "delivery-type-unexpected");
         if (context.Request.ContentLength is > MaxBodyBytes)
             return Problem(StatusCodes.Status413PayloadTooLarge, "payload-too-large");
 
@@ -45,7 +53,7 @@ internal static class CommunicationWebhookEndpoints
         ParsedBatch batch;
         try
         {
-            batch = Parse(body, settings, time.GetUtcNow());
+            batch = Parse(body, settings, deliveryKind, time.GetUtcNow());
         }
         catch (WebhookRejectedException rejected)
         {
@@ -78,7 +86,7 @@ internal static class CommunicationWebhookEndpoints
         return Results.Ok(new { accepted = batch.Reports.Count });
     }
 
-    private static ParsedBatch Parse(byte[] body, EventGridWebhookSettings settings, DateTimeOffset now)
+    private static ParsedBatch Parse(byte[] body, EventGridWebhookSettings settings, string deliveryKind, DateTimeOffset now)
     {
         using var json = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 8 });
         var root = json.RootElement;
@@ -98,20 +106,19 @@ internal static class CommunicationWebhookEndpoints
             var eventType = RequiredString(item, "eventType");
             if (eventType is not (ValidationEvent or DeliveryReportEvent)) throw new WebhookRejectedException("event-type-unsupported");
             var eventTime = RequiredEventTime(item, now);
-            var topic = RequiredString(item, "topic");
 
             if (eventType == ValidationEvent)
             {
-                // Only the intended subscription's handshake is answered, after authentication and envelope checks.
-                if (root.GetArrayLength() != 1) throw new WebhookRejectedException("batch-invalid");
-                if (!string.Equals(topic, settings.ValidationTopic, StringComparison.OrdinalIgnoreCase))
-                    throw new WebhookRejectedException("topic-unexpected");
+                // The intended subscription was already recognized by aeg-subscription-name. The handshake body's
+                // topic is not compared: Event Grid documents it as a subscription path, not the event source.
+                if (root.GetArrayLength() != 1 || deliveryKind != HandshakeDelivery) throw new WebhookRejectedException("batch-invalid");
                 var code = RequiredString(data, "validationCode");
                 if (!IsSafeToken(code, 128)) throw new WebhookRejectedException("validation-code-invalid");
                 return new ParsedBatch(code, []);
             }
 
-            if (!string.Equals(topic, settings.ExpectedTopic, StringComparison.OrdinalIgnoreCase))
+            if (deliveryKind != NotificationDelivery) throw new WebhookRejectedException("delivery-type-unexpected");
+            if (!string.Equals(RequiredString(item, "topic"), settings.ExpectedTopic, StringComparison.OrdinalIgnoreCase))
                 throw new WebhookRejectedException("topic-unexpected");
             if (RequiredString(item, "dataVersion") != "1.0") throw new WebhookRejectedException("data-version-unsupported");
 
@@ -137,6 +144,9 @@ internal static class CommunicationWebhookEndpoints
 
         return new ParsedBatch(null, reports);
     }
+
+    private static string? SingleHeader(HttpContext context, string name)
+        => context.Request.Headers.TryGetValue(name, out var values) && values.Count == 1 ? values[0] : null;
 
     private static DateTimeOffset RequiredEventTime(JsonElement item, DateTimeOffset now)
     {
