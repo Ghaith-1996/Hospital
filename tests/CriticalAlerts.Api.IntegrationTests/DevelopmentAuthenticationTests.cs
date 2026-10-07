@@ -123,30 +123,6 @@ public sealed class DevelopmentAuthenticationTests(SeededPostgresApiFixture fixt
     }
 
     [Fact]
-    public async Task OperatorCannotUseAdministratorEndpoint()
-    {
-        using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);
-
-        using var operatorProbe = await client.GetAsync("/api/v1/authorization/operator");
-        using var administratorProbe = await client.GetAsync("/api/v1/authorization/administrator");
-
-        operatorProbe.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        administratorProbe.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task AdministratorAndPractitionerRolesAreDistinct()
-    {
-        using var administrator = await fixture.CreateSignedInClientAsync(DemoDataSeeder.MorganHandle);
-        using var practitioner = await fixture.CreateSignedInClientAsync(DemoDataSeeder.RileyHandle);
-
-        (await administrator.GetAsync("/api/v1/authorization/administrator")).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await administrator.GetAsync("/api/v1/authorization/operator")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await practitioner.GetAsync("/api/v1/authorization/practitioner")).StatusCode.Should().Be(HttpStatusCode.NoContent);
-        (await practitioner.GetAsync("/api/v1/authorization/administrator")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
     public async Task OrganizationScopeRejectsForeignOrganization()
     {
         using var client = await fixture.CreateSignedInClientAsync(DemoDataSeeder.JordanHandle);

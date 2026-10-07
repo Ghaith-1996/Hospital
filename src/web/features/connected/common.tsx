@@ -2,7 +2,7 @@
 import React from "react";
 import { isAlertApiError } from "../../lib/alerts";
 
-export function errorGuidance(error: unknown): string {
+function errorGuidance(error: unknown): string {
   if (!isAlertApiError(error)) return "API/network unavailable. Your changes were not confirmed. Retry when the simulation API is available.";
   if (error.status === 401) return "Session unavailable. Select a backend development identity and retry.";
   if (error.status === 403) return "You are not authorized for this action. Select an authorized simulation identity.";

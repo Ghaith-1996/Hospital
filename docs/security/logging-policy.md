@@ -1,10 +1,10 @@
 # Logging Policy
 
-Status: Phase 10 PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
+Status: PHI-safe logging control. This policy is a design control, not a hospital-approved retention schedule.
 
-## Phase 10 allowlist extension
+## Implemented allowlist
 
-The [implemented boundary](../architecture/observability.md) supersedes historical logging allowances below: exclude display names, provider references, organization/actor/resource identifiers, raw exceptions, URLs/query strings and arbitrary payloads. Only source-generated CriticalAlerts.Operations events are enabled. Their fields are finite operation/state, status code and effective opaque correlation ID. The metric tag is operation only, from a closed mapping; no identifiers. Audit has a separate authorized projection. Framework diagnostics are suppressed. Runtime sentinel and MeterListener verification is mandatory. Telemetry stays local; production destination/access/retention/exporter/SIEM remain REQUIRES_HOSPITAL_DECISION.
+The [observability architecture](../architecture/observability.md) implements this policy and defines the log events, metrics, correlation and health mechanics. Logs exclude display names, provider references, organization/actor/resource identifiers, raw exceptions, URLs/query strings and arbitrary payloads. Only fixed operation/state, status code and an opaque correlation ID are logged; the single metric tag is a closed operation name, never an identifier. Framework diagnostics are suppressed. Runtime sentinel and MeterListener verification is mandatory. Telemetry stays local; production destination/access/retention/exporter/SIEM remain REQUIRES_HOSPITAL_DECISION.
 
 ## Purpose
 
@@ -68,7 +68,7 @@ Audit events must identify confirmation, edit/reconfirmation, recipient selectio
 - Log identifiers, channel type, attempt number, status category, and timing—not endpoint values or message bodies.
 - Store provider callback IDs only where needed for idempotency, preferably as protected/hashed references.
 - Record duplicate, out-of-order, rejected-signature, and rate-limit outcomes as safe categories.
-- The Phase 7 simulation worker may log only synthetic provider names/references, safe status categories, retry/lease outcomes, and opaque organization/resource identifiers. It must never decrypt protected endpoints or serialize the outbox payload, approved message, policy body, or provider request.
+- The simulation worker may log only synthetic provider names/references, safe status categories, retry/lease outcomes, and opaque organization/resource identifiers. It must never decrypt protected endpoints or serialize the outbox payload, approved message, policy body, or provider request.
 
 ### AI and transcription
 
@@ -83,30 +83,27 @@ Audit events must identify confirmation, edit/reconfirmation, recipient selectio
 - Add automated checks that fail if known synthetic message bodies, patient references, phone numbers, tokens, or secret patterns appear in logs or errors.
 - Verify that correlation IDs cannot be used to retrieve protected content without authorization.
 
-## Phase 6 boundary
+## Confirmation audit metadata
 
-Phase 6 confirmation audit metadata is limited to actor and organization identifiers, alert and version identifiers, action/outcome, UTC time, recipient count, channel kinds, `DEMO` policy version identifiers, and correlation ID. The identifier-only outbox item contains only the alert identifier and draft version. Source text, SBAR, approved message, patient content, practitioner names, contact values, and complete request bodies remain excluded from logs, audit metadata, idempotency records, and outbox payloads.
+Confirmation audit metadata is limited to actor and organization identifiers, alert and version identifiers, action/outcome, UTC time, recipient count, channel kinds, `DEMO` policy version identifiers, and correlation ID. The identifier-only outbox item contains only the alert identifier and draft version. Source text, SBAR, approved message, patient content, practitioner names, contact values, and complete request bodies remain excluded from logs, audit metadata, idempotency records, and outbox payloads.
 
-## Phase 7 boundary
+## Worker audit metadata
 
-Phase 7 worker audit metadata is limited to organization, alert/attempt identifiers, channel, provider name, attempt number, safe status or failure category, retry timing, event ordering outcome, and correlation ID. Simulation scenario controls record only the selected channel and scenario name. Delivery-status responses expose status/timestamps and safe failure categories, never protected message ciphertext, decrypted contact values, source content, or raw provider payloads. The simulation adapter has no network boundary and must remain unavailable outside Development/Test.
+Worker audit metadata is limited to organization, alert/attempt identifiers, channel, provider name, attempt number, safe status or failure category, retry timing, event ordering outcome, and correlation ID. Simulation scenario controls record only the selected channel and scenario name. Delivery-status responses expose status/timestamps and safe failure categories, never protected message ciphertext, decrypted contact values, source content, or raw provider payloads. The simulation adapter has no network boundary and must remain unavailable outside Development/Test.
 
-## Phase 8 boundary
+## Response and lifecycle audit metadata
 
-Phase 8 response and lifecycle audit metadata is limited to opaque organization, actor, practitioner, alert, version, response, lifecycle action, and optional assignment identifiers; response category; allowlisted reason code; outcome; UTC timestamp; and correlation ID. It must not include practitioner display names, approved/source/SBAR content, patient references, contact values, provider references, request bodies, or arbitrary reason text. The operator live projection exposes only allowlisted operational delivery/response/lifecycle fields and safe failure categories. Manual-fallback display is a safe category only and never contains a route or contact value. Authorization and environment failures return non-disclosing problem details and do not reveal whether a foreign or unaddressed alert exists.
+Response and lifecycle audit metadata is limited to opaque organization, actor, practitioner, alert, version, response, lifecycle action, and optional assignment identifiers; response category; allowlisted reason code; outcome; UTC timestamp; and correlation ID. It must not include practitioner display names, approved/source/SBAR content, patient references, contact values, provider references, request bodies, or arbitrary reason text. The operator live projection exposes only allowlisted operational delivery/response/lifecycle fields and safe failure categories. Manual-fallback display is a safe category only and never contains a route or contact value. Authorization and environment failures return non-disclosing problem details and do not reveal whether a foreign or unaddressed alert exists.
 
 ## Access, retention, and incident response
 
 Log access, centralized storage, cross-border transfer, retention, deletion, legal hold, SIEM integration, alert thresholds, and incident-response ownership are `REQUIRES_HOSPITAL_DECISION`. Until approved, keep simulation logs local, minimize retention, and do not send them to external services.
 
+## Speech and AI suggestions
 
-## Phase 11 authorized work
+AI assistance forbids audio bytes/digests, transcripts, source text, suggestions, evidence snippets, provider response/error text and keys in logs, audit metadata or metric labels. Committed audits allow only transcription/structuring requested/completed/failed/applied/stale actions with simulation/version metadata. Metrics reuse finite operation labels; no alert/user/patient IDs become metric tags. Runtime sentinel tests exercise successful Apply, failure and stale paths. Evaluation logs contain aggregate counts/rates only; fixtures are fictional and raw evaluation/media/browser artifacts are excluded from git and Docker. Logging may never be enabled to troubleshoot raw provider bodies.
 
-The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
-
-Phase 11 forbids audio bytes/digests, transcripts, source text, suggestions, evidence snippets, provider response/error text and keys in logs, audit metadata or metric labels. Committed audits allow only transcription/structuring requested/completed/failed/applied/stale actions with simulation/version metadata. Metrics reuse finite operation labels; no alert/user/patient IDs become metric tags. Runtime sentinel tests exercise successful Apply, failure and stale paths. Evaluation logs contain aggregate counts/rates only; fixtures are fictional and raw evaluation/media/browser artifacts are excluded from git and Docker. Logging may never be enabled to troubleshoot raw provider bodies.
-
-## Phase 12 authorized work (slice 1: ACS SMS)
+## Real communication adapters (ACS SMS)
 
 Never logged, audited, persisted or returned in problems:
 

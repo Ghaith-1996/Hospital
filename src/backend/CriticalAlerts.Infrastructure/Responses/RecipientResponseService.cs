@@ -8,7 +8,7 @@ using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using static CriticalAlerts.Infrastructure.Persistence.PersistenceChecks;
 
 namespace CriticalAlerts.Infrastructure.Responses;
 
@@ -533,12 +533,6 @@ public sealed class RecipientResponseService(
 
     private static string Hash(string value)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-
-    private static bool FixedEquals(string left, string right)
-        => CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(left), Encoding.UTF8.GetBytes(right));
-
-    private static bool IsUniqueViolation(DbUpdateException exception)
-        => exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     private static RecipientResponseValidationException Conflict(string code, string message)
         => new(code, message);

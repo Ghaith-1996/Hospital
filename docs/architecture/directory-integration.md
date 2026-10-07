@@ -1,6 +1,6 @@
 # Directory and On-Call Integration
 
-Status: Phase 4 simulation CSV adapter with review corrections. Only fictional CSV is in scope for this boundary. No hospital directory or scheduling system may be connected from these documents.
+Status: Simulation CSV adapter. Only fictional CSV is in scope for this boundary. No hospital directory or scheduling system may be connected from these documents.
 
 ## Integration principle
 

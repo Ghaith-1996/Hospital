@@ -11,7 +11,7 @@ using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Domain.Reliability;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using static CriticalAlerts.Infrastructure.Persistence.PersistenceChecks;
 
 namespace CriticalAlerts.Infrastructure.Alerts;
 
@@ -458,17 +458,6 @@ public sealed class AlertReviewService(
 
         return new ConfirmAlertReviewResult(alertId, version, parts[2], replayed);
     }
-
-    private static bool FixedEquals(string left, string right)
-        => CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(left),
-            Encoding.UTF8.GetBytes(right));
-
-    private static bool IsUniqueViolation(DbUpdateException exception)
-        => exception.InnerException is PostgresException
-        {
-            SqlState: PostgresErrorCodes.UniqueViolation,
-        };
 
     private static AlertReviewValidationException NotReady()
         => new(

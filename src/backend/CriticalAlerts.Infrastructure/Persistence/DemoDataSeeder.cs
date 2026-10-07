@@ -15,9 +15,7 @@ public sealed class DemoDataSeeder
     public static readonly SiteId NorthSiteId = new(Guid.Parse("11111111-1111-4111-8111-111111111201"));
     public static readonly SiteId RiversideSiteId = new(Guid.Parse("11111111-1111-4111-8111-111111111202"));
     public static readonly DepartmentId EmergencyDepartmentId = new(Guid.Parse("11111111-1111-4111-8111-111111110301"));
-    public static readonly RoleId OperatorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110401"));
     public static readonly RoleId PractitionerRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110402"));
-    public static readonly RoleId AdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110403"));
     public static readonly RoleId PhysicianRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110404"));
     public static readonly RoleId ClinicalSupervisorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110405"));
     public static readonly RoleId DirectoryAdministratorRoleId = new(Guid.Parse("11111111-1111-4111-8111-111111110406"));

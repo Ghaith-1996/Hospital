@@ -5,6 +5,7 @@ using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Domain;
 using Microsoft.EntityFrameworkCore;
+using static CriticalAlerts.Api.Http.EndpointHelpers;
 
 namespace CriticalAlerts.Api.Http;
 
@@ -144,26 +145,5 @@ internal static class AlertLifecycleEndpoints
                 title: "Alert lifecycle conflict",
                 detail: "lifecycle-conflict");
         }
-    }
-
-    private static string CorrelationId(HttpContext httpContext)
-        => httpContext.Response.Headers["X-Correlation-ID"].ToString();
-
-    private static bool TryGetActor(
-        ClaimsPrincipal principal,
-        out UserId userId,
-        out OrganizationId organizationId)
-    {
-        userId = default;
-        organizationId = default;
-        if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUser)
-            || !Guid.TryParse(principal.FindFirstValue(AuthenticationClaimTypes.OrganizationId), out var parsedOrganization))
-        {
-            return false;
-        }
-
-        userId = new UserId(parsedUser);
-        organizationId = new OrganizationId(parsedOrganization);
-        return true;
     }
 }

@@ -6,6 +6,7 @@ using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using Microsoft.EntityFrameworkCore;
+using static CriticalAlerts.Api.Http.EndpointHelpers;
 
 namespace CriticalAlerts.Api.Http;
 
@@ -379,30 +380,5 @@ internal static class AlertDraftEndpoints
             statusCode: StatusCodes.Status400BadRequest,
             title: "Alert draft rejected",
             detail: "alert-draft-rejected");
-    }
-
-    private static IResult Unauthorized()
-        => Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Unauthorized", detail: "authentication-required");
-
-    private static IResult NotFound()
-        => Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not found", detail: "alert-not-found");
-
-    private static string CorrelationId(HttpContext httpContext)
-        => httpContext.Response.Headers["X-Correlation-ID"].ToString();
-
-    private static bool TryGetActor(ClaimsPrincipal principal, out UserId userId, out OrganizationId organizationId)
-    {
-        userId = default;
-        organizationId = default;
-        var userValue = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        var organizationValue = principal.FindFirstValue(AuthenticationClaimTypes.OrganizationId);
-        if (!Guid.TryParse(userValue, out var parsedUser) || !Guid.TryParse(organizationValue, out var parsedOrganization))
-        {
-            return false;
-        }
-
-        userId = new UserId(parsedUser);
-        organizationId = new OrganizationId(parsedOrganization);
-        return true;
     }
 }

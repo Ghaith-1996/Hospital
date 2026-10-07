@@ -8,6 +8,13 @@ This checklist prevents a simulation baseline from being mistaken for production
 
 Every item remains REQUIRES_HOSPITAL_DECISION: audit retention; audit export/legal hold; production audit reviewers; central log destination; log retention; SIEM integration; metric exporter; alert thresholds; incident severity; support/on-call ownership; provider outage fallback route; directory outage fallback; database RPO; database RTO; backup retention; disaster recovery authority. Local logging/metrics and measured fictional restore durations do not close these gates.
 
+## Phase 10 known limitations (simulation baseline)
+
+- The append-only audit trigger protects ordinary DML (UPDATE, DELETE, TRUNCATE) but not a schema owner who deliberately drops or disables it; no runtime retention or escape mechanism exists, and production recovery authority is `REQUIRES_HOSPITAL_DECISION`.
+- Local logs and counters are best-effort process observations, not durable accounting. Durable audit remains authoritative; no exporter, central alerting, retention schedule or production audit-role mapping is configured.
+- A failed audit-read persistence returns 503 so availability never silently bypasses access auditing.
+- The restore exercise is isolated, quiescent and seed-sized. Its measured durations are not recovery objectives, and it does not cover encrypted-backup or key recovery.
+
 ## Intended use and workflow
 
 - [ ] Product intended use is written and legally/clinically reviewed: `REQUIRES_HOSPITAL_DECISION`.

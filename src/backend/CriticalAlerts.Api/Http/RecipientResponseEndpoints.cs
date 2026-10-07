@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CriticalAlerts.Application.Identity;
 using CriticalAlerts.Application.Responses;
 using CriticalAlerts.Domain;
+using static CriticalAlerts.Api.Http.EndpointHelpers;
 
 namespace CriticalAlerts.Api.Http;
 
@@ -174,39 +175,4 @@ internal static class RecipientResponseEndpoints
             new Dictionary<string, string[]> { [code] = [message] },
             statusCode: StatusCodes.Status400BadRequest,
             title: "Invalid simulation recipient action");
-
-    private static IResult Unauthorized()
-        => Results.Problem(
-            statusCode: StatusCodes.Status401Unauthorized,
-            title: "Unauthorized",
-            detail: "authentication-required");
-
-    private static IResult NotFound()
-        => Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Not found",
-            detail: "alert-not-found");
-
-    private static string CorrelationId(HttpContext httpContext)
-        => httpContext.Response.Headers["X-Correlation-ID"].ToString();
-
-    private static bool TryGetActor(
-        ClaimsPrincipal principal,
-        out UserId userId,
-        out OrganizationId organizationId)
-    {
-        userId = default;
-        organizationId = default;
-        if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUser)
-            || !Guid.TryParse(
-                principal.FindFirstValue(AuthenticationClaimTypes.OrganizationId),
-                out var parsedOrganization))
-        {
-            return false;
-        }
-
-        userId = new UserId(parsedUser);
-        organizationId = new OrganizationId(parsedOrganization);
-        return true;
-    }
 }
