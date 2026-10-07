@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { appendFileSync } from "node:fs";
-import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
-import { dbScalar, jordan, prepareConfirmableAlert, createDraft, requiredEnv, riley, sbar, signIn, source, switchIdentity, draftInput } from "./system-helpers";
+import { expect, type Page, test } from "@playwright/test";
+import { apiJson, dbScalar, jordan, prepareConfirmableAlert, createDraft, requiredEnv, riley, sbar, sendRespectingThrottle, signIn, source, switchIdentity, draftInput } from "./system-helpers";
 
 test.describe.serial("Phase 8.5 real closed loop", () => {
   test("A: browser completes durable dispatch, response, responsibility, and resolution", async ({ page }) => {
@@ -188,10 +188,11 @@ test.describe.serial("Phase 9 durable DEMO escalation", () => {
     const review = await apiJson(page.request, "get", `/api/v1/alerts/${draft.alertId}/review`);
     expect(review.escalationPlan.policyVersion).toBe("DEMO-9");
     expect(review.escalationPlan.steps[0].recipients.map((person: { displayName: string }) => person.displayName)).toEqual(["Maya Chen"]);
-    const response = await page.request.post(`/api/v1/alerts/${draft.alertId}/confirm`, {
-      headers: { "Idempotency-Key": `phase9-${crypto.randomUUID()}` }, data: { expectedVersion: draft.draftVersion,
+    const key = `phase9-${crypto.randomUUID()}`;
+    const response = await sendRespectingThrottle(() => page.request.post(`/api/v1/alerts/${draft.alertId}/confirm`, {
+      headers: { "Idempotency-Key": key }, data: { expectedVersion: draft.draftVersion,
         escalationPolicyId: review.escalationPlan.policyId, escalationPolicyVersion: review.escalationPlan.policyVersion,
-        escalationPlanRevision: review.escalationPlan.revision } });
+        escalationPlanRevision: review.escalationPlan.revision } }));
     expect(response.ok(), await response.text()).toBeTruthy();
     await expect.poll(() => dbScalar(`select state from escalation_runs where alert_id = '${draft.alertId}'`)).toBe("Scheduled");
     return draft;
@@ -199,8 +200,9 @@ test.describe.serial("Phase 9 durable DEMO escalation", () => {
 
   async function respond(page: Page, draft: { alertId: string; draftVersion: number }, responseType: string) {
     await switchIdentity(page, riley);
-    const response = await page.request.post(`/api/v1/my-alerts/${draft.alertId}/responses`, {
-      headers: { "Idempotency-Key": `phase9-${crypto.randomUUID()}` }, data: { expectedVersion: draft.draftVersion, responseType } });
+    const key = `phase9-${crypto.randomUUID()}`;
+    const response = await sendRespectingThrottle(() => page.request.post(`/api/v1/my-alerts/${draft.alertId}/responses`, {
+      headers: { "Idempotency-Key": key }, data: { expectedVersion: draft.draftVersion, responseType } }));
     expect(response.ok(), await response.text()).toBeTruthy();
     await switchIdentity(page, jordan);
   }
@@ -274,12 +276,6 @@ test.describe.serial("Phase 9 durable DEMO escalation", () => {
     expect(dbScalar(`select count(*) from escalation_events e join escalation_runs r on r.id = e.run_id where r.alert_id = '${draft.alertId}' and e.kind = 'RecipientActivated'`)).toBe("1");
   });
 });
-
-async function apiJson(request: APIRequestContext, method: "get" | "post" | "put" | "patch", path: string, data?: unknown) {
-  const response = await request[method](path, data === undefined ? undefined : { data });
-  if (!response.ok()) throw new Error(`${method.toUpperCase()} ${path}: ${response.status()} ${await response.text()}`);
-  return response.json();
-}
 
 async function capture(page: Page, name: string) {
   const directory = process.env.SYSTEM_E2E_SCREENSHOT_DIR;
