@@ -290,6 +290,24 @@ public sealed class AzureCommunicationServicesSmsChannelTests
     }
 
     [Fact]
+    public async Task SubmittedAttemptKeepsWaitingAfterItsTestRecipientMappingIsRemoved()
+    {
+        var transport = new FakeAcsTransport();
+        var channel = Channel(transport);
+        var waiting = Request(endpointReference: "SIM-SMS-0999", status: DeliveryAttemptStatus.Submitted, submittedAt: Now.AddSeconds(-30));
+        var expired = Request(endpointReference: "SIM-SMS-0999", status: DeliveryAttemptStatus.Submitted, submittedAt: Now.AddMinutes(-6));
+
+        var pending = await channel.DispatchAsync(waiting, SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+        var unconfirmed = await channel.DispatchAsync(expired, SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        transport.Requests.Should().BeEmpty();
+        pending.Retryable.Should().BeTrue();
+        pending.Events.Should().BeEmpty("an accepted send still awaits its report even without a current mapping");
+        unconfirmed.Events.Should().ContainSingle(item => item.FailureCategory == "delivery-unconfirmed");
+        unconfirmed.Events.Should().NotContain(item => item.FailureCategory == "test-recipient-not-configured");
+    }
+
+    [Fact]
     public async Task SubmittedAttemptsWaitForTheWebhookWithoutResendingThenFailAsUnconfirmed()
     {
         var transport = new FakeAcsTransport();

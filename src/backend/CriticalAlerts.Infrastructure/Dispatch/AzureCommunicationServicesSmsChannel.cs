@@ -70,9 +70,9 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             throw new DispatchValidationException("clock-not-utc", "Provider dispatch requires a UTC clock.");
 
         var tag = CreateTag(request.IdempotencyKey);
-        if (!options.TestRecipients.TryGetValue(request.EndpointReference, out var testNumber))
-            return Failed(tag, "test-recipient-not-configured", now, retryable: false);
 
+        // Status first: an attempt ACS already accepted only waits for its report, needing no recipient lookup,
+        // so a mapping removed or renamed after the send cannot falsely fail it.
         switch (request.CurrentAttemptStatus)
         {
             case DeliveryAttemptStatus.Submitted:
@@ -89,6 +89,8 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             ?? throw new DispatchValidationException("request-invalid", "Provider dispatch requires the durable attempt time.");
         if (now - requestedAt >= options.UncertainOutcomeWindow)
             return Failed(tag, Uncertain, now, retryable: false);
+        if (!options.TestRecipients.TryGetValue(request.EndpointReference, out var testNumber))
+            return Failed(tag, "test-recipient-not-configured", now, retryable: false);
 
         byte[]? body = null;
         try
