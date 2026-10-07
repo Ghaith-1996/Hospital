@@ -220,14 +220,15 @@ public sealed class EscalationStep
         EscalationStepId id,
         OrganizationId organizationId,
         EscalationPolicyId policyId,
-        int sequenceNumber)
+        int sequenceNumber,
+        TimeSpan? delay = null)
     {
         return new EscalationStep(
             id,
             organizationId,
             policyId,
             sequenceNumber,
-            TimeSpan.FromMinutes(sequenceNumber),
+            delay ?? TimeSpan.FromMinutes(sequenceNumber),
             "DEMO backup on-call assignment",
             "SecureMessage",
             maxAttempts: 1);

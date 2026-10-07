@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { expect, type APIRequestContext, type Page, type Response } from "@playwright/test";
+import { expect, type APIRequestContext, type APIResponse, type Page, type Response } from "@playwright/test";
 export const jordan = "Jordan Lee";
 export const riley = "Riley Sato";
 export const source = "SIMULATION: fictional patient has critical pulse 118 beats/min.";
@@ -55,17 +55,22 @@ export function draftInput(patient: string) {
   };
 }
 
-export async function apiJson(request: APIRequestContext, method: "get" | "post" | "put" | "patch", path: string, data?: unknown) {
+// Waits out an explicit 429 request window and resends; any other status is returned to the caller.
+// A throttled request never reached the endpoint, so resending (with the same Idempotency-Key) is safe.
+export async function sendRespectingThrottle(send: () => Promise<APIResponse>) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await request[method](path, data === undefined ? undefined : { data });
-    if (response.status() === 429 && attempt < 2) {
-      await delay(retryDelay(response.headers()["retry-after"]));
-      continue;
-    }
-    if (!response.ok()) throw new Error(`Connected operation failed with status ${response.status()}.`);
-    return response.json();
+    const response = await send();
+    if (response.status() !== 429 || attempt === 2) return response;
+    await delay(retryDelay(response.headers()["retry-after"]));
   }
   throw new Error("Connected operation remained throttled after bounded retries.");
+}
+
+export async function apiJson(request: APIRequestContext, method: "get" | "post" | "put" | "patch", path: string, data?: unknown) {
+  const response = await sendRespectingThrottle(() => request[method](path, data === undefined ? undefined : { data }));
+  if (response.status() === 429) throw new Error("Connected operation remained throttled after bounded retries.");
+  if (!response.ok()) throw new Error(`Connected operation failed with status ${response.status()}.`);
+  return response.json();
 }
 
 export async function createDraft(request: APIRequestContext, patient: string) {
