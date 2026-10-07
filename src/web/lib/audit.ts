@@ -1,6 +1,9 @@
 import { isAlertApiError, requestJson } from "./alerts";
 
+// Must equal AuditSafety.Actions in the backend (checked by tests/audit-vocabulary-contract.test.tsx).
 export const auditActions = [
+  "transcription.requested", "transcription.completed", "transcription.failed", "transcription.applied", "transcription.stale",
+  "structuring.requested", "structuring.completed", "structuring.failed", "structuring.applied", "structuring.stale",
   "alert.draft.created", "alert.draft.updated", "alert.critical-field.confirmed", "alert.draft.submitted",
   "alert.approved-message.updated", "alert.recipients.replaced", "alert.confirmed", "alert.resolved", "alert.cancelled",
   "recipient.opened", "recipient.response.acknowledged", "recipient.response.accepted", "recipient.response.declined",
