@@ -95,7 +95,8 @@ public sealed partial class AcsSmsOptions
 
         var delivery = deliveryReportWindowSeconds ?? 300;
         var uncertain = uncertainOutcomeWindowSeconds ?? 120;
-        if (delivery is < 60 or > 43200 || uncertain is < 10 or > 3600)
+        // Same-key replays must stay inside the 5-minute ACS repeatability tracking, with a margin for clock skew.
+        if (delivery is < 60 or > 43200 || uncertain is < 10 or > 240)
             throw new InvalidOperationException("The ACS SMS DEMO windows are outside their allowed ranges.");
 
         return new AcsSmsOptions(

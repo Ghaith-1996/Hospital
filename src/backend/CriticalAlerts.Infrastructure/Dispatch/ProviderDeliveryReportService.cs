@@ -31,6 +31,11 @@ public sealed class ProviderDeliveryReportService(CriticalAlertsDbContext db, Ti
         if (provider != AzureCommunicationServicesSmsChannel.Provider)
             throw new DispatchValidationException("provider-invalid", "The delivery report provider is not supported.");
 
+        // One webhook request applies a whole batch through this scoped context. A report for an attempt that an
+        // earlier report left tracked must not reuse that copy: the worker or another webhook may have made it
+        // terminal since. Start every report untracked so the row is re-read after the alert lock is taken.
+        db.ChangeTracker.Clear();
+
         var candidates = await db.DeliveryAttempts.AsNoTracking()
             .Where(item => item.Provider == provider && item.ProviderReference == report.ProviderMessageId)
             .Select(item => new { item.Id, item.OrganizationId, item.AlertId })

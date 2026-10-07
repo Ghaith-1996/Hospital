@@ -78,6 +78,18 @@ public sealed class AzureCommunicationServicesSmsChannelTests
             .Should().Throw<InvalidOperationException>();
     }
 
+    [Theory]
+    [InlineData(241)]
+    [InlineData(300)]
+    [InlineData(3600)]
+    public void UncertainWindowCannotOutliveAcsRepeatabilityTracking(int seconds)
+    {
+        var create = () => AcsSmsOptions.Create("Test", Endpoint, AccessKey, FromNumber,
+            new Dictionary<string, string> { [Label] = TestNumber }, deliveryReportWindowSeconds: null, uncertainOutcomeWindowSeconds: seconds);
+
+        create.Should().Throw<InvalidOperationException>();
+    }
+
     [Fact]
     public async Task UnmappedEndpointLabelFailsWithoutAnyHttpCall()
     {
@@ -306,6 +318,35 @@ public sealed class AzureCommunicationServicesSmsChannelTests
         await Channel(transport).DispatchAsync(Request() with { FirstSentAtUtc = durable }, SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
 
         transport.Requests.Should().ContainSingle().Which.RepeatabilityFirstSent.Should().Be(durable.ToString("r"));
+    }
+
+    [Fact]
+    public async Task RepeatabilityPreconditionFailureIsAmbiguousNotARejection()
+    {
+        // ACS answers 412 when the first-sent time is outside its 5-minute tracking: the original may have been sent.
+        var transport = new FakeAcsTransport();
+        transport.Enqueue(_ => Json(HttpStatusCode.PreconditionFailed,
+            "{\"error\":{\"code\":\"PreconditionFailed\",\"message\":\"Repeatability first sent header was not in 5 minutes window\"}}"));
+
+        var result = await Channel(transport).DispatchAsync(Request(), SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        result.FailureCategory.Should().Be("provider-outcome-uncertain");
+        result.Retryable.Should().BeTrue();
+        result.Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task UncertainWindowIsMeasuredFromTheDurableFirstSendNotTheRecreatedAttempt()
+    {
+        // After a crash the attempt row is recreated with a fresh RequestedAtUtc; only the durable first send counts.
+        var transport = new FakeAcsTransport();
+        var request = Request() with { FirstSentAtUtc = Now.AddMinutes(-3) };
+
+        var result = await Channel(transport).DispatchAsync(request, SimulationDispatchScenario.ImmediateSuccess, CancellationToken.None);
+
+        transport.Requests.Should().BeEmpty("a replay must never reach ACS outside the window");
+        result.Retryable.Should().BeFalse();
+        result.Events.Should().ContainSingle(item => item.FailureCategory == "provider-outcome-uncertain");
     }
 
     [Fact]

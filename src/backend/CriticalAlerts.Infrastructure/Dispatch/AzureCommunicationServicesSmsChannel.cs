@@ -45,6 +45,8 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
 
     public string ProviderName => Provider;
 
+    public bool RequiresDurableFirstSend => true;
+
     public static HttpMessageHandler CreateDefaultHandler()
         => new SocketsHttpHandler
         {
@@ -95,15 +97,16 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
 
         var requestedAt = request.AttemptRequestedAtUtc
             ?? throw new DispatchValidationException("request-invalid", "Provider dispatch requires the durable attempt time.");
-        if (now - requestedAt >= options.UncertainOutcomeWindow)
+        // repeatabilityFirstSent must be identical for every replay of this attempt and inside the ACS 5-minute
+        // tracking window. The attempt row (and its RequestedAtUtc) can be rolled back if the worker dies after ACS
+        // accepted the send, so the worker supplies the first-send time it committed before the network call.
+        // Replays are bounded from that durable time, never from a recreated attempt.
+        var firstSent = request.FirstSentAtUtc ?? requestedAt;
+        if (now - firstSent >= options.UncertainOutcomeWindow || now - requestedAt >= options.UncertainOutcomeWindow)
             return Failed(tag, Uncertain, now, retryable: false);
         if (!options.TestRecipients.TryGetValue(request.EndpointReference, out var testNumber))
             return Failed(tag, "test-recipient-not-configured", now, retryable: false);
 
-        // repeatabilityFirstSent must be identical for every replay of this attempt. The attempt row (and its
-        // RequestedAtUtc) can be rolled back if the worker dies after ACS accepted the send, so the worker supplies
-        // a time that was durable before any provider call (the outbox row's creation time).
-        var firstSent = request.FirstSentAtUtc ?? requestedAt;
         byte[]? body = null;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(requestTimeout);
@@ -166,6 +169,9 @@ public sealed class AzureCommunicationServicesSmsChannel : INotificationChannel,
             case HttpStatusCode.TooManyRequests:
                 return Failed(tag, "provider-unavailable", now, retryable: true);
             case HttpStatusCode.RequestTimeout:
+            // 412: the first-sent time is outside ACS repeatability tracking, so ACS cannot say whether the
+            // original was sent. Ambiguous, never a rejection; the uncertain window then fails it visibly.
+            case HttpStatusCode.PreconditionFailed:
                 return UncertainResult(now);
             case HttpStatusCode.Accepted:
                 break;

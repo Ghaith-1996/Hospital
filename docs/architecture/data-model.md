@@ -143,3 +143,14 @@ Formal classification, retention, deletion, legal hold, export, access review, e
 All features default disabled; production decisions remain `REQUIRES_HOSPITAL_DECISION`.
 
 Phase 11 adds `alert_assistance_results` (closed Transcription/Structuring kinds): organization, alert, source revision, exact alert version, actor, UTC timestamp, bounded provider/configuration versions and encrypted payload with distinct transcription/structuring purposes. Source provenance uses a composite FK on source ID/organization/alert/version. New source alternate key and bounded history index are additive. UPDATE/DELETE/TRUNCATE are denied by a statement trigger; EF rejects result mutation. Payload encryption uses `local-v2-context` with authenticated purpose+organization; existing Phase 10 purposes retain `local-v1`. Audio has no storage representation. Provider results, human source revisions, editable SBAR and approved message remain separate. Number/unit confirmations reuse the existing model; full transcript content is never copied to plaintext confirmation fields. Migration: `20260919193851_Phase11AssistanceResults`.
+
+## Real communication adapters (ACS SMS)
+
+Phase 12 adds two things:
+
+- **Provider-reference index:** `IX_delivery_attempts_provider_reference` is a filtered index on `delivery_attempts (provider, provider_reference)`. Authenticated delivery reports use it to find their attempt. Migration: `20260930000833_Phase12ProviderReferenceLookup`.
+- **`provider_send_ledger`:** one row per provider attempt that needs a replay-stable first-send time. Columns: `organization_id`, `provider`, `attempt_idempotency_key` (unique together as `UX_provider_send_ledger_attempt`) and `first_sent_at_utc`. Migration: `20261007022418_Phase12ProviderSendLedger`.
+
+The worker writes the ledger row on its own connection immediately before the network call, insert-if-absent then read. The row therefore survives a rollback of the dispatch transaction. Its only foreign key is to `organizations` (restrict), which is never locked for update, so the separate write cannot wait on the worker's alert lock.
+
+The ledger holds no recipient, number, message or clinical data, and rows are never updated. Retention is `REQUIRES_HOSPITAL_DECISION`, like delivery attempts.

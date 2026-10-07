@@ -397,6 +397,12 @@ public sealed class OutboxDispatchProcessor(
         }
 
         var scenario = await scenarioStore.GetAsync(alert.OrganizationId, recipient.Channel, cancellationToken);
+        // The actual first-send time, committed on its own connection before the network call: it survives a
+        // rollback of this transaction after the provider accepted the send, and a recreated attempt reuses it.
+        DateTimeOffset? firstSentAtUtc = attempt.Status == DeliveryAttemptStatus.Requested && channel.RequiresDurableFirstSend
+            ? await ProviderSendLedger.GetOrRecordFirstSendAsync(
+                db, alert.OrganizationId, channel.ProviderName, attempt.IdempotencyKey, now, cancellationToken)
+            : null;
         var request = new NotificationDispatchRequest(
             alert.OrganizationId,
             alert.Id,
@@ -411,9 +417,7 @@ public sealed class OutboxDispatchProcessor(
             attempt.Status,
             attempt.RequestedAtUtc,
             attempt.SubmittedAtUtc,
-            // Committed before any provider call, so it survives a rollback of this attempt after the provider
-            // accepted the send; providers use it for replay-stable request identity.
-            message.CreatedAtUtc);
+            firstSentAtUtc);
         var dispatch = await channel.DispatchAsync(request, scenario, cancellationToken);
         // A real provider may not have issued a reference yet (definite rejection or ambiguous outcome).
         if (!string.IsNullOrWhiteSpace(dispatch.ProviderReference))

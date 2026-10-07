@@ -50,7 +50,9 @@ Once ACS has accepted a send (`Submitted`), the attempt only waits for its repor
 - **No re-checks:** it skips directory and policy checks, so a removed endpoint, inactive practitioner or invalid role after acceptance cannot fail it, resend it or leave it pending forever.
 - **Same provider only:** it is never evaluated by a different SMS provider. If the provider that sent a `Requested` or `Submitted` attempt is no longer configured, the attempt fails visibly as `delivery-unconfirmed`.
 - **Bounded request:** one 10-second timeout covers the response headers and the streamed body. If it expires, the outcome is ambiguous: the attempt stays `Requested` and is retried with the same key.
-- **Replay-stable request ID:** `repeatabilityFirstSent` is the outbox row's creation time, which is committed before any provider call. If the worker dies after ACS accepted a send, the recreated attempt replays the identical repeatable request and gets back the original message ID.
+- **Replay-stable request ID:** `repeatabilityFirstSent` is the time of the attempt's first actual send. It is committed to `provider_send_ledger` on its own connection immediately before the network call. If the worker dies after ACS accepted a send, the recreated attempt replays the identical repeatable request and gets back the original message ID.
+- **Bounded replays:** same-key replays are measured from that durable time and capped at 240 s, inside the 5-minute ACS tracking. A later recovery fails visibly as `provider-outcome-uncertain` without sending. An ACS `412` (first-sent outside tracking) is treated as ambiguous, never as `sms-rejected`.
+- **Fresh state per report:** each delivery report in a webhook batch starts from a clean change tracker and re-reads the attempt after taking the alert lock. A terminal status the worker or another webhook set in between is never overwritten.
 
 Terminal states never regress. A late `Failed` report after `Delivered` is recorded as `no-state-change`. A late `Delivered` after `delivery-unconfirmed` does not reopen the failure. SMS attempts keep `OpenedState = NotApplicable`.
 

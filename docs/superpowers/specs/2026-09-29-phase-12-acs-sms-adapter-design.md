@@ -40,7 +40,7 @@ When set to `AzureCommunicationServices`:
 - `FromNumber` must be E.164.
 - `TestRecipients` maps each synthetic endpoint label (`SIM-SMS-…`) to an approved E.164 test number. It must be non-empty. An endpoint label without a mapping fails the attempt as `test-recipient-not-configured` without an HTTP call.
 - `DeliveryReportWindowSeconds` (DEMO default 300, range 60–43200) bounds how long `Submitted` may wait for a delivery report.
-- `UncertainOutcomeWindowSeconds` (DEMO default 120, range 10–3600) bounds same-key resubmission after an ambiguous outcome.
+- `UncertainOutcomeWindowSeconds` (DEMO default 120, range 10–240) bounds same-key resubmission after an ambiguous outcome. The cap keeps every replay inside the 5-minute ACS repeatability tracking (https://learn.microsoft.com/en-us/rest/api/communication/repeatable-requests, checked 2026-10-06), with a margin for clock skew.
 
 Both windows are technical DEMO values. They are not clinical or production service levels.
 
@@ -54,7 +54,7 @@ The API pinned is ACS SMS `2021-03-07` (GA): `POST /sms?api-version=2021-03-07` 
 Each delivery attempt already has a stable idempotency key. The adapter derives:
 
 - `repeatabilityRequestId`: a deterministic UUID from SHA-256 of the provider name and attempt key.
-- `repeatabilityFirstSent`: the attempt's durable `RequestedAtUtc` in RFC 1123 format.
+- `repeatabilityFirstSent`: the time of the first actual send of that attempt, in RFC 1123 format. It is written to `provider_send_ledger` on its own committed connection immediately before the network call, so it survives a rollback of the dispatch transaction. It is never the outbox creation time: a backlog would push that outside the ACS 5-minute tracking and get `412`.
 
 Re-invoking the same attempt therefore sends identical repeatability values, and ACS executes it at most once.
 
@@ -144,7 +144,9 @@ Every row has a planned test. "Isolated" means a fake-transport contract test. "
 | F31 | Test-recipient mapping removed or renamed (for example across a worker restart) while an attempt is already `Submitted` | Attempt keeps waiting for its delivery report (no mapping lookup, no network call) and can still become `Delivered`; only an expired report window fails it, as `delivery-unconfirmed`, never `test-recipient-not-configured` | isolated |
 | F32 | ACS returns `202` headers promptly but stalls while streaming the body | One linked per-request timeout covers headers and body; expiry is an uncertain outcome (same key), releasing the transaction and alert lock; worker shutdown still propagates | isolated |
 | F33 | After ACS accepted the send, a directory change removes the endpoint, deactivates the practitioner or invalidates the role, or the configured SMS provider changes | A `Submitted` attempt bypasses directory revalidation and keeps waiting for its report with the provider that sent it; if that provider is no longer configured it fails visibly as `delivery-unconfirmed` (never evaluated by a different provider, never pending forever) | E2E |
-| F34 | Worker crashes after ACS accepted a send but before the dispatch transaction commits (attempt row rolled back) | The recreated attempt sends the same repeatability ID **and** the same `repeatabilityFirstSent`, derived from the outbox row committed before any provider call, so ACS treats it as a replay and returns the original message ID | E2E |
+| F34 | Worker crashes after ACS accepted a send but before the dispatch transaction commits (attempt row rolled back) | The recreated attempt sends the same repeatability ID **and** the same `repeatabilityFirstSent`, read from the provider send ledger that was committed before the network call, so ACS treats it as a replay and returns the original message ID | E2E |
+| F35 | The first provider send happens long after the outbox row was created (backlog, outage, slow recovery), or a replay would reach ACS outside its 5-minute repeatability tracking (`412`) | `repeatabilityFirstSent` is the time of the first actual send, committed to the ledger before the network call (never the outbox creation time). Same-key replays happen only inside the uncertain window (120 s, below the ACS 5 minutes), measured from that durable time; after it the attempt fails visibly as `provider-outcome-uncertain` without another send. A `412` is ambiguous, never `sms-rejected` | E2E + isolated |
+| F36 | One webhook batch carries several reports for the same attempt and the worker (or another webhook) makes the attempt terminal between them | Every report reads the attempt's current row after taking the alert lock (no stale tracked entity); a terminal status written by someone else is never overwritten | E2E |
 | F29 | 202 body is syntactically valid JSON of the wrong shape (scalar/array root, `value` not an array, null item, non-numeric `httpStatusCode`, non-boolean `successful`, non-string `messageId`) | Uncertain outcome (attempt stays `Requested`, same key), never a generic worker error | isolated |
 
 ## Evidence artifact

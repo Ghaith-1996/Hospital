@@ -48,6 +48,12 @@ public interface INotificationChannel
 
     string ProviderName { get; }
 
+    /// <summary>
+    /// True when the provider identifies replays by a first-send time that must be committed before the network
+    /// call (for example ACS repeatable requests); the worker then supplies <see cref="NotificationDispatchRequest.FirstSentAtUtc"/>.
+    /// </summary>
+    bool RequiresDurableFirstSend => false;
+
     Task<NotificationDispatchResult> DispatchAsync(
         NotificationDispatchRequest request,
         SimulationDispatchScenario scenario,

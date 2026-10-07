@@ -2,6 +2,7 @@ using CriticalAlerts.Domain;
 using CriticalAlerts.Domain.Alerts;
 using CriticalAlerts.Domain.Delivery;
 using CriticalAlerts.Domain.Directory;
+using CriticalAlerts.Domain.Organizations;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -39,6 +40,23 @@ internal sealed class DeliveryAttemptConfiguration : IEntityTypeConfiguration<De
             .HasFilter("provider_reference <> ''");
         builder.HasOne<Alert>().WithMany().HasForeignKey(entity => new { entity.AlertId, entity.OrganizationId }).HasPrincipalKey(alert => new { alert.Id, alert.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<AlertRecipientSelection>().WithMany().HasForeignKey(entity => new { entity.RecipientSelectionId, entity.OrganizationId }).HasPrincipalKey(recipient => new { recipient.Id, recipient.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class ProviderSendRecordConfiguration : IEntityTypeConfiguration<ProviderSendRecord>
+{
+    public void Configure(EntityTypeBuilder<ProviderSendRecord> builder)
+    {
+        // Written through its own committed connection before a provider call; no FK to the alert-locked rows.
+        builder.ToTable("provider_send_ledger");
+        builder.HasKey(entity => entity.Id);
+        builder.Property(entity => entity.Id).HasColumnName("id");
+        builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
+        builder.Property(entity => entity.Provider).HasColumnName("provider").HasMaxLength(100).IsRequired();
+        builder.Property(entity => entity.AttemptIdempotencyKey).HasColumnName("attempt_idempotency_key").HasMaxLength(100).IsRequired();
+        builder.Property(entity => entity.FirstSentAtUtc).HasColumnName("first_sent_at_utc").IsRequired();
+        builder.HasIndex(entity => new { entity.OrganizationId, entity.Provider, entity.AttemptIdempotencyKey }).IsUnique().HasDatabaseName("UX_provider_send_ledger_attempt");
+        builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
