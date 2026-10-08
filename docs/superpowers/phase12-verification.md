@@ -71,6 +71,8 @@ Earlier runs had intermittent failures in `ObservabilityWorkflowTests.RealWorkfl
 
 A separate fix is tracked on `fix/escalation-test-race`.
 
+**Post-merge gate flake.** The first full `scripts/test-all.ps1` run on `main` at `31447c0` (2026-10-08, PowerShell 7.6.6) failed one test: `EscalationProcessorTests.BackupDeliveryFailurePreservesTheDeliveredOriginalRecipientsResponsePath`, which passed 10 of 10 isolated runs. The escalation processor stamps the backup outbox row with PostgreSQL `clock_timestamp()`, but the dispatch claim compares `next_attempt_at_utc` with the host clock. The test container's clock measured between 150 ms behind and 105 ms ahead of the host, so the backup row can be not yet due and the claim returns `no-work`. A dispatch clock 500 ms behind the system clock reproduced the failure every run. The test now waits at most one second, only while the outcome is `no-work`; a 5-second skew still fails the assertion. Outside tests, the same split can delay an escalation dispatch by the worker's clock skew; it never skips or duplicates one. With this fix, the complete `scripts/test-all.ps1` gate passed on `fix/escalation-backup-dispatch-clock-flake` (backend 480/480, web 111/111, smoke 1/1, system E2E 12/12 and Phase 11 2/2, restore, and all three container builds). The smoke step needs `PLAYWRIGHT_BROWSERS_PATH` set to the repository's `.playwright-browsers` folder when the user-profile Playwright cache lacks the pinned Chromium.
+
 The full `scripts/test-all.ps1` gate was not run. It requires PowerShell 7, and it also runs the browser system harnesses, restore and container builds. Phase 12 changes none of those, but they remain unverified on this branch.
 
 ## E2E evidence
