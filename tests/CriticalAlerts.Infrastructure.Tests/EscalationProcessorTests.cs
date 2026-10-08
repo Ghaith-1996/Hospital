@@ -57,7 +57,15 @@ public sealed class EscalationProcessorTests(MigratedPostgresFixture fixture)
         (await dispatch.ProcessNextAsync("dispatch", default)).Processed.Should().BeTrue();
         await new SimulationDispatchScenarioStore(db).SetAsync(approval.OrganizationId, NotificationChannel.SecureMessage,
             SimulationDispatchScenario.ProviderOutage, DemoDataSeeder.MorganUserId, DateTimeOffset.UtcNow, default);
-        (await dispatch.ProcessNextAsync("dispatch", default)).PermanentlyFailed.Should().BeTrue();
+        // The escalation outbox row is due at PostgreSQL time. The host clock can still be just behind it;
+        // wait only for no-work, keeping any unexpected processing or retry result visible to this assertion.
+        var backup = await dispatch.ProcessNextAsync("dispatch", default);
+        for (var poll = 0; backup.Outcome == "no-work" && poll < 50; poll++)
+        {
+            await Task.Delay(20);
+            backup = await dispatch.ProcessNextAsync("dispatch", default);
+        }
+        backup.PermanentlyFailed.Should().BeTrue("the due backup dispatch must hit the provider outage");
         db.ChangeTracker.Clear();
         (await db.Alerts.SingleAsync()).State.Should().Be(AlertState.Active);
         var response = await new RecipientResponseService(db, new PractitionerIdentityResolver(db), TimeProvider.System)

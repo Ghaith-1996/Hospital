@@ -291,13 +291,15 @@ const liveResponseReasons = [
   "simulation-unavailable", "simulation-no-coverage", "simulation-not-on-call",
   "simulation-call-unit-requested",
 ] as const;
-const liveFailureCategories = [
+export const liveFailureCategories = [
   "provider-unavailable", "provider-failed", "provider-no-result", "sms-failure", "voice-no-answer",
   "simulation-provider-rejected", "simulation-provider-outage", "delivery-failed", "delivery-pending",
   "delivery-retry", "practitioner-missing", "practitioner-inactive", "role-invalid", "channel-not-allowed",
   "channel-unavailable", "endpoint-unavailable", "dispatch-validation", "domain-validation", "worker-error",
   "test-recipient-not-configured", "delivery-unconfirmed", "provider-outcome-uncertain", "sms-rejected",
   "provider-auth-failed", "provider-repeatability-rejected", "sms-delivery-failed",
+  "voice-busy", "voice-declined", "voice-call-failed", "voice-playback-incomplete", "voice-playback-failed",
+  "voice-call-rejected", "call-outcome-unconfirmed",
 ] as const;
 const liveEscalationStates = ["AwaitingActivation", "Scheduled", "Running", "Completed", "Stopped", "Paused", "Exhausted", "Failed"] as const;
 const liveEscalationEvents = [

@@ -197,7 +197,9 @@ public sealed class AlertLiveQueryService(
                 or "practitioner-missing" or "practitioner-inactive" or "role-invalid" or "channel-not-allowed"
                 or "channel-unavailable" or "endpoint-unavailable" or "dispatch-validation" or "domain-validation"
                 or "worker-error" or "test-recipient-not-configured" or "delivery-unconfirmed" or "provider-outcome-uncertain"
-                or "sms-rejected" or "provider-auth-failed" or "provider-repeatability-rejected" or "sms-delivery-failed" => value,
+                or "sms-rejected" or "provider-auth-failed" or "provider-repeatability-rejected" or "sms-delivery-failed"
+                or "voice-busy" or "voice-declined" or "voice-call-failed" or "voice-playback-incomplete" or "voice-playback-failed"
+                or "voice-call-rejected" or "call-outcome-unconfirmed" => value,
             _ => "delivery-failed",
         };
     }

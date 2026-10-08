@@ -70,6 +70,8 @@ public sealed class CriticalAlertsDbContext : DbContext
 
     public DbSet<ProviderSendRecord> ProviderSendRecords => Set<ProviderSendRecord>();
 
+    public DbSet<PendingProviderCallEvent> PendingProviderCallEvents => Set<PendingProviderCallEvent>();
+
     public DbSet<SimulationDispatchScenarioSetting> SimulationDispatchScenarioSettings => Set<SimulationDispatchScenarioSetting>();
 
     public DbSet<RecipientResponse> RecipientResponses => Set<RecipientResponse>();

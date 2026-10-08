@@ -1,6 +1,8 @@
 # Real communication adapters (Phase 12)
 
-Status: slice 1, Azure Communication Services (ACS) SMS, is implemented and locally verified with fake transports only. No live ACS request has been made. Voice, pager and email are not implemented. The design and failure modes are in [the Phase 12 slice 1 design](../superpowers/specs/2026-09-29-phase-12-acs-sms-adapter-design.md).
+Status: slice 1, Azure Communication Services (ACS) SMS, is implemented and locally verified with fake transports only. No live ACS request has been made. Voice is a provider-neutral boundary with no real provider yet (slice 2); pager and email are not implemented. The design and failure modes are in [the Phase 12 slice 1 design](../superpowers/specs/2026-09-29-phase-12-acs-sms-adapter-design.md).
+
+Microsoft is retiring standalone ACS: new customers are blocked from 2026-10-23, and ACS SMS and PSTN are retired on 2028-09-30 (https://learn.microsoft.com/en-us/azure/communication-services/acs-retirement-and-breaking-changes-guide, checked 2026-10-08). The SMS provider choice is therefore `REQUIRES_HOSPITAL_DECISION` again. Slice 2 is a provider-neutral voice boundary, implemented with a test-only reference provider (see [below](#provider-neutral-voice-slice-2)): [slice 2 design](../superpowers/specs/2026-10-08-phase-12-slice-2-provider-neutral-voice-design.md).
 
 ## Where the adapter sits
 
@@ -90,6 +92,51 @@ Event Grid setup:
 
 - `tests/CriticalAlerts.Infrastructure.Tests/AzureCommunicationServicesSmsChannelTests.cs`: isolated contract tests F2–F17. The fake transport verifies HMAC independently.
 - `tests/CriticalAlerts.Api.IntegrationTests/AcsSmsEndToEndTests.cs`: the API host with PostgreSQL, the real outbox processor, a signature-verifying fake ACS and signed test tokens (F1, F9, F14, F18–F27). It writes `TestResults/phase12/acs-sms-e2e-evidence.json`, which contains only scenario outcomes and counts.
+
+## Provider-neutral voice (slice 2)
+
+Status: implemented and locally verified with the **test-only reference provider**. No real voice provider is registered, so any configured provider name refuses worker and API startup until an approved adapter exists (`REQUIRES_HOSPITAL_DECISION`). Design and failure modes V1–V32: [slice 2 design](../superpowers/specs/2026-10-08-phase-12-slice-2-provider-neutral-voice-design.md).
+
+```text
+OutboxDispatchProcessor ── INotificationChannel (Voice)
+        │  DescribeSend → ledger: first-send time, callback tag, settings fingerprint (own connection)
+        ▼
+ProviderVoiceChannel (generic) ── IVoiceCallProvider.CreateCallAsync (test number, generic text, repeats, tag, repeatability ID)
+        │  Accepted → Submitted (+ any held callbacks for this tag, in order)
+        ▼
+POST /api/v1/webhooks/communications/voice/{provider}
+        │  IVoiceCallbackReader: authenticate (e.g. JwtCallbackAuthenticator) → parse to closed vocabulary
+        ▼
+ProviderCallEventService: call ID lookup ─ alert lock ─ dedupe ─ tag ─ state mapping
+        └─ unknown call ID, tag matches a committed send → pending_provider_call_events (no alert lock)
+```
+
+A concrete provider implements two small ports: `IVoiceCallProvider` (place the call; declare whether creates are idempotent) and `IVoiceCallbackReader` (authenticate, then parse). Everything else is shared:
+
+| Evidence | Attempt state |
+| --- | --- |
+| Call created (call ID returned) | `Submitted` |
+| `answered` | stays `Submitted` (`call-answered` event) |
+| `playback-completed` | `Delivered` (not opened, acknowledged or accepted; a voicemail greeting cannot be told apart) |
+| `ended` no-answer / busy / declined / unreachable or failed / hung-up or completed before playback | `Failed` `voice-no-answer` / `voice-busy` / `voice-declined` / `voice-call-failed` / `voice-playback-incomplete` |
+| `playback-failed` | `Failed` `voice-playback-failed` |
+| No terminal event within `CallOutcomeWindowSeconds` (DEMO 180) | `Failed` `call-outcome-unconfirmed`; never called again |
+| Ambiguous create, idempotent provider | stays `Requested`; same repeatability ID and first-send time until `UncertainOutcomeWindowSeconds` (DEMO 120), then `provider-outcome-uncertain` |
+| Ambiguous create, provider without create deduplication; or any replay of such a provider | `Failed` `provider-outcome-uncertain` immediately; never a second call |
+| Replay whose settings fingerprint differs from the ledger | `Failed` `provider-outcome-uncertain` |
+| Definite rejection / auth failure | `Failed` `voice-call-rejected` / `provider-auth-failed` |
+| Documented non-execution on the first invocation | `Failed` `provider-unavailable`, bounded new attempt |
+
+```text
+Communications:Voice:Provider = Simulation | <registered provider name>
+Communications:Voice:CallerId = <E.164 test caller ID>
+Communications:Voice:CallbackBaseUri = https://<host>
+Communications:Voice:TestRecipients:<SIM-VOICE-label> = <approved E.164 test number>
+Communications:Voice:Repeats = 2 / RingTimeoutSeconds = 30 / CallOutcomeWindowSeconds = 180 / UncertainOutcomeWindowSeconds = 120   (DEMO)
+Communications:Webhooks:Voice:Enabled = false
+```
+
+Verification: `tests/CriticalAlerts.Api.IntegrationTests/VoiceEndToEndTests.cs` (API host, PostgreSQL, real outbox processor, reference fake over HTTP, RS256-signed callbacks) writes `TestResults/phase12/voice-e2e-evidence.json` with scenario outcomes and counts only. `src/web/tests/live-failure-vocabulary-contract.test.tsx` keeps the web failure categories equal to the backend projection.
 
 ## Not yet verified (human gate)
 

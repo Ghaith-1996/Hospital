@@ -31,6 +31,7 @@ public sealed class DemoDataSeeder
     public static readonly UserId AveryUserId = new(Guid.Parse("11111111-1111-4111-8111-111111110504"));
     public const string AveryHandle = "sim-auditor-avery";
     public static readonly PractitionerId MayaChenId = new(Guid.Parse("11111111-1111-4111-8111-111111110101"));
+    public static readonly PractitionerId RowanPatelId = new(Guid.Parse("11111111-1111-4111-8111-111111110102"));
     public static readonly PractitionerId RileySatoId = new(Guid.Parse("11111111-1111-4111-8111-111111110108"));
     public static readonly PractitionerId TaylorKimId = new(Guid.Parse("11111111-1111-4111-8111-111111110111"));
 

@@ -23,6 +23,8 @@ public sealed class SimulationDeliveryEventNormalizer : INotificationStatusNorma
         var status = providerEvent.EventType switch
         {
             "submitted" => DeliveryAttemptStatus.Submitted,
+            // Something picked up the call: progress only, the attempt stays Submitted until the playback completes.
+            "call-answered" => DeliveryAttemptStatus.Submitted,
             "delivered" => DeliveryAttemptStatus.Delivered,
             "failed" => DeliveryAttemptStatus.Failed,
             _ => throw new DispatchValidationException("provider-event-type-invalid", "The simulation provider event type is not supported."),
