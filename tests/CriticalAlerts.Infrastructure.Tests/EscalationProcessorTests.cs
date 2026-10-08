@@ -73,7 +73,8 @@ public sealed class EscalationProcessorTests(MigratedPostgresFixture fixture)
         await fixture.ResetAsync();
         await using var db = fixture.CreateContext();
         var approval = await EscalationPersistenceTests.SeedApprovalAsync(db, 0);
-        var now = DateTimeOffset.UtcNow;
+        // The processor claims due runs with PostgreSQL time; use that clock so a host/DB skew cannot skip the race.
+        var now = await db.Database.SqlQuery<DateTimeOffset>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync();
         db.EscalationRuns.Add(EscalationRun.Schedule(EscalationRunId.New(), approval.OrganizationId, approval.AlertId,
             approval.PolicyId, approval.PolicyVersion, now, now, approval.AlertVersion));
         await db.SaveChangesAsync();

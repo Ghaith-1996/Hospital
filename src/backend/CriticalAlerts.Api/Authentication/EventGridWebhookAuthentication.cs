@@ -44,7 +44,7 @@ internal sealed record EventGridWebhookSettings(
         // The Microsoft.EventGrid application ID in this tenant's cloud (read from its service principal). The
         // subscription writer also holds the webhook app role, so the role alone does not prove Event Grid sent it.
         var sender = section["SenderApplicationId"];
-        if (!Guid.TryParseExact(sender, "D", out _))
+        if (!Guid.TryParseExact(sender, "D", out var senderId) || senderId == Guid.Empty)
         {
             throw new InvalidOperationException(
                 "Communications:Webhooks:EventGrid requires the SenderApplicationId of the Microsoft.EventGrid service principal.");
@@ -60,7 +60,7 @@ internal sealed record EventGridWebhookSettings(
                 "Communications:Webhooks:EventGrid requires TenantId, Audience and an ACS ExpectedTopic resource ID.");
         }
 
-        return new(true, tenant!, audience!, topic!, subscriptionName!, sender!);
+        return new(true, tenant!, audience!, topic!, subscriptionName!, senderId.ToString("D"));
     }
 
     /// <summary>Event Grid subscription names: 3-64 letters, digits and hyphens.</summary>

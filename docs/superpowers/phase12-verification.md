@@ -9,7 +9,46 @@ Status: slice 1 is implemented and locally verified with fake transports and tes
 - Design and failure modes F1–F43: [the slice 1 design](specs/2026-09-29-phase-12-acs-sms-adapter-design.md).
 - Architecture: [real communication adapters](../architecture/real-communication-adapters.md).
 
-## Latest checks (2026-10-06, after the comprehensive-audit fixes F37–F43)
+## PR #9 review verification (2026-10-07)
+
+The three requested review findings were reproduced against `ef24f1d` with real PostgreSQL E2E tests before implementation:
+
+- a subscription-writer JWT with the webhook role reached the endpoint instead of receiving `403`;
+- one worker fault after successful delivery-report polls permanently failed the outbox;
+- a 121-second delay between the pass-start clock read and the first send failed a never-sent attempt as uncertain.
+
+The fixes published in `73864c1` require the configured Event Grid sender, count worker failures separately from lease claims, and read the per-recipient first-send clock after the claim and alert lock. This follow-up adds coverage for two consecutive worker faults still exhausting the bounded budget, a writer forging a report with the actual message ID and tag, conflicting sender claims in both directions, and missing or invalid sender configuration. An all-zero sender GUID also refuses startup. The parsed sender GUID is retained in canonical form, so surrounding configuration whitespace cannot pass startup and then reject a legitimate token; this compatibility regression also failed before its fix.
+
+| Check | Result |
+| --- | --- |
+| Locked restore | Passed |
+| Full backend suite, final tree | 480/480 passed: Domain 40, Application 55, Architecture 6, API 226, Infrastructure 153; none skipped |
+| ACS E2E suite within the API run | 28 passed, producing 24 evidence scenarios |
+| Release build | Passed, 0 warnings / 0 errors |
+| `dotnet format --verify-no-changes --no-restore` | Passed |
+| `verify-no-sensitive-data.ps1` | Passed |
+| `verify-observability-safety.ps1` | Passed: 51 API and 10 infrastructure checks |
+| `verify-openapi.ps1` | Complete runtime contract matches |
+| `dotnet list package --vulnerable --include-transitive --no-restore` | No vulnerable packages reported |
+
+Repeat with the pinned .NET 10.0.100 SDK and a running local Docker engine:
+
+```powershell
+dotnet restore src/backend/CriticalAlerts.sln --locked-mode --nologo
+dotnet test src/backend/CriticalAlerts.sln --configuration Release --no-restore --nologo
+dotnet build src/backend/CriticalAlerts.sln --configuration Release --no-restore --nologo
+dotnet format src/backend/CriticalAlerts.sln --verify-no-changes --no-restore
+pwsh -NoProfile -File scripts/verify-no-sensitive-data.ps1
+pwsh -NoProfile -File scripts/verify-observability-safety.ps1
+pwsh -NoProfile -File scripts/verify-openapi.ps1
+dotnet list src/backend/CriticalAlerts.sln package --vulnerable --include-transitive --no-restore
+```
+
+Evidence remains in `TestResults/phase12/acs-sms-e2e-evidence.json`: writer tokens receive `403` without changing attempt, inbox, event or audit rows; the configured v2 sender can deliver that same report; report polls permit a later valid report after one worker fault, while two actual faults remain bounded. The send-delay case uses the refreshed first-send time. No live Azure service was called. Browser, web, restore and container-image checks were not rerun for this backend review follow-up; the whole Phase 12 gate and live staging remain separate.
+
+Earlier runs had intermittent failures in `ObservabilityWorkflowTests.RealWorkflowLogsMetricsProblemsHealthAndAuditExcludeProtectedSentinels` and `EscalationProcessorTests.DueWorkerWaitsForConcurrentAcceptanceAndThenStopsWithoutActivation`. A diagnostic captured `no-work` in the observability test, before its sentinel-throwing adapter ran: confirmation timestamps the outbox with PostgreSQL time, while the test immediately polls with the host clock. That test now waits at most one second, only while the outcome is `no-work`; all other unexpected outcomes still fail immediately. The escalation race now schedules its due run with PostgreSQL time, matching the processor's claim clock, so host/DB skew cannot skip the concurrent-acceptance scenario. Both focused tests and the subsequent full 480-test suite passed. These changes correct test scheduling assumptions without changing production workflows or weakening the failure and no-activation assertions.
+
+## Earlier comprehensive-audit checks (2026-10-06, F37–F43)
 
 | Check | Result |
 | --- | --- |

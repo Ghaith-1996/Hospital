@@ -77,7 +77,7 @@ Communications:Webhooks:EventGrid:TenantId / Audience / ExpectedTopic (ACS resou
 Communications:Webhooks:EventGrid:SenderApplicationId = <application ID of the Microsoft.EventGrid service principal in this tenant's cloud>
 ```
 
-The worker validates the SMS settings at startup, even when dispatch is disabled. The API validates the webhook settings at startup. Production refuses both.
+The worker validates the SMS settings at startup, even when dispatch is disabled. The API validates the webhook settings at startup, including a nonzero GUID for `SenderApplicationId`, and retains its canonical GUID value for matching token claims. Production refuses both.
 
 Event Grid setup:
 

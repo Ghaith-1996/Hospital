@@ -107,7 +107,15 @@ public sealed class ObservabilityWorkflowTests : IAsyncLifetime
                 services.GetRequiredService<ISimulationDispatchScenarioStore>(), TimeProvider.System,
                 Options.Create(new DispatchWorkerOptions { MaxAttempts = 1 }), services.GetRequiredService<ILogger<OutboxDispatchProcessor>>(),
                 services.GetRequiredService<ILoggerFactory>());
-            (await processor.ProcessNextAsync("phase10", default)).PermanentlyFailed.Should().BeTrue();
+            // Confirmation timestamps the outbox with PostgreSQL time. The host clock can still be just behind it;
+            // wait only for no-work, keeping any unexpected processing or retry result visible to this assertion.
+            var failure = await processor.ProcessNextAsync("phase10", default);
+            for (var poll = 0; failure.Outcome == "no-work" && poll < 50; poll++)
+            {
+                await Task.Delay(20);
+                failure = await processor.ProcessNextAsync("phase10", default);
+            }
+            failure.PermanentlyFailed.Should().BeTrue("the due dispatch must invoke the sentinel-throwing adapter");
         }
         using var auditor = await fixture.CreateSignedInClientAsync(DemoDataSeeder.AveryHandle);
         using (var audit = await auditor.GetAsync("/api/v1/admin/audit"))

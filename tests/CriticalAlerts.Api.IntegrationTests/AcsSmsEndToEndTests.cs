@@ -541,6 +541,9 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
         await Check("subscription-writer-v2-azp", fixture.Token(appId: null, authorizedParty: AcsSmsEndToEndFixture.SubscriptionWriterAppId), HttpStatusCode.Forbidden);
         await Check("missing-sender", fixture.Token(appId: null), HttpStatusCode.Forbidden);
         await Check("ambiguous-sender", fixture.Token(appId: AcsSmsEndToEndFixture.EventGridSenderAppId, authorizedParty: AcsSmsEndToEndFixture.SubscriptionWriterAppId), HttpStatusCode.Forbidden);
+        await Check("reverse-ambiguous-sender", fixture.Token(appId: AcsSmsEndToEndFixture.SubscriptionWriterAppId, authorizedParty: AcsSmsEndToEndFixture.EventGridSenderAppId), HttpStatusCode.Forbidden);
+        await Check("empty-sender", fixture.Token(appId: ""), HttpStatusCode.Forbidden);
+        await Check("malformed-sender", fixture.Token(appId: "sim-event-grid"), HttpStatusCode.Forbidden);
         using (var forgedHandshake = await fixture.PostReportsAsync(
                    fixture.Token(appId: AcsSmsEndToEndFixture.SubscriptionWriterAppId),
                    new[] { new { id = "evt-forged-handshake", topic = "/subscriptions/x", subject = "", eventType = "Microsoft.EventGrid.SubscriptionValidationEvent",
@@ -560,6 +563,101 @@ public sealed class AcsSmsEndToEndTests(AcsSmsEndToEndFixture fixture)
         (await db.InboxMessages.CountAsync()).Should().Be(0);
         (await db.AuditEvents.CountAsync(row => row.ActorType == "provider-webhook")).Should().Be(0);
         fixture.Record("webhook-authentication", results.ToDictionary(item => item.Key, item => (int)item.Value));
+    }
+
+    [Fact]
+    public async Task RepeatedWorkerFaultsStillExhaustTheFailureBudgetAfterReportPolls()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await fixture.ProcessAsync();
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        (await fixture.ProcessAsync()).Outcome.Should().Be("rescheduled");
+
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var firstFault = await fixture.ProcessAsync(transientWorkerFailure: true);
+        fixture.Clock.Advance(TimeSpan.FromSeconds(6));
+        var secondFault = await fixture.ProcessAsync(transientWorkerFailure: true);
+
+        firstFault.Outcome.Should().Be("rescheduled");
+        secondFault.PermanentlyFailed.Should().BeTrue();
+        await using var db = fixture.CreateContext();
+        (await db.OutboxMessages.AsNoTracking().SingleAsync(row => row.AggregateId == alertId))
+            .ProcessingState.Should().Be(OutboxProcessingState.Failed);
+        fixture.Transport.Requests.Should().ContainSingle("report polls and worker faults never resend a submitted SMS");
+        fixture.Record("bounded-worker-failures-after-poll", new { transientFaults = 2, firstFault = firstFault.Outcome, secondFault = secondFault.Outcome });
+    }
+
+    [Fact]
+    public async Task SubscriptionWriterCannotForgeTheStateOfASubmittedSms()
+    {
+        await fixture.ResetAsync();
+        using var operatorClient = await fixture.SignedInAsync(DemoDataSeeder.JordanHandle);
+        var alertId = await fixture.CreateConfirmedSmsAlertAsync(operatorClient);
+        await fixture.ProcessAsync();
+        var attempt = await fixture.SingleAttemptAsync(alertId);
+        var tag = AzureCommunicationServicesSmsChannel.CreateTag(attempt.IdempotencyKey);
+        var forged = Report("evt-forged-delivery", attempt.ProviderReference, "Delivered", tag);
+        var tokens = new[]
+        {
+            fixture.Token(appId: AcsSmsEndToEndFixture.SubscriptionWriterAppId),
+            fixture.Token(appId: null, authorizedParty: AcsSmsEndToEndFixture.SubscriptionWriterAppId),
+        };
+        foreach (var token in tokens)
+        {
+            using var rejected = await fixture.PostReportsAsync(token, forged);
+            rejected.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        }
+
+        (await fixture.SingleAttemptAsync(alertId)).Status.Should().Be(DeliveryAttemptStatus.Submitted);
+        await using (var db = fixture.CreateContext())
+        {
+            (await db.InboxMessages.CountAsync()).Should().Be(0);
+            (await db.DeliveryEvents.CountAsync(row => row.ProviderEventId == "acs-eg:evt-forged-delivery")).Should().Be(0);
+            (await db.AuditEvents.CountAsync(row => row.ActorType == "provider-webhook")).Should().Be(0);
+        }
+
+        using var legitimate = await fixture.PostReportsAsync(
+            fixture.Token(appId: null, authorizedParty: AcsSmsEndToEndFixture.EventGridSenderAppId), forged);
+        legitimate.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await fixture.SingleAttemptAsync(alertId)).Status.Should().Be(DeliveryAttemptStatus.Delivered);
+        fixture.Record("writer-cannot-forge-delivery", new { writerRequests = 2, writerStatus = 403, eventGridStatus = 200, finalStatus = "Delivered" });
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("sim-event-grid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public void EnabledWebhookRefusesMissingOrInvalidSenderApplicationId(string? senderApplicationId)
+    {
+        using var invalid = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Test");
+            builder.UseSetting("ConnectionStrings:CriticalAlerts", "Host=127.0.0.1;Database=unused;Username=unused;Password=unused");
+            builder.UseSetting("Communications:Webhooks:EventGrid:Enabled", "true");
+            builder.UseSetting("Communications:Webhooks:EventGrid:TenantId", AcsSmsEndToEndFixture.TenantId);
+            builder.UseSetting("Communications:Webhooks:EventGrid:Audience", AcsSmsEndToEndFixture.Audience);
+            builder.UseSetting("Communications:Webhooks:EventGrid:ExpectedTopic", AcsSmsEndToEndFixture.Topic);
+            builder.UseSetting("Communications:Webhooks:EventGrid:SubscriptionName", AcsSmsEndToEndFixture.SubscriptionName);
+            builder.UseSetting("Communications:Webhooks:EventGrid:SenderApplicationId", senderApplicationId);
+        });
+        FluentActions.Invoking(() => invalid.CreateClient()).Should().Throw<InvalidOperationException>()
+            .Which.Message.Should().Contain("SenderApplicationId");
+    }
+
+    [Fact]
+    public async Task ConfiguredSenderGuidAcceptsCanonicalClaimsAfterNormalization()
+    {
+        await fixture.ResetAsync();
+        var body = Report("evt-normalized-sender", "acs-e2e-0001", "Delivered", "ca-" + new string('1', 32));
+        using var response = await fixture.PostReportsWithSenderApplicationIdAsync(
+            " " + AcsSmsEndToEndFixture.EventGridSenderAppId.ToUpperInvariant() + " ", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable,
+            "the configured GUID must authorize the same canonical sender claim before report processing");
+        fixture.Record("normalized-sender-configuration", new { authorizedReport = 503 });
     }
 
     [Fact]
@@ -972,6 +1070,14 @@ public sealed class AcsSmsEndToEndFixture : IAsyncLifetime
         if (subscriptionName is not null) request.Headers.Add("aeg-subscription-name", subscriptionName);
         request.Headers.Add("aeg-event-type", eventTypeHeader);
         return await (client ?? Client).SendAsync(request);
+    }
+
+    public async Task<HttpResponseMessage> PostReportsWithSenderApplicationIdAsync(string senderApplicationId, object events)
+    {
+        using var configured = factory!.WithWebHostBuilder(builder =>
+            builder.UseSetting("Communications:Webhooks:EventGrid:SenderApplicationId", senderApplicationId));
+        using var client = configured.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        return await PostReportsAsync(ValidToken(), events, client);
     }
 
     public async Task<Guid> CreateConfirmedSmsAlertAsync(HttpClient client)
