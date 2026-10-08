@@ -92,6 +92,10 @@ Phase 12 delivers one provider at a time. Slice 1 is Azure Communication Service
 
 Voice, real-recipient enablement, staging deployment, provider contracts and all production communications decisions remain `REQUIRES_HOSPITAL_DECISION` or later slices. Stop for owner review after each slice. Publication, merge and tag remain separate decisions.
 
+## Phase 12 slice 2 (provider-neutral voice): design under review
+
+The owner authorized slice 2 on 2026-10-08 from `main` at `31447c0` and chose a provider-neutral voice boundary instead of an ACS Call Automation adapter, because Microsoft is retiring standalone ACS (no new customers from 2026-10-23; SMS and PSTN retired and Call Automation standalone support ending 2028-09-30). Branch: `feature/phase-12-slice-2-voice`. Follow the [slice 2 design](docs/superpowers/specs/2026-10-08-phase-12-slice-2-provider-neutral-voice-design.md). No code until the owner approves the design. The real voice provider, and now the SMS provider, are `REQUIRES_HOSPITAL_DECISION`. The reference provider is a test-only fake; dialing stays test-number-only; a call never records acknowledgement or responsibility.
+
 ## Phase 11 authorized work
 
 The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.

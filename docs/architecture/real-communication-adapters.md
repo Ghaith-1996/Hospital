@@ -2,6 +2,8 @@
 
 Status: slice 1, Azure Communication Services (ACS) SMS, is implemented and locally verified with fake transports only. No live ACS request has been made. Voice, pager and email are not implemented. The design and failure modes are in [the Phase 12 slice 1 design](../superpowers/specs/2026-09-29-phase-12-acs-sms-adapter-design.md).
 
+Microsoft is retiring standalone ACS: new customers are blocked from 2026-10-23, and ACS SMS and PSTN are retired on 2028-09-30 (https://learn.microsoft.com/en-us/azure/communication-services/acs-retirement-and-breaking-changes-guide, checked 2026-10-08). The SMS provider choice is therefore `REQUIRES_HOSPITAL_DECISION` again. Slice 2 is a provider-neutral voice boundary, currently a design under owner review: [slice 2 design](../superpowers/specs/2026-10-08-phase-12-slice-2-provider-neutral-voice-design.md).
+
 ## Where the adapter sits
 
 ```text
