@@ -18,7 +18,16 @@ public sealed record NotificationDispatchRequest(
     DeliveryAttemptStatus CurrentAttemptStatus = DeliveryAttemptStatus.Requested,
     DateTimeOffset? AttemptRequestedAtUtc = null,
     DateTimeOffset? SubmittedAtUtc = null,
-    DateTimeOffset? FirstSentAtUtc = null);
+    DateTimeOffset? FirstSentAtUtc = null,
+    string? RecordedSendFingerprint = null,
+    bool FirstProviderInvocation = false,
+    string? CurrentProviderReference = null);
+
+/// <summary>
+/// What a durable-first-send channel binds into the send ledger before the network call: the opaque callback tag
+/// (so callbacks that beat the commit can be matched) and a one-way fingerprint of the send settings.
+/// </summary>
+public sealed record ProviderSendBinding(string CallbackTag, string OperationFingerprint);
 
 public sealed record NotificationProviderEvent(
     string ProviderEventId,
@@ -53,6 +62,12 @@ public interface INotificationChannel
     /// call (for example ACS repeatable requests); the worker then supplies <see cref="NotificationDispatchRequest.FirstSentAtUtc"/>.
     /// </summary>
     bool RequiresDurableFirstSend => false;
+
+    /// <summary>
+    /// Optional ledger binding for a not-yet-accepted send; the worker records it with the first-send time and supplies
+    /// the recorded fingerprint back in <see cref="NotificationDispatchRequest.RecordedSendFingerprint"/>.
+    /// </summary>
+    ProviderSendBinding? DescribeSend(NotificationDispatchRequest request) => null;
 
     Task<NotificationDispatchResult> DispatchAsync(
         NotificationDispatchRequest request,

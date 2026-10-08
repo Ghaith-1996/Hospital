@@ -38,6 +38,9 @@ if (simulationDispatchEnabled)
         .PostConfigure(options => options.Enabled = true);
     builder.Services.AddSimulationDispatch();
     builder.Services.AddConfiguredSmsProvider(builder.Configuration, builder.Environment.EnvironmentName);
+    // A real voice provider adapter must also register its IVoiceCallProvider; none is approved yet, so a configured
+    // provider name refuses startup until one is (REQUIRES_HOSPITAL_DECISION).
+    builder.Services.AddConfiguredVoiceProvider(builder.Configuration, builder.Environment.EnvironmentName);
     if (simulationEscalationEnabled) builder.Services.AddScoped<EscalationProcessor>();
     builder.Services.AddHostedService<SimulationDispatchWorker>();
 }
@@ -45,10 +48,12 @@ else
 {
     // Validate even when dispatch is off so a misconfigured provider cannot wait silently for enablement.
     _ = AcsSmsOptions.FromConfiguration(builder.Configuration, builder.Environment.EnvironmentName);
+    _ = VoiceDispatchOptions.FromConfiguration(builder.Configuration, builder.Environment.EnvironmentName);
     builder.Services.AddHostedService<PlatformWorker>();
 }
 
 using var host = builder.Build();
+DispatchServiceCollectionExtensions.EnsureConfiguredVoiceProviderRegistered(host.Services);
 await host.RunAsync();
 
 internal sealed class PlatformWorker(ILoggerFactory loggerFactory) : BackgroundService

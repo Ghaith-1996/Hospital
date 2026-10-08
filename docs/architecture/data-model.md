@@ -144,7 +144,7 @@ All features default disabled; production decisions remain `REQUIRES_HOSPITAL_DE
 
 Phase 11 adds `alert_assistance_results` (closed Transcription/Structuring kinds): organization, alert, source revision, exact alert version, actor, UTC timestamp, bounded provider/configuration versions and encrypted payload with distinct transcription/structuring purposes. Source provenance uses a composite FK on source ID/organization/alert/version. New source alternate key and bounded history index are additive. UPDATE/DELETE/TRUNCATE are denied by a statement trigger; EF rejects result mutation. Payload encryption uses `local-v2-context` with authenticated purpose+organization; existing Phase 10 purposes retain `local-v1`. Audio has no storage representation. Provider results, human source revisions, editable SBAR and approved message remain separate. Number/unit confirmations reuse the existing model; full transcript content is never copied to plaintext confirmation fields. Migration: `20260919193851_Phase11AssistanceResults`.
 
-## Real communication adapters (ACS SMS)
+## Real communication adapters (ACS SMS, provider-neutral voice)
 
 Phase 12 adds two things:
 
@@ -154,5 +154,10 @@ Phase 12 adds two things:
 The worker writes the ledger row on its own connection immediately before the network call, insert-if-absent then read. The row therefore survives a rollback of the dispatch transaction. Its only foreign key is to `organizations` (restrict), which is never locked for update, so the separate write cannot wait on the worker's alert lock.
 
 The ledger holds no recipient, number, message or clinical data, and rows are never updated. Retention is `REQUIRES_HOSPITAL_DECISION`, like delivery attempts. Before creating any attempt, the worker also reads the ledger for that attempt key under every provider, so a rolled-back ACS send cannot be recreated under another provider.
+
+Phase 12 slice 2 (provider-neutral voice) adds, in migration `20261008193530_Phase12VoiceCallEvents`:
+
+- **Ledger binding:** `provider_send_ledger.callback_tag` and `provider_send_ledger.operation_fingerprint` (both nullable; SMS rows leave them empty). The tag is an opaque hash of the attempt key; the fingerprint is a SHA-256 of the provider name, provider account identity, caller ID, mapped test number, spoken text and repeat count, so no number or text is stored. `UX_provider_send_ledger_callback_tag` is unique on `(provider, callback_tag)` where the tag is set.
+- **`pending_provider_call_events`:** authenticated call events whose call ID is not committed yet but whose tag matches a committed send. Columns: organization, provider, callback tag, external event ID (unique per provider as `UX_pending_provider_call_events_event`), call ID, closed kind and end reason, occurred and received times, and the time and result (`applied` or `rejected-call-mismatch`) of the worker pass that consumed it. Its only foreign key is to `organizations`, so the callback intake never waits on the worker's alert lock. Retention is `REQUIRES_HOSPITAL_DECISION`.
 
 `outbox_messages.worker_failure_count` (default 0) counts only unexpected worker failures and is the bounded failure budget compared with `MaxAttempts`. `attempt_count` still counts every lease claim, including routine re-polls while a delivery report is awaited. Migration: `20261007032738_Phase12WorkerFailureBudget`.

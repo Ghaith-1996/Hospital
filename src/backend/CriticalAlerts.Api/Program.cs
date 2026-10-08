@@ -36,6 +36,8 @@ SimulationResponseEnvironmentGuard.EnsureAllowed(builder.Environment.Environment
 builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
 var eventGridWebhook = EventGridWebhookSettings.FromConfiguration(builder.Configuration, builder.Environment.EnvironmentName);
 builder.Services.AddEventGridWebhookAuthentication(eventGridWebhook);
+var voiceWebhook = VoiceWebhookSettings.FromConfiguration(builder.Configuration, builder.Environment.EnvironmentName);
+builder.Services.AddVoiceWebhook(voiceWebhook);
 builder.Services.AddOpenApi(options =>
 {
     options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1;
@@ -181,6 +183,7 @@ app.MapAuditEndpoints();
 app.MapAlertDraftEndpoints();
 app.MapAssistanceEndpoints();
 app.MapCommunicationWebhookEndpoints(eventGridWebhook);
+app.MapVoiceCallbackEndpoints(voiceWebhook);
 
 await app.RunAsync();
 

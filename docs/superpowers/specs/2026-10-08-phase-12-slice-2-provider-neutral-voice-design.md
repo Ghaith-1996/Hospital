@@ -2,7 +2,7 @@
 
 Authorized on 2026-10-08 by the project owner's instruction to start Phase 12 slice 2, and the owner's choice of a provider-neutral voice boundary over an ACS Call Automation adapter. Baseline: `main` at `31447c0` (PR #9, slice 1 ACS SMS, merged; full local gate passed with the test-only fix in PR #14). Branch: `feature/phase-12-slice-2-voice`.
 
-Status: **design only, for owner review.** No code is written until this design is approved.
+Status: the owner approved this design on 2026-10-08 ("go ahead"). Implemented and locally verified with the test-only reference provider; the owner's review of the slice is pending. No real voice provider exists.
 
 ## Why provider-neutral
 
@@ -131,7 +131,7 @@ Before every network call, the channel writes the ledger row on its own committe
 
 ### Events that arrive before the send commits
 
-A call can be answered seconds after creation, before the worker commits the call ID. Slice 1 relied on Event Grid redelivery (`503`). Voice callback senders may not redeliver, so the voice pipeline does not rely on it. An authenticated event whose call ID is unknown but whose tag matches a committed ledger row is stored in the inbox as `pending-attempt`. The worker applies pending events, in `OccurredAtUtc` order, when it next processes that attempt, and the call ID is checked then. An event whose tag matches no ledger row is accepted and dropped, with nothing stored.
+A call can be answered seconds after creation, before the worker commits the call ID. Slice 1 relied on Event Grid redelivery (`503`). Voice callback senders may not redeliver, so the voice pipeline does not rely on it. An authenticated event whose call ID is unknown but whose tag matches a committed ledger row is stored in `pending_provider_call_events` (the inbox table holds no event payload). The voice channel returns pending events, in `OccurredAtUtc` order, when the worker next processes that attempt, including the pass that records the call ID; the call ID is checked then, and a mismatch is rejected without a state change. An event whose tag matches no ledger row is accepted and dropped, with nothing stored.
 
 ### Configuration (fail closed at startup)
 
@@ -201,8 +201,8 @@ The E2E test writes `TestResults/phase12/voice-e2e-evidence.json`, ignored by gi
 
 ## Data changes
 
-- `provider_send_ledger.operation_fingerprint` (nullable for existing SMS rows; required for voice rows).
-- No new tables. Pending events reuse `inbox_messages` with the `pending-attempt` outcome and a handler per provider.
+- `provider_send_ledger.callback_tag` and `provider_send_ledger.operation_fingerprint` (nullable for existing SMS rows; written for voice rows), with a unique filtered index on `(provider, callback_tag)`.
+- `pending_provider_call_events`: organization, provider, callback tag, external event ID (unique per provider), call ID, kind, end reason, occurred and received times, and the time it was applied or rejected. It holds no number, caller ID or text.
 - New failure categories added to `AlertLiveQueryService` and `src/web/lib/alerts.ts`: `voice-busy`, `voice-declined`, `voice-call-failed`, `voice-playback-incomplete`, `voice-playback-failed`, `voice-call-rejected`, `call-outcome-unconfirmed`.
 
 ## Open decisions (REQUIRES_HOSPITAL_DECISION)

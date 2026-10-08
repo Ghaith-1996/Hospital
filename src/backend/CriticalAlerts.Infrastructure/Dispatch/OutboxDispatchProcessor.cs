@@ -416,12 +416,6 @@ public sealed class OutboxDispatchProcessor(
         }
 
         var scenario = await scenarioStore.GetAsync(alert.OrganizationId, recipient.Channel, cancellationToken);
-        // The actual first-send time, committed on its own connection before the network call: it survives a
-        // rollback of this transaction after the provider accepted the send, and a recreated attempt reuses it.
-        DateTimeOffset? firstSentAtUtc = attempt.Status == DeliveryAttemptStatus.Requested && channel.RequiresDurableFirstSend
-            ? await ProviderSendLedger.GetOrRecordFirstSendAsync(
-                db, alert.OrganizationId, channel.ProviderName, attempt.IdempotencyKey, sendNow, cancellationToken)
-            : null;
         var request = new NotificationDispatchRequest(
             alert.OrganizationId,
             alert.Id,
@@ -436,7 +430,22 @@ public sealed class OutboxDispatchProcessor(
             attempt.Status,
             attempt.RequestedAtUtc,
             attempt.SubmittedAtUtc,
-            firstSentAtUtc);
+            CurrentProviderReference: attempt.ProviderReference);
+        if (attempt.Status == DeliveryAttemptStatus.Requested && channel.RequiresDurableFirstSend)
+        {
+            // The actual first-send time (and any callback tag and settings fingerprint), committed on its own connection
+            // before the network call: it survives a rollback of this transaction after the provider accepted the send,
+            // and a recreated attempt reuses it.
+            var ledger = await ProviderSendLedger.GetOrRecordAsync(db, alert.OrganizationId, channel.ProviderName,
+                attempt.IdempotencyKey, sendNow, channel.DescribeSend(request), cancellationToken);
+            request = request with
+            {
+                FirstSentAtUtc = ledger.FirstSentAtUtc,
+                RecordedSendFingerprint = ledger.OperationFingerprint,
+                FirstProviderInvocation = ledger.Inserted,
+            };
+        }
+
         var dispatch = await channel.DispatchAsync(request, scenario, cancellationToken);
         // A real provider may not have issued a reference yet (definite rejection or ambiguous outcome).
         if (!string.IsNullOrWhiteSpace(dispatch.ProviderReference))

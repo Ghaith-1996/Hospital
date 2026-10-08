@@ -55,7 +55,36 @@ internal sealed class ProviderSendRecordConfiguration : IEntityTypeConfiguration
         builder.Property(entity => entity.Provider).HasColumnName("provider").HasMaxLength(100).IsRequired();
         builder.Property(entity => entity.AttemptIdempotencyKey).HasColumnName("attempt_idempotency_key").HasMaxLength(100).IsRequired();
         builder.Property(entity => entity.FirstSentAtUtc).HasColumnName("first_sent_at_utc").IsRequired();
+        builder.Property(entity => entity.CallbackTag).HasColumnName("callback_tag").HasMaxLength(64);
+        builder.Property(entity => entity.OperationFingerprint).HasColumnName("operation_fingerprint").HasMaxLength(64);
         builder.HasIndex(entity => new { entity.OrganizationId, entity.Provider, entity.AttemptIdempotencyKey }).IsUnique().HasDatabaseName("UX_provider_send_ledger_attempt");
+        builder.HasIndex(entity => new { entity.Provider, entity.CallbackTag }).IsUnique()
+            .HasFilter("callback_tag IS NOT NULL").HasDatabaseName("UX_provider_send_ledger_callback_tag");
+        builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class PendingProviderCallEventConfiguration : IEntityTypeConfiguration<PendingProviderCallEvent>
+{
+    public void Configure(EntityTypeBuilder<PendingProviderCallEvent> builder)
+    {
+        // Written by the callback intake without the alert lock while a send may still be uncommitted.
+        builder.ToTable("pending_provider_call_events");
+        builder.HasKey(entity => entity.Id);
+        builder.Property(entity => entity.Id).HasColumnName("id");
+        builder.Property(entity => entity.OrganizationId).GuidId(value => new OrganizationId(value), id => id.Value, "organization_id");
+        builder.Property(entity => entity.Provider).HasColumnName("provider").HasMaxLength(32).IsRequired();
+        builder.Property(entity => entity.CallbackTag).HasColumnName("callback_tag").HasMaxLength(64).IsRequired();
+        builder.Property(entity => entity.ExternalEventId).HasColumnName("external_event_id").HasMaxLength(64).IsRequired();
+        builder.Property(entity => entity.CallId).HasColumnName("call_id").HasMaxLength(100).IsRequired();
+        builder.Property(entity => entity.Kind).HasColumnName("kind").HasMaxLength(32).IsRequired();
+        builder.Property(entity => entity.EndReason).HasColumnName("end_reason").HasMaxLength(32);
+        builder.Property(entity => entity.OccurredAtUtc).HasColumnName("occurred_at_utc").IsRequired();
+        builder.Property(entity => entity.ReceivedAtUtc).HasColumnName("received_at_utc").IsRequired();
+        builder.Property(entity => entity.AppliedAtUtc).HasColumnName("applied_at_utc");
+        builder.Property(entity => entity.Result).HasColumnName("result").HasMaxLength(32);
+        builder.HasIndex(entity => new { entity.Provider, entity.ExternalEventId }).IsUnique().HasDatabaseName("UX_pending_provider_call_events_event");
+        builder.HasIndex(entity => new { entity.Provider, entity.CallbackTag }).HasDatabaseName("IX_pending_provider_call_events_tag");
         builder.HasOne<Organization>().WithMany().HasForeignKey(entity => entity.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 }

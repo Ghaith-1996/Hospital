@@ -92,9 +92,9 @@ Phase 12 delivers one provider at a time. Slice 1 is Azure Communication Service
 
 Voice, real-recipient enablement, staging deployment, provider contracts and all production communications decisions remain `REQUIRES_HOSPITAL_DECISION` or later slices. Stop for owner review after each slice. Publication, merge and tag remain separate decisions.
 
-## Phase 12 slice 2 (provider-neutral voice): design under review
+## Phase 12 slice 2 (provider-neutral voice)
 
-The owner authorized slice 2 on 2026-10-08 from `main` at `31447c0` and chose a provider-neutral voice boundary instead of an ACS Call Automation adapter, because Microsoft is retiring standalone ACS (no new customers from 2026-10-23; SMS and PSTN retired and Call Automation standalone support ending 2028-09-30). Branch: `feature/phase-12-slice-2-voice`. Follow the [slice 2 design](docs/superpowers/specs/2026-10-08-phase-12-slice-2-provider-neutral-voice-design.md). No code until the owner approves the design. The real voice provider, and now the SMS provider, are `REQUIRES_HOSPITAL_DECISION`. The reference provider is a test-only fake; dialing stays test-number-only; a call never records acknowledgement or responsibility.
+The owner authorized slice 2 on 2026-10-08 from `main` at `31447c0` and chose a provider-neutral voice boundary instead of an ACS Call Automation adapter, because Microsoft is retiring standalone ACS (no new customers from 2026-10-23; SMS and PSTN retired and Call Automation standalone support ending 2028-09-30). The owner approved the design the same day. Branch: `feature/phase-12-slice-2-voice`. Follow the [slice 2 design](docs/superpowers/specs/2026-10-08-phase-12-slice-2-provider-neutral-voice-design.md) and the [architecture](docs/architecture/real-communication-adapters.md#provider-neutral-voice-slice-2). Stop for owner review of the slice. The real voice provider, and now the SMS provider, are `REQUIRES_HOSPITAL_DECISION`. The reference provider is a test-only fake; dialing stays test-number-only; a call never records acknowledgement or responsibility.
 
 ## Phase 11 authorized work
 
