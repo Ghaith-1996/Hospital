@@ -3,6 +3,7 @@ using System;
 using CriticalAlerts.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CriticalAlerts.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CriticalAlertsDbContext))]
-    partial class CriticalAlertsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930000833_Phase12ProviderReferenceLookup")]
+    partial class Phase12ProviderReferenceLookup
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -804,42 +807,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrganizationId", "AlertId", "AlertVersion", "PolicyId", "PolicyVersion");
 
                     b.ToTable("escalation_runs", (string)null);
-                });
-
-            modelBuilder.Entity("CriticalAlerts.Domain.Delivery.ProviderSendRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("AttemptIdempotencyKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("attempt_idempotency_key");
-
-                    b.Property<DateTimeOffset>("FirstSentAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("first_sent_at_utc");
-
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("organization_id");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("provider");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId", "Provider", "AttemptIdempotencyKey")
-                        .IsUnique()
-                        .HasDatabaseName("UX_provider_send_ledger_attempt");
-
-                    b.ToTable("provider_send_ledger", (string)null);
                 });
 
             modelBuilder.Entity("CriticalAlerts.Domain.Delivery.RecipientResponse", b =>
@@ -2037,12 +2004,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("processing_state");
 
-                    b.Property<int>("WorkerFailureCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("worker_failure_count");
-
                     b.HasKey("Id");
 
                     b.HasIndex("IdempotencyKey")
@@ -2473,15 +2434,6 @@ namespace CriticalAlerts.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OrganizationId", "AlertId", "AlertVersion", "PolicyId", "PolicyVersion")
                         .HasPrincipalKey("OrganizationId", "AlertId", "AlertVersion", "PolicyId", "PolicyVersion")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("CriticalAlerts.Domain.Delivery.ProviderSendRecord", b =>
-                {
-                    b.HasOne("CriticalAlerts.Domain.Organizations.Organization", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("CriticalAlerts.Domain.Delivery.RecipientResponse", b =>

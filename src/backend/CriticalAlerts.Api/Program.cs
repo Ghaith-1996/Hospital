@@ -34,6 +34,8 @@ var developmentAuthenticationEnabled = builder.Configuration.GetValue("Developme
 var simulationResponsesEnabled = builder.Configuration.GetValue("SimulationResponses:Enabled", false);
 SimulationResponseEnvironmentGuard.EnsureAllowed(builder.Environment.EnvironmentName, simulationResponsesEnabled);
 builder.Services.AddDevelopmentAuthentication(builder.Environment.EnvironmentName, developmentAuthenticationEnabled);
+var eventGridWebhook = EventGridWebhookSettings.FromConfiguration(builder.Configuration, builder.Environment.EnvironmentName);
+builder.Services.AddEventGridWebhookAuthentication(eventGridWebhook);
 builder.Services.AddOpenApi(options =>
 {
     options.OpenApiVersion = Microsoft.OpenApi.OpenApiSpecVersion.OpenApi3_1;
@@ -77,6 +79,15 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         });
     });
+    options.AddPolicy("webhook", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.MapToIPv6().ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 600,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
 });
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -169,6 +180,7 @@ app.MapDirectoryEndpoints();
 app.MapAuditEndpoints();
 app.MapAlertDraftEndpoints();
 app.MapAssistanceEndpoints();
+app.MapCommunicationWebhookEndpoints(eventGridWebhook);
 
 await app.RunAsync();
 

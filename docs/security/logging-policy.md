@@ -102,3 +102,15 @@ Log access, centralized storage, cross-border transfer, retention, deletion, leg
 ## Speech and AI suggestions
 
 AI assistance forbids audio bytes/digests, transcripts, source text, suggestions, evidence snippets, provider response/error text and keys in logs, audit metadata or metric labels. Committed audits allow only transcription/structuring requested/completed/failed/applied/stale actions with simulation/version metadata. Metrics reuse finite operation labels; no alert/user/patient IDs become metric tags. Runtime sentinel tests exercise successful Apply, failure and stale paths. Evaluation logs contain aggregate counts/rates only; fixtures are fictional and raw evaluation/media/browser artifacts are excluded from git and Docker. Logging may never be enabled to troubleshoot raw provider bodies.
+
+## Real communication adapters (ACS SMS)
+
+Never logged, audited, persisted or returned in problems:
+
+- sender or recipient numbers;
+- the ACS access key and Entra bearer tokens;
+- SMS text;
+- Event Grid `from`, `to`, `subject` and `deliveryStatusDetails`;
+- raw provider responses.
+
+Persisted opaque references: the ACS message ID (the attempt provider reference), the Event Grid event ID (inbox external ID, plus the `acs-eg:` delivery-event ID) and a derived per-attempt tag hash. None of these can identify a person. Audit rows for reports use actor `provider-webhook`, action `dispatch.delivery-event` and only `channel`/`attemptNumber` metadata. The E2E suite scans database rows, captured logs and the evidence artifact for sentinel numbers, keys, tokens and provider text.

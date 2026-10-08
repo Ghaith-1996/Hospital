@@ -48,6 +48,7 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         builder.Property(entity => entity.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(100).IsRequired();
         builder.Property(entity => entity.ProcessingState).HasColumnName("processing_state").HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(entity => entity.AttemptCount).HasColumnName("attempt_count").IsRequired();
+        builder.Property(entity => entity.WorkerFailureCount).HasColumnName("worker_failure_count").HasDefaultValue(0).IsRequired();
         builder.Property(entity => entity.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
         builder.Property(entity => entity.NextAttemptAtUtc).HasColumnName("next_attempt_at_utc").IsRequired();
         builder.Property(entity => entity.ProcessedAtUtc).HasColumnName("processed_at_utc");

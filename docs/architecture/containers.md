@@ -82,3 +82,10 @@ All features default disabled and production decisions remain `REQUIRES_HOSPITAL
 The web Dockerfile installs both root and web build dependencies. Its API rewrite is compiled at build time, defaulting to `http://api:8080`; run the API and web containers on the same Docker network with the API named or aliased `api`. For another internal address, rebuild: `docker build --file src/web/Dockerfile --build-arg CRITICAL_ALERTS_API_URL=http://simulation-api:8080 --tag critical-alerts-web:local .`. Changing the variable on a running container does not change its proxy destination. The URL must contain only the internal service address, never credentials.
 
 `scripts/verify-web-container.ps1` checks the built image against a separate synthetic HTTP fixture on a temporary isolated Docker network and removes its containers afterward; CI and `scripts/test-all.ps1` both run it. Database, identity and response settings remain subject to the Development/Test-only simulation guards.
+
+## Real communication adapters (ACS SMS)
+
+- **Worker:** can replace the simulated SMS channel with the test-number-only `AzureCommunicationServicesSmsChannel` when `Communications:Sms:Provider=AzureCommunicationServices`. Invalid or Production configuration refuses startup.
+- **API:** exposes `POST /api/v1/webhooks/communications/acs-sms` only when `Communications:Webhooks:EventGrid:Enabled=true` outside Production. The route is authenticated by the `EventGridWebhook` JWT scheme and excluded from the client OpenAPI contract.
+
+See [real communication adapters](real-communication-adapters.md).

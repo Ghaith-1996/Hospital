@@ -27,6 +27,9 @@ public sealed class OutboxDispatchProcessor(
     private readonly IReadOnlyDictionary<NotificationChannel, INotificationChannel> channelsByType =
         channels.ToDictionary(channel => channel.ChannelType);
 
+    /// <summary>Synthetic reference for attempts that only await a delivery report; never resolves to a recipient.</summary>
+    internal const string AwaitingReportEndpointReference = "SIM-AWAITING-REPORT";
+
     public async Task<DispatchProcessingResult> ProcessNextAsync(
         string leaseOwner,
         CancellationToken cancellationToken)
@@ -281,7 +284,12 @@ public sealed class OutboxDispatchProcessor(
             return new DispatchProcessingResult(true, false, false, message.Id.Value, "processed");
         }
 
-        if (message.EventType != "EscalationDispatchRequested" && alert.State is AlertState.DispatchQueued or AlertState.Active)
+        // The original dispatch only aggregates its own recipients. A late primary failure (for example an SMS
+        // report timeout) must not fail the whole alert, or stop escalation, while approved backup work has been
+        // delivered, is still pending, or holds accepted responsibility: the primary failure stays visible on its
+        // attempts, this outbox row and the live warnings, and the workflow remains resolvable.
+        if (message.EventType != "EscalationDispatchRequested" && alert.State is AlertState.DispatchQueued or AlertState.Active
+            && !await HasContinuingBackupWorkAsync(alert, attempts, cancellationToken))
         {
             alert.MarkFailed(now, correlationId);
             await FailOpenEscalationRunAsync(alert, now, cancellationToken);
@@ -326,104 +334,73 @@ public sealed class OutboxDispatchProcessor(
             return RecipientProcessingResult.None;
         }
 
-        if (!practitioners.TryGetValue(recipient.PractitionerId, out var practitioner))
+        if (latest?.Status is DeliveryAttemptStatus.Requested or DeliveryAttemptStatus.Submitted
+            && (!channelsByType.TryGetValue(latest.Channel, out var sender)
+                || !string.Equals(sender.ProviderName, latest.Provider, StringComparison.Ordinal)))
         {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "practitioner-missing",
-                correlationId,
-                now,
-                cancellationToken);
+            // The provider that may have sent this attempt is no longer configured. A different provider never
+            // sent it and cannot confirm or resend it, so the outcome is visibly unconfirmed (manual fallback).
+            latest.MarkFailed("delivery-unconfirmed", now);
+            AddAudit(alert.OrganizationId, latest.Id.Value, "dispatch.failed", "failed", correlationId, now, new
+            {
+                channel = recipient.Channel.ToString(),
+                attempt = latest.AttemptNumber,
+                error = "delivery-unconfirmed",
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return RecipientProcessingResult.None;
         }
 
-        if (!practitioner.IsActive)
+        INotificationChannel channel;
+        string endpointReference;
+        if (latest?.Status == DeliveryAttemptStatus.Submitted)
         {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "practitioner-inactive",
-                correlationId,
-                now,
-                cancellationToken);
+            // Accepted by its provider: only the delivery-report window remains. Directory changes after acceptance
+            // (removed endpoint, inactive practitioner, invalid role) cannot fail, resend or strand it, and no
+            // recipient lookup is needed, so the provider receives a fixed non-routable reference.
+            channel = channelsByType[latest.Channel];
+            endpointReference = AwaitingReportEndpointReference;
+        }
+        else
+        {
+            var route = ResolveRoute(alert, allowedChannels, recipient, practitioners, roles, endpoints);
+            if (route.FailureCategory is not null)
+            {
+                return await HandleRecipientFailureAsync(
+                    message,
+                    alert,
+                    recipient,
+                    latest,
+                    attempts,
+                    route.FailureCategory,
+                    correlationId,
+                    now,
+                    cancellationToken);
+            }
+
+            channel = route.Channel!;
+            endpointReference = route.EndpointReference!;
         }
 
-        if (recipient.PractitionerRoleId is PractitionerRoleId selectedRole
-            && (!roles.TryGetValue(selectedRole, out var role)
-                || role.PractitionerId != practitioner.Id
-                || role.OrganizationId != alert.OrganizationId))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "role-invalid",
-                correlationId,
-                now,
-                cancellationToken);
-        }
-
-        if (!allowedChannels.Contains(recipient.Channel))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "channel-not-allowed",
-                correlationId,
-                now,
-                cancellationToken);
-        }
-
-        if (!channelsByType.TryGetValue(recipient.Channel, out var channel))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "channel-unavailable",
-                correlationId,
-                now,
-                cancellationToken);
-        }
-
-        var endpointKind = ToEndpointKind(recipient.Channel);
-        var endpoint = endpoints
-            .Where(item => item.PractitionerId == practitioner.Id && item.Kind == endpointKind)
-            .OrderByDescending(item => item.IsPrimary)
-            .ThenBy(item => item.Id.Value)
-            .FirstOrDefault();
-        if (endpoint is null || !IsSafeSimulationReference(endpoint.SimulationLabel, "SIM-"))
-        {
-            return await HandleRecipientFailureAsync(
-                message,
-                alert,
-                recipient,
-                latest,
-                attempts,
-                "endpoint-unavailable",
-                correlationId,
-                now,
-                cancellationToken);
-        }
-
+        // Read the clock at this recipient's send boundary, after the claim, the alert lock and earlier recipients:
+        // the pass-start time can already be older than the provider's replay window.
+        var sendNow = RequireUtc(time.GetUtcNow(), "worker clock");
         var attempt = latest;
         if (attempt is null
             || attempt.Status == DeliveryAttemptStatus.Failed)
         {
             var attemptNumber = (latest?.AttemptNumber ?? 0) + 1;
+            var attemptKey = CreateAttemptIdempotencyKey(alert, recipient, attemptNumber);
+            // A rolled-back dispatch transaction leaves no attempt row, but a provider that already sent this key
+            // committed it to the send ledger. Never let a different (or default simulated) provider stand in.
+            var originalProvider = await db.ProviderSendRecords.AsNoTracking()
+                .Where(row => row.OrganizationId == alert.OrganizationId && row.AttemptIdempotencyKey == attemptKey)
+                .Select(row => row.Provider)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (originalProvider is not null && !string.Equals(originalProvider, channel.ProviderName, StringComparison.Ordinal))
+                return await FailUnconfirmedRecreatedAttemptAsync(alert, recipient, attemptNumber, attemptKey, originalProvider,
+                    attempts, correlationId, sendNow, cancellationToken);
+
             attempt = DeliveryAttempt.CreateRequested(
                 DeliveryAttemptId.New(),
                 alert.OrganizationId,
@@ -431,28 +408,39 @@ public sealed class OutboxDispatchProcessor(
                 recipient.Id,
                 recipient.Channel,
                 attemptNumber,
-                CreateAttemptIdempotencyKey(alert, recipient, attemptNumber),
+                attemptKey,
                 channel.ProviderName,
-                now);
+                sendNow);
             db.DeliveryAttempts.Add(attempt);
             attempts.Add(attempt);
         }
 
         var scenario = await scenarioStore.GetAsync(alert.OrganizationId, recipient.Channel, cancellationToken);
+        // The actual first-send time, committed on its own connection before the network call: it survives a
+        // rollback of this transaction after the provider accepted the send, and a recreated attempt reuses it.
+        DateTimeOffset? firstSentAtUtc = attempt.Status == DeliveryAttemptStatus.Requested && channel.RequiresDurableFirstSend
+            ? await ProviderSendLedger.GetOrRecordFirstSendAsync(
+                db, alert.OrganizationId, channel.ProviderName, attempt.IdempotencyKey, sendNow, cancellationToken)
+            : null;
         var request = new NotificationDispatchRequest(
             alert.OrganizationId,
             alert.Id,
             alert.DraftVersion,
             recipient.Id,
             recipient.Channel,
-            endpoint.SimulationLabel,
+            endpointReference,
             $"alert:{alert.Id.Value:N}:v{alert.DraftVersion.Value}",
             WakeUpText(policy, recipient.Channel),
             attempt.IdempotencyKey,
             correlationId,
-            attempt.Status);
+            attempt.Status,
+            attempt.RequestedAtUtc,
+            attempt.SubmittedAtUtc,
+            firstSentAtUtc);
         var dispatch = await channel.DispatchAsync(request, scenario, cancellationToken);
-        attempt.SetProviderReference(dispatch.ProviderReference);
+        // A real provider may not have issued a reference yet (definite rejection or ambiguous outcome).
+        if (!string.IsNullOrWhiteSpace(dispatch.ProviderReference))
+            attempt.SetProviderReference(dispatch.ProviderReference);
         var events = dispatch.Events ?? [];
         var providerEventIds = events
             .Where(item => !string.IsNullOrWhiteSpace(item.ProviderEventId))
@@ -493,7 +481,9 @@ public sealed class OutboxDispatchProcessor(
             });
         }
 
-        if (events.Count == 0 && attempt.Status == DeliveryAttemptStatus.Requested)
+        // A retryable result without events is an ambiguous provider outcome: the attempt stays Requested so
+        // the next pass reuses the same idempotency key. The adapter bounds that window and then fails visibly.
+        if (events.Count == 0 && attempt.Status == DeliveryAttemptStatus.Requested && !dispatch.Retryable)
         {
             attempt.MarkFailed("provider-no-result", now);
         }
@@ -508,6 +498,79 @@ public sealed class OutboxDispatchProcessor(
         return new RecipientProcessingResult(retryRequested, retryRequested ? retryAt : null);
     }
 
+    /// <summary>
+    /// Records a recreated attempt that another provider already sent as visibly unconfirmed, keeping that
+    /// provider's provenance. It is never dispatched, so no other provider can claim its delivery.
+    /// </summary>
+    private async Task<RecipientProcessingResult> FailUnconfirmedRecreatedAttemptAsync(
+        Alert alert,
+        AlertRecipientSelection recipient,
+        int attemptNumber,
+        string attemptKey,
+        string originalProvider,
+        ICollection<DeliveryAttempt> attempts,
+        string correlationId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var attempt = DeliveryAttempt.CreateRequested(
+            DeliveryAttemptId.New(),
+            alert.OrganizationId,
+            alert.Id,
+            recipient.Id,
+            recipient.Channel,
+            attemptNumber,
+            attemptKey,
+            originalProvider,
+            now);
+        attempt.MarkFailed("delivery-unconfirmed", now);
+        db.DeliveryAttempts.Add(attempt);
+        attempts.Add(attempt);
+        AddAudit(alert.OrganizationId, attempt.Id.Value, "dispatch.failed", "failed", correlationId, now, new
+        {
+            channel = recipient.Channel.ToString(),
+            attempt = attempt.AttemptNumber,
+            error = "delivery-unconfirmed",
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return RecipientProcessingResult.None;
+    }
+
+    /// <summary>Directory and policy checks for a new or not-yet-accepted attempt, in their original order.</summary>
+    private RecipientRoute ResolveRoute(
+        Alert alert,
+        IReadOnlySet<NotificationChannel> allowedChannels,
+        AlertRecipientSelection recipient,
+        IReadOnlyDictionary<PractitionerId, Practitioner> practitioners,
+        IReadOnlyDictionary<PractitionerRoleId, PractitionerRoleAssignment> roles,
+        IReadOnlyCollection<ContactEndpoint> endpoints)
+    {
+        if (!practitioners.TryGetValue(recipient.PractitionerId, out var practitioner))
+            return RecipientRoute.Failure("practitioner-missing");
+        if (!practitioner.IsActive)
+            return RecipientRoute.Failure("practitioner-inactive");
+        if (recipient.PractitionerRoleId is PractitionerRoleId selectedRole
+            && (!roles.TryGetValue(selectedRole, out var role)
+                || role.PractitionerId != practitioner.Id
+                || role.OrganizationId != alert.OrganizationId))
+            return RecipientRoute.Failure("role-invalid");
+        if (!allowedChannels.Contains(recipient.Channel))
+            return RecipientRoute.Failure("channel-not-allowed");
+        if (!channelsByType.TryGetValue(recipient.Channel, out var channel))
+            return RecipientRoute.Failure("channel-unavailable");
+
+        var endpointKind = ToEndpointKind(recipient.Channel);
+        var endpoint = endpoints
+            .Where(item => item.PractitionerId == practitioner.Id && item.Kind == endpointKind)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenBy(item => item.Id.Value)
+            .FirstOrDefault();
+        if (endpoint is null || !IsSafeSimulationReference(endpoint.SimulationLabel, "SIM-"))
+            return RecipientRoute.Failure("endpoint-unavailable");
+
+        return new RecipientRoute(channel, endpoint.SimulationLabel, null);
+    }
+
     private async Task<RecipientProcessingResult> HandleRecipientFailureAsync(
         OutboxMessage message,
         Alert alert,
@@ -519,22 +582,18 @@ public sealed class OutboxDispatchProcessor(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (latest?.Status is DeliveryAttemptStatus.Submitted or DeliveryAttemptStatus.Requested)
+        // Submitted attempts never reach this method: they only await their report and skip routing checks.
+        if (latest?.Status == DeliveryAttemptStatus.Requested)
         {
-            if (latest.Status == DeliveryAttemptStatus.Requested)
+            latest.MarkFailed(category, now);
+            AddAudit(alert.OrganizationId, latest.Id.Value, "dispatch.failed", "failed", correlationId, now, new
             {
-                latest.MarkFailed(category, now);
-                AddAudit(alert.OrganizationId, latest.Id.Value, "dispatch.failed", "failed", correlationId, now, new
-                {
-                    channel = recipient.Channel.ToString(),
-                    attempt = latest.AttemptNumber,
-                    error = category,
-                });
-                await db.SaveChangesAsync(cancellationToken);
-                return RecipientProcessingResult.None;
-            }
-
-            return new RecipientProcessingResult(true, now.AddSeconds(1));
+                channel = recipient.Channel.ToString(),
+                attempt = latest.AttemptNumber,
+                error = category,
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            return RecipientProcessingResult.None;
         }
 
         if (latest is not null)
@@ -577,8 +636,12 @@ public sealed class OutboxDispatchProcessor(
         CancellationToken cancellationToken)
     {
         var next = retryAtUtc < now ? now : retryAtUtc;
+        // Waiting for a provider delivery report re-polls every retry delay; audit only the start of a wait,
+        // so a pending report does not create one retry record (and retry metric) per poll.
+        var continuingWait = category == "delivery-pending"
+            && string.Equals(message.LastErrorCategory, category, StringComparison.Ordinal);
         message.ScheduleRetry(leaseOwner, now, next, category);
-        AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.retry-scheduled", "succeeded", $"dispatch:{message.Id.Value:N}", now, new
+        if (!continuingWait) AddAudit(alert.OrganizationId, alert.Id.Value, "dispatch.retry-scheduled", "succeeded", $"dispatch:{message.Id.Value:N}", now, new
         {
             nextAttemptAtUtc = next,
             reason = category,
@@ -609,7 +672,9 @@ public sealed class OutboxDispatchProcessor(
 
         var alert = await db.Alerts.SingleOrDefaultAsync(item => item.OrganizationId == message.OrganizationId
             && item.Id == alertId, cancellationToken);
-        var shouldFail = permanent || message.AttemptCount >= workerOptions.MaxAttempts;
+        // Count only real worker failures: routine re-polls while awaiting a delivery report also reclaim the row.
+        message.RecordWorkerFailure(leaseOwner);
+        var shouldFail = permanent || message.WorkerFailureCount >= workerOptions.MaxAttempts;
         if (shouldFail)
         {
             if (message.EventType != "EscalationDispatchRequested" && alert is not null)
@@ -637,6 +702,34 @@ public sealed class OutboxDispatchProcessor(
         return shouldFail
             ? new DispatchProcessingResult(false, false, true, message.Id.Value, "permanently-failed")
             : new DispatchProcessingResult(false, true, false, message.Id.Value, "rescheduled");
+    }
+
+    /// <summary>
+    /// Approved escalation work for the confirmed version that keeps the alert workable: a backup attempt that was
+    /// delivered or is still in flight, a queued backup dispatch, or an accepted, unreleased responsibility.
+    /// </summary>
+    private async Task<bool> HasContinuingBackupWorkAsync(
+        Alert alert,
+        IEnumerable<DeliveryAttempt> attempts,
+        CancellationToken cancellationToken)
+    {
+        var backupSelections = alert.CurrentRecipients
+            .Where(item => item.SelectionSource == RecipientSelectionSource.EscalationPolicy)
+            .Select(item => item.Id)
+            .ToHashSet();
+        if (attempts.Any(item => backupSelections.Contains(item.RecipientSelectionId)
+                && item.Status is DeliveryAttemptStatus.Delivered or DeliveryAttemptStatus.Requested or DeliveryAttemptStatus.Submitted))
+            return true;
+
+        var aggregateId = alert.Id.Value;
+        if (await db.OutboxMessages.AsNoTracking().AnyAsync(item => item.OrganizationId == alert.OrganizationId
+                && item.AggregateId == aggregateId && item.EventType == "EscalationDispatchRequested"
+                && (item.ProcessingState == OutboxProcessingState.Pending || item.ProcessingState == OutboxProcessingState.Processing),
+                cancellationToken))
+            return true;
+
+        return await db.ResponsibilityAssignments.AsNoTracking().AnyAsync(item => item.OrganizationId == alert.OrganizationId
+            && item.AlertId == alert.Id && item.AlertVersion == alert.DraftVersion && item.ReleasedAtUtc == null, cancellationToken);
     }
 
     private async Task FailOpenEscalationRunAsync(Alert alert, DateTimeOffset now, CancellationToken cancellationToken)
@@ -748,10 +841,11 @@ public sealed class OutboxDispatchProcessor(
         string? fallbackFailureCategory,
         string providerReference)
     {
-        attempt.SetProviderReference(providerReference);
+        if (!string.IsNullOrWhiteSpace(providerReference))
+            attempt.SetProviderReference(providerReference);
         switch (normalized.Status)
         {
-            case DeliveryAttemptStatus.Submitted:
+            case DeliveryAttemptStatus.Submitted when !string.IsNullOrWhiteSpace(providerReference):
                 attempt.MarkSubmitted(providerReference, normalized.OccurredAtUtc);
                 break;
             case DeliveryAttemptStatus.Delivered:
@@ -895,6 +989,11 @@ public sealed class OutboxDispatchProcessor(
             : throw new DispatchValidationException("clock-not-utc", $"The {name} must be UTC.");
 
     private sealed record ParsedDispatchPayload(AlertId AlertId, int DraftVersion, Guid[]? RecipientSelectionIds);
+
+    private sealed record RecipientRoute(INotificationChannel? Channel, string? EndpointReference, string? FailureCategory)
+    {
+        public static RecipientRoute Failure(string category) => new(null, null, category);
+    }
 
     private sealed record RecipientProcessingResult(bool RetryRequested, DateTimeOffset? RetryAtUtc)
     {

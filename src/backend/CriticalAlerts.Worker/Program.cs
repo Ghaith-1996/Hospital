@@ -37,11 +37,14 @@ if (simulationDispatchEnabled)
         .Bind(builder.Configuration.GetSection("SimulationDispatch"))
         .PostConfigure(options => options.Enabled = true);
     builder.Services.AddSimulationDispatch();
+    builder.Services.AddConfiguredSmsProvider(builder.Configuration, builder.Environment.EnvironmentName);
     if (simulationEscalationEnabled) builder.Services.AddScoped<EscalationProcessor>();
     builder.Services.AddHostedService<SimulationDispatchWorker>();
 }
 else
 {
+    // Validate even when dispatch is off so a misconfigured provider cannot wait silently for enablement.
+    _ = AcsSmsOptions.FromConfiguration(builder.Configuration, builder.Environment.EnvironmentName);
     builder.Services.AddHostedService<PlatformWorker>();
 }
 

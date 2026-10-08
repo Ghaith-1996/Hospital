@@ -78,6 +78,20 @@ Before claiming a phase complete:
 - Run the relevant format, build, test, typecheck, lint, integration, and security checks for the phase.
 - State anything not run and why.
 
+## Phase 12 authorized work (slice 1: ACS SMS)
+
+The project owner authorized Phase 12 on 2026-09-29, starting from `main` at `9209b41` after Phase 11 merged through PR #8. That authorization supersedes the "No Phase 12" instruction below. Branch: `feature/phase-12-real-communication-adapter`. Follow the [slice 1 design](docs/superpowers/specs/2026-09-29-phase-12-acs-sms-adapter-design.md) and the [architecture](docs/architecture/real-communication-adapters.md).
+
+Phase 12 delivers one provider at a time. Slice 1 is Azure Communication Services SMS only:
+
+- It is test-number-only. Directory contact values are never read.
+- The Simulation provider remains the default.
+- Configuration fails closed, and Production is refused.
+- Provider acceptance is recorded only as `Submitted`.
+- Only an Entra-authenticated Event Grid delivery report can set `Delivered`.
+
+Voice, real-recipient enablement, staging deployment, provider contracts and all production communications decisions remain `REQUIRES_HOSPITAL_DECISION` or later slices. Stop for owner review after each slice. Publication, merge and tag remain separate decisions.
+
 ## Phase 11 authorized work
 
 The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.

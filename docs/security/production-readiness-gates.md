@@ -100,3 +100,19 @@ Every item remains REQUIRES_HOSPITAL_DECISION: audit retention; audit export/leg
 The owner approved Phase 10 on 2026-09-19; Phase 11 starts at acceptance commit da7f444. The Phase 11 speech-and-AI-suggestions design and architecture supersede earlier no-AI/no-Phase-11 boundaries for this simulation only. Implementation and the complete local gate passed on `9e3af0a6f6fbff46c8995073a4e4f617d1fb2902`; project-owner Phase 11 acceptance remains pending. Provider output is immutable protected suggestion evidence; human Apply is required before normal draft mutation. All features default disabled, typing remains primary, raw audio is never retained, and production decisions remain REQUIRES_HOSPITAL_DECISION. No Phase 12.
 
 Phase 11 does not approve real speech/LLM processing. REQUIRES_HOSPITAL_DECISION: written permission for real data; provider/residency/subprocessor/retention/training terms; raw audio policy; supported clinical terminology/languages; production accuracy and uncertainty thresholds; operator training/correction policy; AI incident ownership; real-provider monitoring and rollback. The Azure adapter is a disabled, opt-in fictional test path. Normal CI and browser gates must remain network-free with simulated providers.
+
+## Phase 12 authorized work (slice 1: ACS SMS)
+
+Slice 1 delivers a test-number-only ACS SMS adapter and a signed Event Grid delivery-report webhook. Both are locally verified with fake transports and test tokens only. Neither approves production messaging.
+
+Open gates:
+
+- [ ] A fake-data staging run against a real ACS resource and Event Grid subscription passes.
+- [ ] A handset check confirms that no patient detail reaches SMS.
+- [ ] Provider legal and account prerequisites are complete: contract, subprocessors, residency, sender registration and opt-out handling.
+- [ ] Delivery-report and uncertain-outcome windows are approved. They are DEMO values today.
+- [ ] The real Microsoft.EventGrid application ID is verified in the tenant's cloud and configured as `SenderApplicationId`; tokens from the subscription-writer app are confirmed rejected.
+- [ ] SMS repeatability is verified against the real service: same-key replay acceptance, retention and `412` behavior. Microsoft documents these only for Email and Rooms.
+- [ ] Event Grid delivery batching (if enabled) fits 50 events and 64 KiB, and dead-letter handling is documented. The E2E fixtures disable rate limiting, so the limiter is not validated there.
+- [ ] Real-recipient enablement is approved. It is not implemented.
+- [ ] Voice/call automation is delivered in a separate slice.

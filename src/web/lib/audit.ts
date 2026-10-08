@@ -1,6 +1,9 @@
 import { isAlertApiError, requestJson } from "./alerts";
 
+// Must equal AuditSafety.Actions in the backend (checked by tests/audit-vocabulary-contract.test.tsx).
 export const auditActions = [
+  "transcription.requested", "transcription.completed", "transcription.failed", "transcription.applied", "transcription.stale",
+  "structuring.requested", "structuring.completed", "structuring.failed", "structuring.applied", "structuring.stale",
   "alert.draft.created", "alert.draft.updated", "alert.critical-field.confirmed", "alert.draft.submitted",
   "alert.approved-message.updated", "alert.recipients.replaced", "alert.confirmed", "alert.resolved", "alert.cancelled",
   "recipient.opened", "recipient.response.acknowledged", "recipient.response.accepted", "recipient.response.declined",
@@ -24,7 +27,7 @@ const countKeys = ["version", "alertVersion", "draftVersion", "recipientCount", 
 const channels = ["SecureMessage", "Sms", "Voice"];
 const responseTypes = ["Acknowledged", "Accepted", "Declined", "Unavailable", "CallUnitRequested"];
 const filterNames = ["occurredFromUtc", "occurredToUtc", "action", "outcome", "resourceType", "correlationId"];
-const actors = ["user", "worker", "SimulationWorker", "system"];
+const actors = ["user", "worker", "SimulationWorker", "system", "provider-webhook"];
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function allowed(value: unknown, values: string[]): value is string { return typeof value === "string" && (value === "unknown" || values.includes(value)); }
 function opaque(value: unknown): value is string { return typeof value === "string" && uuid.test(value); }

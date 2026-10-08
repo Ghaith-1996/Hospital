@@ -80,7 +80,7 @@ public static class AuditSafety
     {
         "occurredFromUtc", "occurredToUtc", "action", "outcome", "resourceType", "correlationId",
     }.ToFrozenSet(StringComparer.Ordinal);
-    private static readonly FrozenSet<string> Actors = new[] { "user", "worker", "SimulationWorker", "system" }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> Actors = new[] { "user", "worker", "SimulationWorker", "system", "provider-webhook" }.ToFrozenSet(StringComparer.Ordinal);
 
     public static bool IsSafeCorrelationId(string? value)
         => value is not null && (value.Length == 32 && Guid.TryParseExact(value, "N", out _)

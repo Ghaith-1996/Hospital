@@ -46,7 +46,11 @@ public sealed class OutboxMessage
 
     public OutboxProcessingState ProcessingState { get; private set; }
 
+    /// <summary>Lease claims, including routine re-polls while a provider delivery report is awaited.</summary>
     public int AttemptCount { get; private set; }
+
+    /// <summary>Unexpected worker failures only; this, not the claim count, is the bounded failure budget.</summary>
+    public int WorkerFailureCount { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
@@ -163,6 +167,12 @@ public sealed class OutboxMessage
         LastErrorCategory = errorCategory.Trim();
         LeaseOwner = null;
         LeaseExpiresAtUtc = null;
+    }
+
+    public void RecordWorkerFailure(string leaseOwner)
+    {
+        EnsureLeaseOwner(leaseOwner);
+        WorkerFailureCount++;
     }
 
     public void MarkFailed(string leaseOwner, DateTimeOffset failedAtUtc, string errorCategory)

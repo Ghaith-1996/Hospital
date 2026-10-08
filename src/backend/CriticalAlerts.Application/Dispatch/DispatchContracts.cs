@@ -15,7 +15,10 @@ public sealed record NotificationDispatchRequest(
     string WakeUpText,
     string IdempotencyKey,
     string CorrelationId,
-    DeliveryAttemptStatus CurrentAttemptStatus = DeliveryAttemptStatus.Requested);
+    DeliveryAttemptStatus CurrentAttemptStatus = DeliveryAttemptStatus.Requested,
+    DateTimeOffset? AttemptRequestedAtUtc = null,
+    DateTimeOffset? SubmittedAtUtc = null,
+    DateTimeOffset? FirstSentAtUtc = null);
 
 public sealed record NotificationProviderEvent(
     string ProviderEventId,
@@ -44,6 +47,12 @@ public interface INotificationChannel
     NotificationChannel ChannelType { get; }
 
     string ProviderName { get; }
+
+    /// <summary>
+    /// True when the provider identifies replays by a first-send time that must be committed before the network
+    /// call (for example ACS repeatable requests); the worker then supplies <see cref="NotificationDispatchRequest.FirstSentAtUtc"/>.
+    /// </summary>
+    bool RequiresDurableFirstSend => false;
 
     Task<NotificationDispatchResult> DispatchAsync(
         NotificationDispatchRequest request,
